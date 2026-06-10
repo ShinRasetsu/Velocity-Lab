@@ -1,73 +1,371 @@
-@echo off
-SETLOCAL ENABLEDELAYEDEXPANSION
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Velocity-Lab Telemetry</title>
+    
+    <!-- PWA Manifest & App Identity -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#050505">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #050505;
+            color: #ffffff;
+            overscroll-behavior: none;
+            user-select: none;
+            touch-action: none;
+        }
 
-:: --- CONFIGURATION ---
-SET REPO_DIR=%~dp0
-SET REMOTE_URL=https://github.com/ShinRasetsu/Velocity-Lab.git
-cd /d "%REPO_DIR%"
+        .lcd-text {
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.05em;
+        }
 
-echo [SYSTEM] Initializing Velocity-Lab PWA Cloud Sync...
+        .neon-accent {
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        .neon-warning {
+            text-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
+        }
 
-:: --- GIT INITIALIZATION FAILSAVE ---
-if not exist ".git" (
-    echo [LOG] Local Git repository not found. Initializing...
-    git init
-    git branch -M main
-)
+        .neon-danger {
+            text-shadow: 0 0 10px rgba(255, 51, 102, 0.5);
+        }
 
-:: --- REMOTE CONFIGURATION ---
-git remote -v | findstr "origin" >nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [LOG] Remote 'origin' missing. Binding to %REMOTE_URL%...
-    git remote add origin %REMOTE_URL%
-) else (
-    :: Force URL update in case it is still pointing to an old MotoNexus repository
-    git remote set-url origin %REMOTE_URL%
-)
+        .metric-card {
+            background-color: rgba(17, 24, 39, 0.5);
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-between p-4 overflow-hidden">
 
-:: --- BRANCH DETECTION ---
-:: Suppress stderr in case rev-parse fails on a completely empty, commit-less repository
-for /f "tokens=*" %%i in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set CURRENT_BRANCH=%%i
+    <!-- Header Section: Diagnostics & Status -->
+    <header class="w-full flex justify-between items-start text-xs text-gray-500 uppercase font-bold tracking-widest mt-2">
+        <div class="flex flex-col gap-1">
+            <span id="status-indicator" class="text-yellow-500 neon-warning">ACQUIRING FIX...</span>
+            <span id="accuracy-display">ACC: -- m</span>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+            <span id="update-rate">IMU: FILTERED</span>
+            <span id="wake-lock-status" class="text-red-500 neon-danger">WAKELOCK: OFF</span>
+        </div>
+    </header>
 
-:: Fallback if branch is empty or in detached HEAD state
-if "!CURRENT_BRANCH!"=="" set CURRENT_BRANCH=main
-if "!CURRENT_BRANCH!"=="HEAD" set CURRENT_BRANCH=main
+    <!-- Main Section: Velocity Readout -->
+    <main class="flex flex-col items-center justify-center flex-1 w-full">
+        <div class="relative flex items-baseline">
+            <span id="speed-display" class="text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text neon-accent text-[#00ff88]">0.0</span>
+            <span class="text-2xl sm:text-4xl font-bold text-gray-400 ml-2 mb-4 sm:mb-8">km/h</span>
+        </div>
+        
+        <!-- RPM/Speed Visualization Bar -->
+        <div class="w-full max-w-md h-2 bg-gray-900 rounded-full mt-6 overflow-hidden relative">
+            <div id="speed-bar" class="absolute top-0 left-0 h-full bg-[#00ff88] w-0 transition-all duration-75 ease-linear"></div>
+        </div>
+    </main>
 
-echo [LOG] Detected active branch: !CURRENT_BRANCH!
+    <!-- Footer Section: Advanced Telemetry Matrix -->
+    <footer class="w-full grid grid-cols-3 gap-2 border-t border-gray-800 pt-4 mb-2 text-center h-auto">
+        
+        <!-- Row 1 -->
+        <div class="metric-card">
+            <span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Max Speed</span>
+            <span id="max-speed" class="text-lg font-bold text-white lcd-text">0.0</span>
+        </div>
+        <div class="metric-card">
+            <span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">0-100 km/h</span>
+            <span id="timer-0-100" class="text-lg font-bold text-yellow-400 lcd-text">--.--- s</span>
+        </div>
+        <div class="metric-card">
+            <span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Peak G</span>
+            <span id="peak-g" class="text-lg font-bold text-[#00ff88] lcd-text">0.00</span>
+        </div>
 
-:: --- DETERMINISTIC TIMESTAMPING ---
-:: Extracts YYYYMMDDHHMMSS format regardless of Windows OS regional locale settings
-for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set datetime=%%I
-set mydate=%datetime:~0,4%-%datetime:~4,2%-%datetime:~6,2%
-set mytime=%datetime:~8,2%:%datetime:~10,2%:%datetime:~12,2%
-SET COMMIT_MSG=Velocity-Lab PWA Update: !mydate! [!mytime!]
+        <!-- Row 2 -->
+        <div class="metric-card">
+            <span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Long G (Accel)</span>
+            <span id="long-g" class="text-lg font-bold text-white lcd-text">0.00</span>
+        </div>
+        <div class="metric-card">
+            <span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Lat G (Turn)</span>
+            <span id="lat-g" class="text-lg font-bold text-white lcd-text">0.00</span>
+        </div>
+        <div class="metric-card">
+            <span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Heading</span>
+            <span id="heading-display" class="text-lg font-bold text-gray-300 lcd-text">---&deg;</span>
+        </div>
+    </footer>
 
-:: --- GIT PIPELINE ---
-echo [LOG] Staging PWA telemetry and UI payload...
-git add .
+    <script>
+        // -----------------------------------------------------------------------------
+        // SYSTEM CONFIGURATION & CONSTANTS
+        // -----------------------------------------------------------------------------
+        const LERP_FACTOR = 0.15;
+        const MS_TO_KMPH = 3.6;
+        const BAR_MAX_SPEED = 200.0;
+        const GRAVITY_MS2 = 9.80665;
+        
+        // IMU Low-Pass Filter constant (0.0 to 1.0)
+        // Lower = more smoothing (rejects engine vibration), Higher = faster response
+        const IMU_ALPHA = 0.1; 
 
-:: Check for changes before committing
-git diff-index --quiet HEAD -- 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    git commit -m "!COMMIT_MSG!"
-    echo [LOG] Committing payload: "!COMMIT_MSG!"
-) else (
-    echo [INFO] No changes detected. Proceeding to remote sync check...
-)
+        // -----------------------------------------------------------------------------
+        // STATE MANAGEMENT
+        // -----------------------------------------------------------------------------
+        let watchId = null;
+        let wakeLock = null;
+        
+        // Velocity State
+        let targetSpeedKmph = 0.0;
+        let displaySpeedKmph = 0.0;
+        let maxSpeedKmph = 0.0;
 
-:: Force upstream tracking (-u) critical for the first deployment to a new repo
-echo [LOG] Pushing to origin/!CURRENT_BRANCH!...
-git push -u origin !CURRENT_BRANCH!
+        // Kinematic State (G-Force)
+        let filteredAccelX = 0.0; // Lateral
+        let filteredAccelZ = 0.0; // Longitudinal
+        let peakG = 0.0;
 
-:: --- ERROR HANDLING ---
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo [CRITICAL] Sync failed. 
-    echo [CHECK] 1. GitHub Authentication Active? 2. Network? 3. Merge conflicts present?
-    pause
-    exit /b 1
-)
+        // 0-100 Performance Timer State
+        // States: 'IDLE', 'RUNNING', 'COMPLETED'
+        let timerState = 'IDLE'; 
+        let timerStartTime = 0;
+        let timerResultMs = 0;
 
-echo.
-echo [SUCCESS] Velocity-Lab PWA Cloud Sync Complete.
-timeout /t 3 >nul
+        // -----------------------------------------------------------------------------
+        // DOM ELEMENT CACHING
+        // -----------------------------------------------------------------------------
+        const dom = {
+            speedDisplay: document.getElementById('speed-display'),
+            maxSpeed: document.getElementById('max-speed'),
+            accuracy: document.getElementById('accuracy-display'),
+            status: document.getElementById('status-indicator'),
+            heading: document.getElementById('heading-display'),
+            speedBar: document.getElementById('speed-bar'),
+            wakeLock: document.getElementById('wake-lock-status'),
+            longG: document.getElementById('long-g'),
+            latG: document.getElementById('lat-g'),
+            peakG: document.getElementById('peak-g'),
+            timer0to100: document.getElementById('timer-0-100')
+        };
+
+        // -----------------------------------------------------------------------------
+        // PROGRESSIVE WEB APP (PWA) BOOTSTRAP
+        // -----------------------------------------------------------------------------
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                // Only register if on HTTP/HTTPS. Previews/Iframes using blob: or file: 
+                // will throw errors if they attempt to register a service worker.
+                if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+                    navigator.serviceWorker.register('sw.js')
+                        .then(reg => console.log('[SYSTEM] Service Worker Active. Scope:', reg.scope))
+                        .catch(err => console.warn('[SYSTEM] Service Worker skipped:', err.message));
+                } else {
+                    console.log('[SYSTEM] Service Worker bypassed for local/preview protocol.');
+                }
+            });
+        }
+
+        // -----------------------------------------------------------------------------
+        // HARDWARE WAKELOCK
+        // -----------------------------------------------------------------------------
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    dom.wakeLock.textContent = "WAKELOCK: ON";
+                    dom.wakeLock.className = "text-green-500 neon-accent";
+                    wakeLock.addEventListener('release', () => {
+                        dom.wakeLock.textContent = "WAKELOCK: LOST";
+                        dom.wakeLock.className = "text-red-500 neon-danger";
+                    });
+                } catch (err) {
+                    // Handle iframe permission sandbox issues gracefully
+                    if (err.name === 'NotAllowedError') {
+                        dom.wakeLock.textContent = "WAKELOCK: N/A";
+                        dom.wakeLock.className = "text-gray-500";
+                        console.warn(`[WAKELOCK] Blocked by permissions policy (expected in preview iframes).`);
+                    } else {
+                        console.warn(`[WAKELOCK ERR] ${err.name}, ${err.message}`);
+                    }
+                }
+            } else {
+                dom.wakeLock.textContent = "WAKELOCK: N/A";
+                dom.wakeLock.className = "text-gray-500";
+            }
+        }
+
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
+
+        // -----------------------------------------------------------------------------
+        // HARDWARE CALLBACK: IMU (INERTIAL MEASUREMENT UNIT)
+        // -----------------------------------------------------------------------------
+        function handleMotion(event) {
+            // Use acceleration WITHOUT gravity to isolate kinematic forces
+            const rawX = event.acceleration.x || 0;
+            const rawZ = event.acceleration.z || 0;
+
+            // Apply Low-Pass Filter to eliminate high-frequency chassis vibration
+            filteredAccelX = (IMU_ALPHA * rawX) + ((1 - IMU_ALPHA) * filteredAccelX);
+            filteredAccelZ = (IMU_ALPHA * rawZ) + ((1 - IMU_ALPHA) * filteredAccelZ);
+        }
+
+        // -----------------------------------------------------------------------------
+        // HARDWARE CALLBACK: GNSS POLLING
+        // -----------------------------------------------------------------------------
+        function onPositionSuccess(position) {
+            const coords = position.coords;
+            const speedMs = coords.speed || 0.0;
+            targetSpeedKmph = speedMs * MS_TO_KMPH;
+
+            // Update Max Speed
+            if (targetSpeedKmph > maxSpeedKmph) {
+                maxSpeedKmph = targetSpeedKmph;
+                dom.maxSpeed.textContent = maxSpeedKmph.toFixed(1);
+            }
+
+            // --- 0-100 KM/H STATE MACHINE ---
+            // IDLE: Vehicle is stationary or barely rolling
+            if (targetSpeedKmph < 2.0) {
+                if (timerState !== 'IDLE' && timerState !== 'COMPLETED') {
+                    timerState = 'IDLE';
+                    dom.timer0to100.textContent = "READY";
+                    dom.timer0to100.className = "text-lg font-bold text-[#00ff88] lcd-text";
+                }
+            }
+            
+            // RUNNING: Vehicle launched
+            if (timerState === 'IDLE' && targetSpeedKmph >= 2.0) {
+                timerState = 'RUNNING';
+                timerStartTime = performance.now();
+                dom.timer0to100.className = "text-lg font-bold text-yellow-400 lcd-text";
+            }
+
+            // COMPLETED: Reached 100 km/h
+            if (timerState === 'RUNNING' && targetSpeedKmph >= 100.0) {
+                timerState = 'COMPLETED';
+                timerResultMs = performance.now() - timerStartTime;
+                dom.timer0to100.textContent = (timerResultMs / 1000).toFixed(3) + " s";
+                dom.timer0to100.className = "text-lg font-bold text-white neon-accent lcd-text";
+            }
+
+            // Update Heading
+            if (coords.heading !== null && speedMs > 0.5) {
+                dom.heading.textContent = `${coords.heading.toFixed(0)}\u00B0`;
+            }
+
+            // Update Signal Diagnostics
+            dom.accuracy.textContent = `ACC: ${coords.accuracy.toFixed(1)} m`;
+            if (coords.accuracy <= 5.0) {
+                dom.status.textContent = "FIX: RTK/DGPS LEVEL";
+                dom.status.className = "text-green-500 neon-accent";
+            } else if (coords.accuracy <= 15.0) {
+                dom.status.textContent = "FIX: 3D OK";
+                dom.status.className = "text-[#00ff88] neon-accent";
+            } else {
+                dom.status.textContent = "FIX: WEAK";
+                dom.status.className = "text-yellow-500 neon-warning";
+            }
+        }
+
+        function onPositionError(error) {
+            dom.status.className = "text-red-500 neon-danger";
+            dom.status.textContent = "ERR: NO SIGNAL";
+            targetSpeedKmph = 0.0;
+        }
+
+        // -----------------------------------------------------------------------------
+        // RENDER LOOP (120Hz Synchronized)
+        // -----------------------------------------------------------------------------
+        function renderLoop() {
+            // 1. Lerp Velocity
+            displaySpeedKmph += (targetSpeedKmph - displaySpeedKmph) * LERP_FACTOR;
+            if (Math.abs(targetSpeedKmph - displaySpeedKmph) < 0.1 && targetSpeedKmph === 0) {
+                displaySpeedKmph = 0.0;
+            }
+
+            // Update Primary Velocity UI
+            dom.speedDisplay.textContent = displaySpeedKmph.toFixed(1);
+            const barPercentage = Math.min((displaySpeedKmph / BAR_MAX_SPEED) * 100, 100);
+            dom.speedBar.style.width = `${barPercentage}%`;
+
+            // 2. Process & Update IMU G-Force
+            // Note: Assuming Portrait Dashboard Mount
+            // Z-axis = Forward/Backward (Longitudinal)
+            // X-axis = Left/Right (Lateral)
+            const longGForce = filteredAccelZ / GRAVITY_MS2;
+            const latGForce = filteredAccelX / GRAVITY_MS2;
+
+            dom.longG.textContent = Math.abs(longGForce).toFixed(2) + (longGForce > 0 ? " A" : " B"); // A=Accel, B=Brake
+            dom.latG.textContent = Math.abs(latGForce).toFixed(2);
+
+            // Track Absolute Peak G
+            const currentPeak = Math.max(Math.abs(longGForce), Math.abs(latGForce));
+            if (currentPeak > peakG) {
+                peakG = currentPeak;
+                dom.peakG.textContent = peakG.toFixed(2);
+            }
+
+            // 3. Update Live Timer UI if Running
+            if (timerState === 'RUNNING') {
+                const liveTime = (performance.now() - timerStartTime) / 1000;
+                dom.timer0to100.textContent = liveTime.toFixed(2) + " s";
+            }
+
+            // Schedule next frame
+            requestAnimationFrame(renderLoop);
+        }
+
+        // -----------------------------------------------------------------------------
+        // LIFECYCLE INITIALIZATION
+        // -----------------------------------------------------------------------------
+        function initSensors() {
+            // 1. Initialize GNSS
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(
+                    onPositionSuccess,
+                    onPositionError,
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+                );
+            } else {
+                dom.status.textContent = "ERR: GNSS NOT SUPPORTED";
+            }
+
+            // 2. Initialize IMU
+            if (window.DeviceMotionEvent) {
+                // For modern iOS devices, this requires a permissions request button.
+                // Android Chrome usually permits it passively in a secure context (HTTPS).
+                window.addEventListener('devicemotion', handleMotion, false);
+            } else {
+                dom.latG.textContent = "N/A";
+                dom.longG.textContent = "N/A";
+            }
+
+            // 3. Boot Systems
+            requestWakeLock();
+            requestAnimationFrame(renderLoop);
+        }
+
+        window.addEventListener('load', initSensors);
+
+    </script>
+</body>
+</html>
