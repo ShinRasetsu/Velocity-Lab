@@ -60,6 +60,13 @@
             <span id="status-indicator" class="text-yellow-500 neon-warning">ACQUIRING FIX...</span>
             <span id="accuracy-display">ACC: -- m</span>
         </div>
+
+        <!-- // INSTALL BUTTON: hidden until beforeinstallprompt fires -->
+        <button id="pwa-install-btn" style="display:none;"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88] text-xs font-bold tracking-widest uppercase neon-accent transition-all hover:bg-[#00ff88]/20 self-start">
+            ⬇ INSTALL
+        </button>
+
         <div class="flex flex-col items-end gap-1">
             <span id="update-rate">IMU: FILTERED</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">WAKELOCK: OFF</span>
@@ -119,9 +126,6 @@
         const MS_TO_KMPH = 3.6;
         const BAR_MAX_SPEED = 200.0;
         const GRAVITY_MS2 = 9.80665;
-        
-        // IMU Low-Pass Filter constant (0.0 to 1.0)
-        // Lower = more smoothing (rejects engine vibration), Higher = faster response
         const IMU_ALPHA = 0.1; 
 
         // -----------------------------------------------------------------------------
@@ -136,12 +140,11 @@
         let maxSpeedKmph = 0.0;
 
         // Kinematic State (G-Force)
-        let filteredAccelX = 0.0; // Lateral
-        let filteredAccelZ = 0.0; // Longitudinal
+        let filteredAccelX = 0.0;
+        let filteredAccelZ = 0.0;
         let peakG = 0.0;
 
-        // 0-100 Performance Timer State
-        // States: 'IDLE', 'RUNNING', 'COMPLETED'
+        // 0-100 Performance Timer State: 'IDLE', 'RUNNING', 'COMPLETED'
         let timerState = 'IDLE'; 
         let timerStartTime = 0;
         let timerResultMs = 0;
@@ -160,16 +163,15 @@
             longG: document.getElementById('long-g'),
             latG: document.getElementById('lat-g'),
             peakG: document.getElementById('peak-g'),
-            timer0to100: document.getElementById('timer-0-100')
+            timer0to100: document.getElementById('timer-0-100'),
+            installBtn: document.getElementById('pwa-install-btn')
         };
 
         // -----------------------------------------------------------------------------
-        // PROGRESSIVE WEB APP (PWA) BOOTSTRAP
+        // PWA BOOTSTRAP: SERVICE WORKER + INSTALL PROMPT
         // -----------------------------------------------------------------------------
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Only register if on HTTP/HTTPS. Previews/Iframes using blob: or file: 
-                // will throw errors if they attempt to register a service worker.
                 if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
                     navigator.serviceWorker.register('sw.js')
                         .then(reg => console.log('[SYSTEM] Service Worker Active. Scope:', reg.scope))
@@ -179,6 +181,28 @@
                 }
             });
         }
+
+        // // INSTALL PROMPT: capture event, surface button, handle user choice
+        let deferredInstallPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            dom.installBtn.style.display = 'flex';
+        });
+
+        dom.installBtn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            if (outcome === 'accepted') dom.installBtn.style.display = 'none';
+            deferredInstallPrompt = null;
+        });
+
+        window.addEventListener('appinstalled', () => {
+            dom.installBtn.style.display = 'none';
+            deferredInstallPrompt = null;
+        });
 
         // -----------------------------------------------------------------------------
         // HARDWARE WAKELOCK
@@ -194,7 +218,6 @@
                         dom.wakeLock.className = "text-red-500 neon-danger";
                     });
                 } catch (err) {
-                    // Handle iframe permission sandbox issues gracefully
                     if (err.name === 'NotAllowedError') {
                         dom.wakeLock.textContent = "WAKELOCK: N/A";
                         dom.wakeLock.className = "text-gray-500";
@@ -216,14 +239,11 @@
         });
 
         // -----------------------------------------------------------------------------
-        // HARDWARE CALLBACK: IMU (INERTIAL MEASUREMENT UNIT)
+        // HARDWARE CALLBACK: IMU
         // -----------------------------------------------------------------------------
         function handleMotion(event) {
-            // Use acceleration WITHOUT gravity to isolate kinematic forces
             const rawX = event.acceleration.x || 0;
             const rawZ = event.acceleration.z || 0;
-
-            // Apply Low-Pass Filter to eliminate high-frequency chassis vibration
             filteredAccelX = (IMU_ALPHA * rawX) + ((1 - IMU_ALPHA) * filteredAccelX);
             filteredAccelZ = (IMU_ALPHA * rawZ) + ((1 - IMU_ALPHA) * filteredAccelZ);
         }
@@ -236,14 +256,12 @@
             const speedMs = coords.speed || 0.0;
             targetSpeedKmph = speedMs * MS_TO_KMPH;
 
-            // Update Max Speed
             if (targetSpeedKmph > maxSpeedKmph) {
                 maxSpeedKmph = targetSpeedKmph;
                 dom.maxSpeed.textContent = maxSpeedKmph.toFixed(1);
             }
 
-            // --- 0-100 KM/H STATE MACHINE ---
-            // IDLE: Vehicle is stationary or barely rolling
+            // --- 0-100 STATE MACHINE ---
             if (targetSpeedKmph < 2.0) {
                 if (timerState !== 'IDLE' && timerState !== 'COMPLETED') {
                     timerState = 'IDLE';
@@ -251,15 +269,11 @@
                     dom.timer0to100.className = "text-lg font-bold text-[#00ff88] lcd-text";
                 }
             }
-            
-            // RUNNING: Vehicle launched
             if (timerState === 'IDLE' && targetSpeedKmph >= 2.0) {
                 timerState = 'RUNNING';
                 timerStartTime = performance.now();
                 dom.timer0to100.className = "text-lg font-bold text-yellow-400 lcd-text";
             }
-
-            // COMPLETED: Reached 100 km/h
             if (timerState === 'RUNNING' && targetSpeedKmph >= 100.0) {
                 timerState = 'COMPLETED';
                 timerResultMs = performance.now() - timerStartTime;
@@ -267,12 +281,10 @@
                 dom.timer0to100.className = "text-lg font-bold text-white neon-accent lcd-text";
             }
 
-            // Update Heading
             if (coords.heading !== null && speedMs > 0.5) {
                 dom.heading.textContent = `${coords.heading.toFixed(0)}\u00B0`;
             }
 
-            // Update Signal Diagnostics
             dom.accuracy.textContent = `ACC: ${coords.accuracy.toFixed(1)} m`;
             if (coords.accuracy <= 5.0) {
                 dom.status.textContent = "FIX: RTK/DGPS LEVEL";
@@ -296,41 +308,32 @@
         // RENDER LOOP (120Hz Synchronized)
         // -----------------------------------------------------------------------------
         function renderLoop() {
-            // 1. Lerp Velocity
             displaySpeedKmph += (targetSpeedKmph - displaySpeedKmph) * LERP_FACTOR;
             if (Math.abs(targetSpeedKmph - displaySpeedKmph) < 0.1 && targetSpeedKmph === 0) {
                 displaySpeedKmph = 0.0;
             }
 
-            // Update Primary Velocity UI
             dom.speedDisplay.textContent = displaySpeedKmph.toFixed(1);
             const barPercentage = Math.min((displaySpeedKmph / BAR_MAX_SPEED) * 100, 100);
             dom.speedBar.style.width = `${barPercentage}%`;
 
-            // 2. Process & Update IMU G-Force
-            // Note: Assuming Portrait Dashboard Mount
-            // Z-axis = Forward/Backward (Longitudinal)
-            // X-axis = Left/Right (Lateral)
             const longGForce = filteredAccelZ / GRAVITY_MS2;
             const latGForce = filteredAccelX / GRAVITY_MS2;
 
-            dom.longG.textContent = Math.abs(longGForce).toFixed(2) + (longGForce > 0 ? " A" : " B"); // A=Accel, B=Brake
+            dom.longG.textContent = Math.abs(longGForce).toFixed(2) + (longGForce > 0 ? " A" : " B");
             dom.latG.textContent = Math.abs(latGForce).toFixed(2);
 
-            // Track Absolute Peak G
             const currentPeak = Math.max(Math.abs(longGForce), Math.abs(latGForce));
             if (currentPeak > peakG) {
                 peakG = currentPeak;
                 dom.peakG.textContent = peakG.toFixed(2);
             }
 
-            // 3. Update Live Timer UI if Running
             if (timerState === 'RUNNING') {
                 const liveTime = (performance.now() - timerStartTime) / 1000;
                 dom.timer0to100.textContent = liveTime.toFixed(2) + " s";
             }
 
-            // Schedule next frame
             requestAnimationFrame(renderLoop);
         }
 
@@ -338,7 +341,6 @@
         // LIFECYCLE INITIALIZATION
         // -----------------------------------------------------------------------------
         function initSensors() {
-            // 1. Initialize GNSS
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition(
                     onPositionSuccess,
@@ -349,17 +351,13 @@
                 dom.status.textContent = "ERR: GNSS NOT SUPPORTED";
             }
 
-            // 2. Initialize IMU
             if (window.DeviceMotionEvent) {
-                // For modern iOS devices, this requires a permissions request button.
-                // Android Chrome usually permits it passively in a secure context (HTTPS).
                 window.addEventListener('devicemotion', handleMotion, false);
             } else {
                 dom.latG.textContent = "N/A";
                 dom.longG.textContent = "N/A";
             }
 
-            // 3. Boot Systems
             requestWakeLock();
             requestAnimationFrame(renderLoop);
         }
