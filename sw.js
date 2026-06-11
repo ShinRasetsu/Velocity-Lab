@@ -1,92 +1,113 @@
-const CACHE_VERSION = 'velocity-lab-v1.0.0';
+const CACHE_VERSION = 'velocity-lab-v1.0.1';
 
-// LOCAL ASSETS ONLY — CDN URLs must never be in addAll().
-// If any URL in addAll() fails, the entire SW install aborts silently.
-// CDN resources are cached opportunistically on first fetch instead.
+const APP_SHELL_CACHE = `shell-${CACHE_VERSION}`;
+const RUNTIME_CACHE   = `runtime-${CACHE_VERSION}`;
+
 const STATIC_ASSETS = [
     './',
     './index.html',
     './manifest.json'
 ];
 
-// -----------------------------------------------------------------------------
-// INSTALL: CACHE ONLY GUARANTEED LOCAL ASSETS
-// -----------------------------------------------------------------------------
+// ─────────────────────────────────────────────
+// INSTALL
+// ─────────────────────────────────────────────
 self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_VERSION)
+        caches.open(APP_SHELL_CACHE)
             .then(cache => cache.addAll(STATIC_ASSETS))
             .then(() => self.skipWaiting())
     );
 });
 
-// -----------------------------------------------------------------------------
-// ACTIVATE: CLEANUP OLD VERSIONS
-// -----------------------------------------------------------------------------
+// ─────────────────────────────────────────────
+// ACTIVATE
+// ─────────────────────────────────────────────
 self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys()
-            .then(keys => Promise.all(
-                keys.map(key => key !== CACHE_VERSION ? caches.delete(key) : null)
-            ))
-            .then(() => self.clients.claim())
+        caches.keys().then(keys =>
+            Promise.all(
+                keys.map(k => {
+                    if (![APP_SHELL_CACHE, RUNTIME_CACHE].includes(k)) {
+                        return caches.delete(k);
+                    }
+                })
+            )
+        ).then(() => self.clients.claim())
     );
 });
 
-// -----------------------------------------------------------------------------
-// FETCH: STRATEGY SPLIT BY RESOURCE TYPE
-// -----------------------------------------------------------------------------
+// ─────────────────────────────────────────────
+// FETCH STRATEGY ENGINE
+// ─────────────────────────────────────────────
 self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
-    if (!event.request.url.startsWith('http')) return; // Skip chrome-extension:// etc.
 
     const url = new URL(event.request.url);
 
-    // APP SHELL: Cache-first → guarantees offline boot at track with no signal
+    // ── APP SHELL (fastest offline boot)
     if (url.origin === self.location.origin) {
-        event.respondWith(
-            caches.match(event.request).then(cached => {
-                const networkFetch = fetch(event.request).then(res => {
-                    if (res && res.status === 200) {
-                        caches.open(CACHE_VERSION).then(c => c.put(event.request, res.clone()));
-                    }
-                    return res;
-                });
-                // Serve from cache instantly, update in background
-                return cached || networkFetch;
-            })
-        );
+        event.respondWith(appShellStrategy(event.request));
         return;
     }
 
-    // CDN ASSETS (Tailwind, Google Fonts): Cache-first, silent background update
-    if (url.hostname.includes('cdn.tailwindcss.com') ||
+    // ── CDN (Tailwind + Fonts)
+    if (
         url.hostname.includes('fonts.googleapis.com') ||
-        url.hostname.includes('fonts.gstatic.com')) {
-        event.respondWith(
-            caches.match(event.request).then(cached => {
-                const networkFetch = fetch(event.request).then(res => {
-                    // Cache opaque (cross-origin no-cors) and clean 200s only
-                    if (res && (res.status === 200 || res.type === 'opaque')) {
-                        caches.open(CACHE_VERSION).then(c => c.put(event.request, res.clone()));
-                    }
-                    return res;
-                }).catch(() => null);
-                return cached || networkFetch;
-            })
-        );
+        url.hostname.includes('fonts.gstatic.com')
+    ) {
+        event.respondWith(cacheFirst(event.request));
         return;
     }
 
-    // ALL OTHER REQUESTS: Network-first, cache fallback
-    event.respondWith(
-        fetch(event.request)
-            .then(res => {
-                if (res && res.status === 200) {
-                    caches.open(CACHE_VERSION).then(c => c.put(event.request, res.clone()));
-                }
-                return res;
-            })
-            .catch(() => caches.match(event.request))
-    );
+    // ── EVERYTHING ELSE
+    event.respondWith(networkFirst(event.request));
 });
+
+// ─────────────────────────────────────────────
+// STRATEGIES
+// ─────────────────────────────────────────────
+
+async function appShellStrategy(req) {
+    const cached = await caches.match(req);
+    const networkPromise = fetch(req).then(res => {
+        if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(APP_SHELL_CACHE).then(c => c.put(req, copy));
+        }
+        return res;
+    }).catch(() => null);
+
+    return cached || networkPromise;
+}
+
+async function cacheFirst(req) {
+    const cached = await caches.match(req);
+    if (cached) return cached;
+
+    try {
+        const res = await fetch(req);
+        if (res && (res.status === 200 || res.type === 'opaque')) {
+            const copy = res.clone();
+            const cache = await caches.open(RUNTIME_CACHE);
+            cache.put(req, copy);
+        }
+        return res;
+    } catch {
+        return cached;
+    }
+}
+
+async function networkFirst(req) {
+    try {
+        const res = await fetch(req);
+        if (res && res.status === 200) {
+            const copy = res.clone();
+            const cache = await caches.open(RUNTIME_CACHE);
+            cache.put(req, copy);
+        }
+        return res;
+    } catch {
+        return caches.match(req);
+    }
+}
