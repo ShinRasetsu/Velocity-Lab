@@ -4,16 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Velocity-Lab Telemetry</title>
-    
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#050505">
     <link rel="apple-touch-icon" href="icon-192.png">
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
-        
         body {
             font-family: 'JetBrains Mono', monospace;
             background-color: #050505;
@@ -22,39 +18,51 @@
             user-select: none;
             touch-action: none;
         }
-
-        .lcd-text {
-            font-variant-numeric: tabular-nums;
-            letter-spacing: -0.05em;
-        }
-
-        .neon-accent { text-shadow: 0 0 10px rgba(0, 255, 136, 0.5); }
-        .neon-warning { text-shadow: 0 0 10px rgba(255, 170, 0, 0.5); }
-        .neon-danger { text-shadow: 0 0 10px rgba(255, 51, 102, 0.5); }
-        .neon-blue { text-shadow: 0 0 10px rgba(0, 191, 255, 0.5); }
-        .neon-purple { text-shadow: 0 0 10px rgba(187, 134, 252, 0.5); }
-
+        .lcd-text  { font-variant-numeric: tabular-nums; letter-spacing: -0.05em; }
+        .neon-accent  { text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .neon-warning { text-shadow: 0 0 10px rgba(255,170,0,0.5); }
+        .neon-danger  { text-shadow: 0 0 10px rgba(255,51,102,0.5); }
+        .neon-blue    { text-shadow: 0 0 10px rgba(0,191,255,0.5); }
+        .neon-purple  { text-shadow: 0 0 10px rgba(187,134,252,0.5); }
         .metric-card {
-            background-color: rgba(17, 24, 39, 0.5);
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            position: relative;
+            background-color: rgba(17,24,39,0.5);
+            padding: 0.5rem; border-radius: 0.5rem;
+            display: flex; flex-direction: column; justify-content: center;
         }
-        
-        /* Optimization: Use CSS will-change for high-frequency repaint nodes */
+        /* Speed color tiers — applied dynamically in renderLoop */
+        .spd-green  { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .spd-yellow { color: #ffaa00; text-shadow: 0 0 10px rgba(255,170,0,0.5); }
+        .spd-red    { color: #ff3366; text-shadow: 0 0 10px rgba(255,51,102,0.5); }
         #speed-display { will-change: contents; }
-        #speed-bar { will-change: width; }
+        #speed-bar     { will-change: width; }
+        /* iOS permission overlay — full-screen gate, not a position:fixed modal */
+        #ios-gate {
+            position: fixed; inset: 0; background: rgba(5,5,5,0.97);
+            z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 1.5rem;
+        }
     </style>
 </head>
 <body class="h-screen w-screen flex flex-col items-center justify-between p-4 overflow-hidden">
+
+    <!-- FIX #6: iOS 13+ DeviceMotion permission gate (user gesture required) -->
+    <div id="ios-gate" style="display:none;">
+        <span class="text-[#00ff88] font-bold text-xl neon-accent tracking-widest">VELOCITY-LAB</span>
+        <span class="text-gray-400 text-xs text-center px-8 leading-relaxed">
+            Motion sensor access required for G-force telemetry.
+        </span>
+        <button id="ios-grant-btn"
+            class="px-6 py-3 rounded border border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88] text-sm font-bold tracking-widest uppercase neon-accent">
+            ⚡ GRANT MOTION ACCESS
+        </button>
+    </div>
 
     <header class="w-full flex justify-between items-start text-xs text-gray-500 uppercase font-bold tracking-widest mt-2">
         <div class="flex flex-col gap-1">
             <span id="status-indicator" class="text-yellow-500 neon-warning">ACQUIRING L1/L5...</span>
             <span id="accuracy-display">ACC: -- m</span>
+            <!-- ADD #12: GPS heading display -->
+            <span id="heading-display" class="text-gray-600">HDG: ---°</span>
         </div>
 
         <div class="flex flex-col gap-2 items-center">
@@ -62,9 +70,14 @@
                 class="flex items-center gap-1.5 px-3 py-1 rounded border border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88] text-[0.65rem] font-bold tracking-widest uppercase neon-accent transition-all hover:bg-[#00ff88]/20">
                 ⬇ INSTALL
             </button>
-            <button id="calibrate-btn" 
+            <button id="calibrate-btn"
                 class="flex items-center gap-1.5 px-3 py-1 rounded border border-[#00bfff]/50 bg-[#00bfff]/10 text-[#00bfff] text-[0.65rem] font-bold tracking-widest uppercase neon-blue transition-all hover:bg-[#00bfff]/20 active:bg-[#00bfff]/40">
                 ⌖ TARE MOUNT
+            </button>
+            <!-- ADD #10: Manual run reset — completed timer results persist until called -->
+            <button id="reset-run-btn"
+                class="flex items-center gap-1.5 px-3 py-1 rounded border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 text-[0.65rem] font-bold tracking-widest uppercase neon-warning transition-all hover:bg-yellow-500/20 active:bg-yellow-500/40">
+                ↺ RESET RUN
             </button>
             <button id="export-csv-btn" style="display:none;"
                 class="flex items-center gap-1.5 px-3 py-1 rounded border border-[#bb86fc]/50 bg-[#bb86fc]/10 text-[#bb86fc] text-[0.65rem] font-bold tracking-widest uppercase neon-purple transition-all hover:bg-[#bb86fc]/20 active:bg-[#bb86fc]/40">
@@ -75,23 +88,24 @@
         <div class="flex flex-col items-end gap-1">
             <span id="update-rate" class="text-[#00ff88] neon-accent">L1/L5 FUSION</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">WAKELOCK: OFF</span>
+            <!-- ADD #11: Max speed tracking -->
+            <span id="max-speed-display" class="text-gray-500">MAX: 0.0</span>
         </div>
     </header>
 
     <main class="flex flex-col items-center justify-center flex-1 w-full">
         <div class="relative flex items-baseline">
-            <span id="speed-display" class="text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text neon-accent text-[#00ff88]">0.0</span>
+            <!-- ADD #13: Initial class uses spd-green; transitions to yellow/red in renderLoop -->
+            <span id="speed-display"
+                class="text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text spd-green">0.0</span>
             <span class="text-2xl sm:text-4xl font-bold text-gray-400 ml-2 mb-4 sm:mb-8">km/h</span>
         </div>
-        
         <div class="w-full max-w-md h-2 bg-gray-900 rounded-full mt-6 overflow-hidden relative">
             <div id="speed-bar" class="absolute top-0 left-0 h-full bg-[#00ff88] w-0 transition-all duration-75 ease-linear"></div>
         </div>
     </main>
 
-    <!-- Professional VBOX-Style Telemetry Matrix -->
     <footer class="w-full grid grid-cols-3 gap-2 border-t border-gray-800 pt-4 mb-2 text-center h-auto">
-        <!-- Performance Timers -->
         <div class="metric-card">
             <span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">0-100 km/h</span>
             <span id="timer-0-100" class="text-lg font-bold text-[#00bfff] lcd-text">--.--- s</span>
@@ -104,8 +118,6 @@
             <span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">1/4 Mile (402m)</span>
             <span id="timer-quarter" class="text-lg font-bold text-yellow-400 lcd-text">--.--- s</span>
         </div>
-
-        <!-- Kinematics -->
         <div class="metric-card">
             <span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Lat G</span>
             <span id="lat-g" class="text-lg font-bold text-white lcd-text">0.00</span>
@@ -121,382 +133,418 @@
     </footer>
 
     <script>
-        // -----------------------------------------------------------------------------
-        // SYSTEM CONFIGURATION & CONSTANTS
-        // -----------------------------------------------------------------------------
-        const MS_TO_KMPH = 3.6;
-        const BAR_MAX_SPEED = 200.0;
-        const GRAVITY_MS2 = 9.80665;
-        const QUARTER_MILE_METERS = 402.336;
-        const MAX_LOG_SAMPLES = 100000; // GC & OOM Failsafe
-        
-        // Sensor Fusion Parameters
-        const IMU_ALPHA = 0.15; 
-        const SPEED_ZERO_SNAP_THRESHOLD_KMPH = 1.5;
+        // ─── CONFIG ───────────────────────────────────────────────────────────────
+        const MS_TO_KMPH           = 3.6;
+        const BAR_MAX_SPEED        = 200.0;
+        const GRAVITY_MS2          = 9.80665;
+        const QUARTER_MILE_METERS  = 402.336;
+        const MAX_LOG_SAMPLES      = 100_000;
+        const IMU_ALPHA            = 0.15;
+        const SPEED_ZERO_SNAP_KMPH = 1.5;
+        const GPS_STALE_MS         = 3000;   // FIX #4: was 1000ms — too aggressive while moving
+        const GPS_MAX_DT_SEC       = 3.0;    // FIX #1: cap GPS dt to prevent stale-fix distance jump
+        const IMU_MAX_DT_SEC       = 0.05;   // FIX #8: cap IMU dt to prevent background-resume velocity spike
 
-        // -----------------------------------------------------------------------------
-        // STATE MANAGEMENT (Optimized Variable Typings)
-        // -----------------------------------------------------------------------------
-        let wakeLock = null;
-        
-        // Kinematic Variables (Physics Engine)
-        let fusedSpeedMs = 0.0;
-        let distanceMeters = 0.0;
-        let lastGpsTime = performance.now();
-        let lastImuTime = performance.now();
-        
-        // Render Throttlers
-        let lastSecondaryUiTime = 0;
-        let lastLogTime = 0;
+        // Timer state constants (replaces string comparison overhead)
+        const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2;
 
-        // G-Force & Calibration
-        let filteredAccelX = 0.0; 
-        let filteredAccelZ = 0.0; 
-        let mountOffsetX = 0.0; 
-        let mountOffsetZ = 0.0; 
-        let longGForce = 0.0;
-        let latGForce = 0.0;
-        let peakG = 0.0;
+        // ─── STATE ────────────────────────────────────────────────────────────────
+        let wakeLock        = null;
+        let fusedSpeedMs    = 0.0;
+        let distanceMeters  = 0.0;     // FIX #1: GPS-derived only (was IMU-integrated → massive drift)
+        let lastGpsTime     = -1;      // -1 = no GPS fix yet
+        let lastImuTime     = performance.now();
+        let lastSecUiTime   = 0;
+        let lastLogTime     = 0;
+        let maxSpeedKmph    = 0.0;     // ADD #11
+        let exportBtnShown  = false;   // FIX #7: single-set guard (was set every 100ms in logger)
+        let gpsHeading      = NaN;     // ADD #12
 
-        // Performance Timers
-        let timer0_100 = { state: 'IDLE', start: 0, result: 0 };
-        let timer100_200 = { state: 'IDLE', start: 0, result: 0 };
-        let timerQuarter = { state: 'IDLE', start: 0, result: 0 };
+        // IMU filtering & calibration
+        let filteredAccelX  = 0.0;
+        let filteredAccelZ  = 0.0;
+        let mountOffsetX    = 0.0;
+        let mountOffsetZ    = 0.0;
+        let longGForce      = 0.0;
+        let latGForce       = 0.0;
+        let peakG           = 0.0;
 
-        // Pre-Serialized Data Logging (Heap Memory Optimization)
+        // Performance timers
+        let timer0_100   = { state: T_IDLE, start: 0, result: 0 };
+        let timer100_200 = { state: T_IDLE, start: 0, result: 0 };
+        let timerQuarter = { state: T_IDLE, start: 0, result: 0 };
+
+        // Telemetry log
         let telemetrySession = [];
-        let isLogging = false;
+        let isLogging        = false;
 
-        // -----------------------------------------------------------------------------
-        // DOM ELEMENT CACHING
-        // -----------------------------------------------------------------------------
+        // ─── DOM CACHE ────────────────────────────────────────────────────────────
         const dom = {
-            speedDisplay: document.getElementById('speed-display'),
-            accuracy: document.getElementById('accuracy-display'),
-            status: document.getElementById('status-indicator'),
-            speedBar: document.getElementById('speed-bar'),
-            wakeLock: document.getElementById('wake-lock-status'),
-            longG: document.getElementById('long-g'),
-            latG: document.getElementById('lat-g'),
-            peakG: document.getElementById('peak-g'),
-            t0_100: document.getElementById('timer-0-100'),
-            t100_200: document.getElementById('timer-100-200'),
-            tQuarter: document.getElementById('timer-quarter'),
-            installBtn: document.getElementById('pwa-install-btn'),
+            speed:        document.getElementById('speed-display'),
+            accuracy:     document.getElementById('accuracy-display'),
+            heading:      document.getElementById('heading-display'),
+            status:       document.getElementById('status-indicator'),
+            speedBar:     document.getElementById('speed-bar'),
+            wakeLock:     document.getElementById('wake-lock-status'),
+            maxSpeed:     document.getElementById('max-speed-display'),
+            longG:        document.getElementById('long-g'),
+            latG:         document.getElementById('lat-g'),
+            peakG:        document.getElementById('peak-g'),
+            t0_100:       document.getElementById('timer-0-100'),
+            t100_200:     document.getElementById('timer-100-200'),
+            tQuarter:     document.getElementById('timer-quarter'),
+            installBtn:   document.getElementById('pwa-install-btn'),
             calibrateBtn: document.getElementById('calibrate-btn'),
-            exportCsvBtn: document.getElementById('export-csv-btn'),
-            logCount: document.getElementById('log-count')
+            resetRunBtn:  document.getElementById('reset-run-btn'),
+            exportBtn:    document.getElementById('export-csv-btn'),
+            logCount:     document.getElementById('log-count'),
+            iosGate:      document.getElementById('ios-gate'),
+            iosGrantBtn:  document.getElementById('ios-grant-btn')
         };
 
-        const domCache = {
-            speed: null, speedBar: null, longG: null, latG: null, peakG: null, 
-            t0_100: null, t100_200: null, tQuarter: null, logs: 0
+        // Previous-value cache — diff-checks prevent unnecessary DOM writes / reflows
+        const prev = {
+            speed: null, speedBar: null, longG: null, latG: null,
+            peakG: null, t0_100: null, t100_200: null, tQuarter: null,
+            logCount: 0, maxSpeed: null
         };
 
-        // -----------------------------------------------------------------------------
-        // CALIBRATION ROUTINE (TARE)
-        // -----------------------------------------------------------------------------
+        // ─── HELPERS ──────────────────────────────────────────────────────────────
+        function setDOM(el, key, val, cls = null) {
+            if (prev[key] !== val) { el.textContent = val; prev[key] = val; }
+            if (cls !== null && el.className !== cls) el.className = cls;
+        }
+
+        // ─── RESET RUN ────────────────────────────────────────────────────────────
+        // ADD #10: Completed results persist across stops — manual reset required (VBOX behavior)
+        function resetRun() {
+            distanceMeters = 0.0;
+            maxSpeedKmph   = 0.0;
+            peakG          = 0.0;
+            prev.maxSpeed  = null;
+            prev.peakG     = null;
+
+            timer0_100   = { state: T_IDLE, start: 0, result: 0 };
+            timer100_200 = { state: T_IDLE, start: 0, result: 0 };
+            timerQuarter = { state: T_IDLE, start: 0, result: 0 };
+
+            dom.t0_100.textContent   = "--.--- s";
+            dom.t0_100.className     = "text-lg font-bold text-[#00bfff] lcd-text";
+            dom.t100_200.textContent = "--.--- s";
+            dom.t100_200.className   = "text-lg font-bold text-[#bb86fc] lcd-text";
+            dom.tQuarter.textContent = "--.--- s";
+            dom.tQuarter.className   = "text-lg font-bold text-yellow-400 lcd-text";
+            dom.peakG.textContent    = "0.00";
+            dom.maxSpeed.textContent = "MAX: 0.0";
+            prev.t0_100 = prev.t100_200 = prev.tQuarter = null;
+        }
+
+        // ─── TARE CALIBRATION ────────────────────────────────────────────────────
         dom.calibrateBtn.addEventListener('click', () => {
             mountOffsetX = filteredAccelX;
             mountOffsetZ = filteredAccelZ;
-            
             dom.calibrateBtn.textContent = "✔ TARE OK";
             dom.calibrateBtn.className = "flex items-center gap-1.5 px-3 py-1 rounded border border-[#00ff88]/50 bg-[#00ff88]/20 text-[#00ff88] text-[0.65rem] font-bold tracking-widest uppercase neon-accent";
-            
             setTimeout(() => {
                 dom.calibrateBtn.textContent = "⌖ TARE MOUNT";
-                dom.calibrateBtn.className = "flex items-center gap-1.5 px-3 py-1 rounded border border-[#00bfff]/50 bg-[#00bfff]/10 text-[#00bfff] text-[0.65rem] font-bold tracking-widest uppercase neon-blue transition-all hover:bg-[#00bfff]/20 active:bg-[#00bfff]/40";
+                dom.calibrateBtn.className   = "flex items-center gap-1.5 px-3 py-1 rounded border border-[#00bfff]/50 bg-[#00bfff]/10 text-[#00bfff] text-[0.65rem] font-bold tracking-widest uppercase neon-blue transition-all hover:bg-[#00bfff]/20 active:bg-[#00bfff]/40";
             }, 2000);
         });
 
-        // -----------------------------------------------------------------------------
-        // CSV TELEMETRY EXPORT (Memory Efficient Generator)
-        // -----------------------------------------------------------------------------
-        dom.exportCsvBtn.addEventListener('click', () => {
-            if (telemetrySession.length === 0) return;
-            
-            // Re-join pre-serialized strings. Avoids heavy object traversal overhead.
-            const header = "Timestamp(ms),Speed(kmh),Distance(m),LatG,LongG\n";
-            const csvContent = "data:text/csv;charset=utf-8," + header + telemetrySession.join("\n");
+        dom.resetRunBtn.addEventListener('click', resetRun);
 
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `VelocityLab_Pro_Telemetry_${Date.now()}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+        // ─── CSV EXPORT ───────────────────────────────────────────────────────────
+        // ADD #12: heading added as 6th column
+        dom.exportBtn.addEventListener('click', () => {
+            if (!telemetrySession.length) return;
+            const csv = "data:text/csv;charset=utf-8,"
+                + "Timestamp(ms),Speed(kmh),Distance(m),LatG,LongG,Heading(deg)\n"
+                + telemetrySession.join("\n");
+            const a = document.createElement("a");
+            a.href     = encodeURI(csv);
+            a.download = `VelocityLab_${Date.now()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         });
 
-        // -----------------------------------------------------------------------------
-        // PWA BOOTSTRAP
-        // -----------------------------------------------------------------------------
+        // ─── PWA BOOTSTRAP ────────────────────────────────────────────────────────
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+                if (/https?:/.test(location.protocol))
                     navigator.serviceWorker.register('sw.js').catch(() => {});
-                }
             });
         }
-
-        let deferredInstallPrompt = null;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredInstallPrompt = e;
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault(); deferredPrompt = e;
             dom.installBtn.style.display = 'flex';
         });
-
         dom.installBtn.addEventListener('click', async () => {
-            if (!deferredInstallPrompt) return;
-            deferredInstallPrompt.prompt();
-            const { outcome } = await deferredInstallPrompt.userChoice;
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
             if (outcome === 'accepted') dom.installBtn.style.display = 'none';
-            deferredInstallPrompt = null;
+            deferredPrompt = null;
         });
-
         window.addEventListener('appinstalled', () => dom.installBtn.style.display = 'none');
 
+        // ─── WAKE LOCK ────────────────────────────────────────────────────────────
         async function requestWakeLock() {
-            if ('wakeLock' in navigator) {
-                try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    dom.wakeLock.textContent = "WAKELOCK: ON";
-                    dom.wakeLock.className = "text-green-500 neon-accent";
-                    wakeLock.addEventListener('release', () => {
-                        dom.wakeLock.textContent = "WAKELOCK: LOST";
-                        dom.wakeLock.className = "text-red-500 neon-danger";
-                    });
-                } catch (err) {
-                    dom.wakeLock.textContent = "WAKELOCK: N/A";
-                    dom.wakeLock.className = "text-gray-500";
-                }
+            if (!('wakeLock' in navigator)) return;
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                dom.wakeLock.textContent = "WAKELOCK: ON";
+                dom.wakeLock.className   = "text-green-500 neon-accent";
+                wakeLock.addEventListener('release', () => {
+                    dom.wakeLock.textContent = "WAKELOCK: LOST";
+                    dom.wakeLock.className   = "text-red-500 neon-danger";
+                });
+            } catch {
+                dom.wakeLock.textContent = "WAKELOCK: N/A";
+                dom.wakeLock.className   = "text-gray-500";
             }
         }
         document.addEventListener('visibilitychange', async () => {
             if (wakeLock !== null && document.visibilityState === 'visible') await requestWakeLock();
         });
 
-        // -----------------------------------------------------------------------------
-        // SENSOR FUSION ENGINE (Strict Hardware Polling - Decoupled from Frame Rate)
-        // -----------------------------------------------------------------------------
+        // ─── IMU SENSOR FUSION ────────────────────────────────────────────────────
+        // FIX #1: distanceMeters removed from handleMotion entirely — GPS handles it.
+        //         IMU still delta-v integrates fusedSpeedMs for 60Hz display smoothness
+        //         between 1Hz GPS corrections. GPS corrects drift each second.
+        // FIX #8: dt capped at IMU_MAX_DT_SEC to prevent velocity spike after app-resume.
         function handleMotion(event) {
             const now = performance.now();
-            const dt = (now - lastImuTime) / 1000.0;
+            const dt  = Math.min((now - lastImuTime) / 1000.0, IMU_MAX_DT_SEC);
             lastImuTime = now;
 
-            const rawX = event.accelerationIncludingGravity.x || 0;
-            const rawZ = event.accelerationIncludingGravity.z || 0;
+            const rawX = event.accelerationIncludingGravity?.x ?? 0;
+            const rawZ = event.accelerationIncludingGravity?.z ?? 0;
 
-            // Low Pass Filter
-            filteredAccelX = (IMU_ALPHA * rawX) + ((1 - IMU_ALPHA) * filteredAccelX);
-            filteredAccelZ = (IMU_ALPHA * rawZ) + ((1 - IMU_ALPHA) * filteredAccelZ);
+            // Low-pass filter (portrait-upright mount: Z=longitudinal, X=lateral)
+            filteredAccelX = IMU_ALPHA * rawX + (1 - IMU_ALPHA) * filteredAccelX;
+            filteredAccelZ = IMU_ALPHA * rawZ + (1 - IMU_ALPHA) * filteredAccelZ;
 
-            // Kinematic Output Updates (Shared globally with Render Loop)
-            const kinematicZ = filteredAccelZ - mountOffsetZ;
-            longGForce = kinematicZ / GRAVITY_MS2;
-            latGForce = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
-            
-            // Physics Engine: Integrate Acceleration -> Velocity -> Distance
-            fusedSpeedMs += (kinematicZ * dt);
-            
-            // Zero Velocity State Bounds
-            if (fusedSpeedMs < 0) {
-                fusedSpeedMs = 0;
-            } else if ((fusedSpeedMs * MS_TO_KMPH) >= SPEED_ZERO_SNAP_THRESHOLD_KMPH) {
-                // Only integrate physical distance if actually moving, prevents GPS/IMU standing wander
-                distanceMeters += (fusedSpeedMs * dt);
-            }
+            const kinZ = filteredAccelZ - mountOffsetZ;
+            longGForce = kinZ / GRAVITY_MS2;
+            latGForce  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
+
+            // IMU delta-v: smooths display between GPS corrections (drift reset by GPS each ~1s)
+            fusedSpeedMs = Math.max(0, fusedSpeedMs + kinZ * dt);
         }
 
-        // -----------------------------------------------------------------------------
-        // GNSS L1/L5 ABSOLUTE CORRECTION (1Hz Drift Sync)
-        // -----------------------------------------------------------------------------
+        // ─── GNSS HANDLER ─────────────────────────────────────────────────────────
         function onPositionSuccess(position) {
-            const coords = position.coords;
-            const speedMs = coords.speed || 0.0;
-            
-            // Soft Kalman-lite drift correction.
-            // Decouples massive IMU integration errors smoothly without snapping the display.
-            const errorDelta = Math.abs(speedMs - fusedSpeedMs);
-            if (errorDelta > 2.0) {
-                fusedSpeedMs = speedMs; 
-            } else {
-                fusedSpeedMs = (fusedSpeedMs * 0.2) + (speedMs * 0.8); 
+            const c   = position.coords;
+            const now = performance.now();
+
+            // FIX #9: null-safe speed — coords.speed is null on some platforms at first fix
+            const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
+
+            // FIX #1: GPS-based distance integration — accurate to GPS fix interval, not IMU drift
+            //         dt capped at GPS_MAX_DT_SEC to prevent stale-fix jump
+            if (lastGpsTime > 0) {
+                const gpsDt = Math.min((now - lastGpsTime) / 1000.0, GPS_MAX_DT_SEC);
+                if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
             }
-            
-            lastGpsTime = performance.now();
+            lastGpsTime = now;
+
+            // Soft-blend correction: GPS is authoritative reference
+            const err = Math.abs(gpsSpeedMs - fusedSpeedMs);
+            fusedSpeedMs = err > 2.0
+                ? gpsSpeedMs
+                : fusedSpeedMs * 0.2 + gpsSpeedMs * 0.8;
+
             isLogging = true;
 
-            dom.accuracy.textContent = `ACC: ${coords.accuracy.toFixed(1)} m`;
-            if (coords.accuracy <= 4.0) {
-                dom.status.textContent = "L1/L5 GNSS: RTK LEVEL";
-                dom.status.className = "text-[#bb86fc] neon-purple";
-            } else if (coords.accuracy <= 10.0) {
-                dom.status.textContent = "L1/L5 GNSS: 3D OK";
-                dom.status.className = "text-[#00ff88] neon-accent";
+            // ADD #12: GPS heading
+            if (typeof c.heading === 'number' && !isNaN(c.heading)) gpsHeading = c.heading;
+
+            // FIX #3: null-safe accuracy — toFixed() throws on null
+            const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
+            dom.accuracy.textContent = `ACC: ${acc.toFixed(1)} m`;
+
+            if (acc <= 4.0) {
+                dom.status.textContent = "L1/L5 GNSS: RTK";
+                dom.status.className   = "text-[#bb86fc] neon-purple";
+            } else if (acc <= 10.0) {
+                dom.status.textContent = "L1/L5 GNSS: OK";
+                dom.status.className   = "text-[#00ff88] neon-accent";
             } else {
                 dom.status.textContent = "GNSS: WEAK";
-                dom.status.className = "text-yellow-500 neon-warning";
+                dom.status.className   = "text-yellow-500 neon-warning";
             }
         }
 
         function onPositionError() {
-            dom.status.className = "text-red-500 neon-danger";
             dom.status.textContent = "ERR: NO SIGNAL";
+            dom.status.className   = "text-red-500 neon-danger";
         }
 
-        // Helper function to bypass unnecessary browser reflows
-        function updateDOM(element, cacheKey, value, className = null) {
-            if (domCache[cacheKey] !== value) {
-                element.textContent = value;
-                domCache[cacheKey] = value;
-            }
-            if (className && element.className !== className) {
-                element.className = className;
-            }
-        }
-
-        // -----------------------------------------------------------------------------
-        // RENDER LOOP (Prioritized Bifurcated State Machine)
-        // -----------------------------------------------------------------------------
+        // ─── RENDER LOOP ──────────────────────────────────────────────────────────
         function renderLoop() {
             const now = performance.now();
-            let displaySpeedKmph = fusedSpeedMs * MS_TO_KMPH;
+            let kmph  = fusedSpeedMs * MS_TO_KMPH;
 
-            // Zero Snap Deadzone
-            if (displaySpeedKmph < SPEED_ZERO_SNAP_THRESHOLD_KMPH && now - lastGpsTime > 1000) {
-                displaySpeedKmph = 0.0;
+            // FIX #4: Zero-snap only when speed is already near-zero AND GPS stale
+            //         Original 1s timeout fired mid-run during any brief GPS hiccup
+            const gpsAge = lastGpsTime > 0 ? (now - lastGpsTime) : 0;
+            if (kmph < SPEED_ZERO_SNAP_KMPH && gpsAge > GPS_STALE_MS) {
+                kmph = 0.0;
                 fusedSpeedMs = 0.0;
             }
 
-            // -------------------------------------------------------------------------
-            // TIER 1 PRIORITY (Updates at 120Hz/Max Refresh Rate)
-            // -------------------------------------------------------------------------
-            const speedStr = displaySpeedKmph.toFixed(1);
-            updateDOM(dom.speedDisplay, 'speed', speedStr);
-            
-            const barPercentage = Math.min((displaySpeedKmph / BAR_MAX_SPEED) * 100, 100).toFixed(1) + "%";
-            if (domCache.speedBar !== barPercentage) {
-                dom.speedBar.style.width = barPercentage;
-                domCache.speedBar = barPercentage;
+            // TIER 1 — max refresh rate ──────────────────────────────────────────────
+            const speedStr = kmph.toFixed(1);
+
+            // ADD #13: Speed color tier (green <80 / yellow <160 / red ≥160 km/h)
+            const B = "text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text ";
+            const colorCls = kmph >= 160 ? B + "spd-red"
+                           : kmph >=  80 ? B + "spd-yellow"
+                                         : B + "spd-green";
+            setDOM(dom.speed, 'speed', speedStr, colorCls);
+
+            const barPct = Math.min((kmph / BAR_MAX_SPEED) * 100, 100).toFixed(1) + "%";
+            if (prev.speedBar !== barPct) { dom.speedBar.style.width = barPct; prev.speedBar = barPct; }
+
+            // ADD #11: Max speed
+            if (kmph > maxSpeedKmph) {
+                maxSpeedKmph = kmph;
+                setDOM(dom.maxSpeed, 'maxSpeed', "MAX: " + maxSpeedKmph.toFixed(1));
             }
 
-            // High-Speed Racing Logic
-            if (displaySpeedKmph < 2.0) {
-                distanceMeters = 0.0; 
-                if (timer0_100.state !== 'IDLE' && timer0_100.state !== 'COMPLETED') {
-                    timer0_100.state = 'IDLE';
-                    updateDOM(dom.t0_100, 't0_100', "READY", "text-lg font-bold text-[#00bfff] lcd-text");
-                }
-                if (timer100_200.state !== 'IDLE' && timer100_200.state !== 'COMPLETED') {
-                    timer100_200.state = 'IDLE';
-                    updateDOM(dom.t100_200, 't100_200', "READY", "text-lg font-bold text-[#bb86fc] lcd-text");
-                }
-                if (timerQuarter.state !== 'IDLE' && timerQuarter.state !== 'COMPLETED') {
-                    timerQuarter.state = 'IDLE';
-                    updateDOM(dom.tQuarter, 'tQuarter', "READY", "text-lg font-bold text-yellow-400 lcd-text");
-                }
+            // FIX #5: Reset ONLY RUNNING timers on stop — COMPLETED results stay until resetRun()
+            //         Original logic also reset COMPLETED state, losing saved result on slowdown
+            if (kmph < 2.0) {
+                distanceMeters = 0.0;
+                if (timer0_100.state   === T_RUNNING) { timer0_100.state   = T_IDLE; setDOM(dom.t0_100,   't0_100',   "READY", "text-lg font-bold text-[#00bfff] lcd-text"); }
+                if (timer100_200.state === T_RUNNING) { timer100_200.state = T_IDLE; setDOM(dom.t100_200, 't100_200', "READY", "text-lg font-bold text-[#bb86fc] lcd-text"); }
+                if (timerQuarter.state === T_RUNNING) { timerQuarter.state = T_IDLE; setDOM(dom.tQuarter, 'tQuarter', "READY", "text-lg font-bold text-yellow-400 lcd-text"); }
             }
 
             // Timer: 0-100 km/h
-            if (timer0_100.state === 'IDLE' && displaySpeedKmph >= 2.0) {
-                timer0_100.state = 'RUNNING';
-                timer0_100.start = now;
+            if (timer0_100.state === T_IDLE && kmph >= 2.0) {
+                timer0_100 = { state: T_RUNNING, start: now, result: 0 };
                 dom.t0_100.className = "text-lg font-bold text-yellow-400 lcd-text";
             }
-            if (timer0_100.state === 'RUNNING' && displaySpeedKmph >= 100.0) {
-                timer0_100.state = 'COMPLETED';
+            if (timer0_100.state === T_RUNNING && kmph >= 100.0) {
+                timer0_100.state  = T_DONE;
                 timer0_100.result = now - timer0_100.start;
-                updateDOM(dom.t0_100, 't0_100', (timer0_100.result / 1000).toFixed(3) + " s", "text-lg font-bold text-white neon-accent lcd-text");
+                setDOM(dom.t0_100, 't0_100', (timer0_100.result / 1000).toFixed(3) + " s", "text-lg font-bold text-white neon-accent lcd-text");
             }
 
             // Timer: 100-200 km/h
-            if (timer100_200.state === 'IDLE' && displaySpeedKmph >= 100.0) {
-                timer100_200.state = 'RUNNING';
-                timer100_200.start = now;
+            if (timer100_200.state === T_IDLE && kmph >= 100.0) {
+                timer100_200 = { state: T_RUNNING, start: now, result: 0 };
                 dom.t100_200.className = "text-lg font-bold text-yellow-400 lcd-text";
             }
-            if (timer100_200.state === 'RUNNING' && displaySpeedKmph >= 200.0) {
-                timer100_200.state = 'COMPLETED';
+            if (timer100_200.state === T_RUNNING && kmph >= 200.0) {
+                timer100_200.state  = T_DONE;
                 timer100_200.result = now - timer100_200.start;
-                updateDOM(dom.t100_200, 't100_200', (timer100_200.result / 1000).toFixed(3) + " s", "text-lg font-bold text-white neon-purple lcd-text");
+                setDOM(dom.t100_200, 't100_200', (timer100_200.result / 1000).toFixed(3) + " s", "text-lg font-bold text-white neon-purple lcd-text");
             }
 
-            // Timer: 1/4 Mile 
-            if (timerQuarter.state === 'IDLE' && displaySpeedKmph >= 2.0) {
-                timerQuarter.state = 'RUNNING';
-                timerQuarter.start = now;
+            // Timer: 1/4 mile — FIX #1: now triggered by GPS-accurate distanceMeters
+            if (timerQuarter.state === T_IDLE && kmph >= 2.0) {
+                timerQuarter = { state: T_RUNNING, start: now, result: 0 };
                 dom.tQuarter.className = "text-lg font-bold text-[#00ff88] lcd-text";
             }
-            if (timerQuarter.state === 'RUNNING' && distanceMeters >= QUARTER_MILE_METERS) {
-                timerQuarter.state = 'COMPLETED';
+            if (timerQuarter.state === T_RUNNING && distanceMeters >= QUARTER_MILE_METERS) {
+                timerQuarter.state  = T_DONE;
                 timerQuarter.result = now - timerQuarter.start;
-                const trapSpeed = displaySpeedKmph.toFixed(1);
-                updateDOM(dom.tQuarter, 'tQuarter', `${(timerQuarter.result / 1000).toFixed(3)}s @ ${trapSpeed}`, "text-[0.9rem] font-bold text-white neon-warning lcd-text");
+                setDOM(dom.tQuarter, 'tQuarter',
+                    `${(timerQuarter.result / 1000).toFixed(3)}s @${kmph.toFixed(0)}`,
+                    "text-[0.9rem] font-bold text-white neon-warning lcd-text");
             }
 
-            // Live Timer Progression Render
-            if (timer0_100.state === 'RUNNING') updateDOM(dom.t0_100, 't0_100', ((now - timer0_100.start) / 1000).toFixed(2) + " s");
-            if (timer100_200.state === 'RUNNING') updateDOM(dom.t100_200, 't100_200', ((now - timer100_200.start) / 1000).toFixed(2) + " s");
-            if (timerQuarter.state === 'RUNNING') updateDOM(dom.tQuarter, 'tQuarter', distanceMeters.toFixed(0) + " m");
+            // Live timer countup display
+            if (timer0_100.state   === T_RUNNING) setDOM(dom.t0_100,   't0_100',   ((now - timer0_100.start)   / 1000).toFixed(2) + " s");
+            if (timer100_200.state === T_RUNNING) setDOM(dom.t100_200, 't100_200', ((now - timer100_200.start) / 1000).toFixed(2) + " s");
+            if (timerQuarter.state === T_RUNNING) setDOM(dom.tQuarter, 'tQuarter', distanceMeters.toFixed(0) + " m");
 
-            // -------------------------------------------------------------------------
-            // TIER 2 PRIORITY (Throttled to 20Hz / 50ms interval for Battery Savings)
-            // Human reading comprehension stops scaling past 10-15Hz anyway.
-            // -------------------------------------------------------------------------
-            if (now - lastSecondaryUiTime >= 50) {
-                lastSecondaryUiTime = now;
-                
-                updateDOM(dom.longG, 'longG', Math.abs(longGForce).toFixed(2) + (longGForce < 0 ? " A" : " B"));
-                updateDOM(dom.latG, 'latG', Math.abs(latGForce).toFixed(2));
+            // TIER 2 — 20Hz secondary metrics ────────────────────────────────────────
+            if (now - lastSecUiTime >= 50) {
+                lastSecUiTime = now;
 
-                const currentPeak = Math.max(Math.abs(longGForce), Math.abs(latGForce));
-                if (currentPeak > peakG) {
-                    peakG = currentPeak;
-                    updateDOM(dom.peakG, 'peakG', peakG.toFixed(2));
-                }
+                // FIX #2: "A"/"B" was a debug artifact
+                //         Now: signed longitudinal with 0.05g deadband → "ACC" / "BRK"
+                const lngAbs = Math.abs(longGForce).toFixed(2);
+                const lngTag = longGForce >  0.05 ? " ACC"
+                             : longGForce < -0.05 ? " BRK" : "";
+                setDOM(dom.longG, 'longG', lngAbs + lngTag);
+
+                // Lateral G with direction — "R" (right corner) / "L" (left corner)
+                const latAbs = Math.abs(latGForce).toFixed(2);
+                const latTag = latGForce >  0.05 ? " R"
+                             : latGForce < -0.05 ? " L" : "";
+                setDOM(dom.latG, 'latG', latAbs + latTag);
+
+                const peak = Math.max(Math.abs(longGForce), Math.abs(latGForce));
+                if (peak > peakG) { peakG = peak; setDOM(dom.peakG, 'peakG', peakG.toFixed(2)); }
+
+                // ADD #12: Heading display
+                if (!isNaN(gpsHeading)) dom.heading.textContent = `HDG: ${Math.round(gpsHeading)}°`;
             }
 
-            // -------------------------------------------------------------------------
-            // TIER 3 PRIORITY (Data Logger - 10Hz Hardware Interval & GC String Array)
-            // -------------------------------------------------------------------------
-            if (isLogging && displaySpeedKmph > 0 && (now - lastLogTime >= 100)) {
+            // TIER 3 — 10Hz data logger ────────────────────────────────────────────────
+            if (isLogging && kmph > 0 && (now - lastLogTime >= 100)) {
                 lastLogTime = now;
-                dom.exportCsvBtn.style.display = 'flex';
-                
-                // Hardcap to prevent RAM OOM browser crash 
+
+                // FIX #7: Single-set guard — was calling style.display = 'flex' every 100ms
+                if (!exportBtnShown) { dom.exportBtn.style.display = 'flex'; exportBtnShown = true; }
+
                 if (telemetrySession.length < MAX_LOG_SAMPLES) {
-                    // Pre-serializing strings prevents JSON heap fragmentation overhead
-                    const dataRow = `${Math.floor(now)},${speedStr},${distanceMeters.toFixed(2)},${latGForce.toFixed(3)},${longGForce.toFixed(3)}`;
-                    telemetrySession.push(dataRow);
-                    
-                    if (domCache.logs !== telemetrySession.length) {
-                        domCache.logs = telemetrySession.length;
-                        dom.logCount.textContent = domCache.logs;
-                    }
+                    // ADD #12: heading included in CSV row
+                    const hdg = isNaN(gpsHeading) ? "" : Math.round(gpsHeading);
+                    telemetrySession.push(
+                        `${Math.floor(now)},${speedStr},${distanceMeters.toFixed(2)},${latGForce.toFixed(3)},${longGForce.toFixed(3)},${hdg}`
+                    );
+                    const len = telemetrySession.length;
+                    if (prev.logCount !== len) { prev.logCount = len; dom.logCount.textContent = len; }
                 }
             }
 
-            // Yield thread context and request next frame
             requestAnimationFrame(renderLoop);
         }
 
-        // -----------------------------------------------------------------------------
-        // LIFECYCLE INITIALIZATION
-        // -----------------------------------------------------------------------------
-        function initSensors() {
+        // ─── iOS 13+ DEVICEMOTION PERMISSION GATE ────────────────────────────────
+        // FIX #6: iOS gives zero IMU data without this — must be triggered by user gesture.
+        //         Returns true if granted or not required (Android/desktop).
+        async function requestIOSMotion() {
+            if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
+            dom.iosGate.style.display = 'flex';
+            return new Promise(resolve => {
+                dom.iosGrantBtn.addEventListener('click', async () => {
+                    try {
+                        const r = await DeviceMotionEvent.requestPermission();
+                        dom.iosGate.style.display = 'none';
+                        resolve(r === 'granted');
+                    } catch {
+                        dom.iosGate.style.display = 'none';
+                        resolve(false);
+                    }
+                }, { once: true });
+            });
+        }
+
+        // ─── LIFECYCLE INIT ───────────────────────────────────────────────────────
+        async function initSensors() {
+            const motionOk = await requestIOSMotion(); // awaits user tap on iOS
+
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition(
-                    onPositionSuccess,
-                    onPositionError,
+                    onPositionSuccess, onPositionError,
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
                 );
-            } else dom.status.textContent = "ERR: GNSS NOT SUPPORTED";
+            } else {
+                dom.status.textContent = "ERR: GNSS N/A";
+            }
 
-            if (window.DeviceMotionEvent) {
+            if (motionOk && window.DeviceMotionEvent) {
                 window.addEventListener('devicemotion', handleMotion, false);
             } else {
-                dom.latG.textContent = "N/A";
+                dom.latG.textContent  = "N/A";
                 dom.longG.textContent = "N/A";
             }
 
