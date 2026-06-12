@@ -251,7 +251,6 @@
         let distanceMeters  = 0.0;     
         
         let lastGpsTime     = -1;
-        let lastGpsCall     = 0;      
         let prevGpsSpeedMs  = 0.0;
         let prevDistance    = 0.0;
         let prevHeading     = NaN;
@@ -346,7 +345,7 @@
         };
 
         const prev = {
-            speed: null, speedBar: null,
+            speed: null, speedBar: null, heading: null,
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, logCount: 0, maxSpeed: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1
@@ -421,6 +420,14 @@
             bestGpsBrakingG = 0.0;
             maxGpsAccelG    = 0.0;
             maxGpsLatG      = 0.0;
+
+            // BUGFIX: Flush physical state to prevent false deceleration spikes during reset
+            prevGpsSpeedMs     = currentSpeedMs; 
+            prevHeading        = NaN;
+            gpsCalculatedLongG = 0.0;
+            gpsCalculatedLatG  = 0.0;
+            uiLongG            = 0.0;
+            uiLatG             = 0.0;
 
             prev.maxSpeed   = null;
             prev.peakG      = null;
@@ -727,7 +734,12 @@
             if (timer0_100.result > 0) {
                 const tSec = timer0_100.result / 1000;
                 pts0_100 = Math.max(0, Math.min(15, 15 * (10 - tSec) / (10 - 3.5)));
+            } else if (timer0_60.result > 0) {
+                // BUGFIX: Fallback score using 0-60mph if 0-100kmh sprint is incomplete
+                const tSec = timer0_60.result / 1000;
+                pts0_100 = Math.max(0, Math.min(15, 15 * (9.5 - tSec) / (9.5 - 3.3)));
             }
+
             let pts100_200 = 0;
             if (timer100_200.result > 0) {
                 const tSec = timer100_200.result / 1000;
@@ -767,22 +779,25 @@
             const c   = position.coords;
             const now = performance.now();
 
-            // Hardware Polling Rate Monitor
-            if (lastGpsCall > 0) {
-                const deltaMs = now - lastGpsCall;
+            let gpsDt = 0;
+            if (lastGpsTime > 0) {
+                const deltaMs = now - lastGpsTime;
+                gpsDt = Math.min(deltaMs / 1000.0, GPS_MAX_DT_SEC);
+                
+                // Hardware Polling Rate Monitor
                 const hz = 1000 / deltaMs;
                 if (hz < 50) { // Filter out instant double-fires on some Androids
                     dom.updateRate.textContent = `GPS: ${hz.toFixed(1)} HZ`;
                 }
             }
-            lastGpsCall = now;
+            // BUGFIX: Set exact timestamp marker at the start of loop for accurate physical delta
+            lastGpsTime = now;
 
             const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
             const validHeading = typeof c.heading === 'number' && !isNaN(c.heading) && c.heading !== null;
 
-            if (lastGpsTime > 0) {
-                const gpsDt = Math.min((now - lastGpsTime) / 1000.0, GPS_MAX_DT_SEC);
+            if (gpsDt > 0) {
                 if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
 
                 const gpsDv = gpsSpeedMs - prevGpsSpeedMs;
@@ -793,8 +808,11 @@
                         let dHeading = c.heading - prevHeading;
                         while (dHeading <= -180) dHeading += 360;
                         while (dHeading >   180) dHeading -= 360;
+                        
                         const avgSpeedMs = (gpsSpeedMs + prevGpsSpeedMs) / 2.0;
-                        gpsCalculatedLatG = (avgSpeedMs * Math.abs(dHeading * Math.PI / 180.0) / gpsDt) / GRAVITY_MS2;
+                        // BUGFIX: Preserved direction sign to measure left/right turns dynamically
+                        const dHeadingRad = dHeading * Math.PI / 180.0;
+                        gpsCalculatedLatG = (avgSpeedMs * dHeadingRad / gpsDt) / GRAVITY_MS2;
                     }
                     prevHeading = c.heading;
                 } else {
@@ -814,14 +832,14 @@
                 if (timer100_200.state === T_RUNNING) { timer100_200.state = T_IDLE; setDOM(dom.t100_200, 't100_200', "READY", CLS_TIMER_BASE, "text-[#bb86fc]"); }
                 if (timerQuarter.state === T_RUNNING) { timerQuarter.state = T_IDLE; setDOM(dom.tQuarter, 'tQuarter', "READY", CLS_TIMER_BASE, "text-yellow-400"); }
             
-            } else if (lastGpsTime > 0) {
-                const timeDelta = now - lastGpsTime;
+            } else if (gpsDt > 0) {
+                const timeDelta = gpsDt * 1000.0;
                 const speedDelta = gpsSpeedKmph - prevKmph;
                 const distDelta = distanceMeters - prevDistance;
 
                 if (prevKmph < 2.0 && gpsSpeedKmph >= 2.0) {
                     const r = speedDelta !== 0 ? (2.0 - prevKmph) / speedDelta : 0;
-                    const exactStart = lastGpsTime + (r * timeDelta);
+                    const exactStart = (now - timeDelta) + (r * timeDelta);
                     
                     if (timer0_60.state === T_IDLE)    { timer0_60.state = T_RUNNING; timer0_60.start = exactStart; timer0_60.result = 0; dom.t0_60.className = CLS_TIMER_BASE + "text-yellow-400"; }
                     if (timer0_100.state === T_IDLE)   { timer0_100.state = T_RUNNING; timer0_100.start = exactStart; timer0_100.result = 0; dom.t0_100.className = CLS_TIMER_BASE + "text-yellow-400"; }
@@ -830,35 +848,35 @@
 
                 if (timer100_200.state === T_IDLE && prevKmph < 100.0 && gpsSpeedKmph >= 100.0) {
                     const r = speedDelta !== 0 ? (100.0 - prevKmph) / speedDelta : 0;
-                    timer100_200.state = T_RUNNING; timer100_200.start = lastGpsTime + (r * timeDelta); timer100_200.result = 0; 
+                    timer100_200.state = T_RUNNING; timer100_200.start = (now - timeDelta) + (r * timeDelta); timer100_200.result = 0; 
                     dom.t100_200.className = CLS_TIMER_BASE + "text-yellow-400";
                 }
 
                 // Complete 0-60mph
                 if (timer0_60.state === T_RUNNING && prevKmph < MPH_60_IN_KMPH && gpsSpeedKmph >= MPH_60_IN_KMPH) {
                     const r = speedDelta !== 0 ? (MPH_60_IN_KMPH - prevKmph) / speedDelta : 0;
-                    timer0_60.state = T_DONE; timer0_60.result = (lastGpsTime + (r * timeDelta)) - timer0_60.start;
+                    timer0_60.state = T_DONE; timer0_60.result = ((now - timeDelta) + (r * timeDelta)) - timer0_60.start;
                     setDOM(dom.t0_60, 't0_60', fmt3.format(timer0_60.result / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange");
                     stateDirty = true;
                 }
 
                 if (timer0_100.state === T_RUNNING && prevKmph < 100.0 && gpsSpeedKmph >= 100.0) {
                     const r = speedDelta !== 0 ? (100.0 - prevKmph) / speedDelta : 0;
-                    timer0_100.state = T_DONE; timer0_100.result = (lastGpsTime + (r * timeDelta)) - timer0_100.start;
+                    timer0_100.state = T_DONE; timer0_100.result = ((now - timeDelta) + (r * timeDelta)) - timer0_100.start;
                     setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "text-white neon-accent");
                     stateDirty = true;
                 }
 
                 if (timer100_200.state === T_RUNNING && prevKmph < 200.0 && gpsSpeedKmph >= 200.0) {
                     const r = speedDelta !== 0 ? (200.0 - prevKmph) / speedDelta : 0;
-                    timer100_200.state = T_DONE; timer100_200.result = (lastGpsTime + (r * timeDelta)) - timer100_200.start;
+                    timer100_200.state = T_DONE; timer100_200.result = ((now - timeDelta) + (r * timeDelta)) - timer100_200.start;
                     setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "text-white neon-purple");
                     stateDirty = true;
                 }
 
                 if (timerQuarter.state === T_RUNNING && prevDistance < QUARTER_MILE_METERS && distanceMeters >= QUARTER_MILE_METERS) {
                     const r = distDelta !== 0 ? (QUARTER_MILE_METERS - prevDistance) / distDelta : 0;
-                    timerQuarter.state = T_DONE; timerQuarter.result = (lastGpsTime + (r * timeDelta)) - timerQuarter.start;
+                    timerQuarter.state = T_DONE; timerQuarter.result = ((now - timeDelta) + (r * timeDelta)) - timerQuarter.start;
                     const trapSpeed = prevKmph + (r * speedDelta);
                     setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(timerQuarter.result / 1000)}s @${fmt0.format(trapSpeed)}`, "text-[0.9rem] font-bold text-white neon-warning lcd-text");
                     stateDirty = true;
@@ -895,10 +913,14 @@
                     stateDirty = true;
                 }
             }
-            if (gpsCalculatedLatG > maxGpsLatG) { maxGpsLatG = gpsCalculatedLatG; stateDirty = true; }
+
+            // BUGFIX: Wrapped condition to correctly track max Lat G even if user only turns left
+            if (Math.abs(gpsCalculatedLatG) > maxGpsLatG) { 
+                maxGpsLatG = Math.abs(gpsCalculatedLatG); 
+                stateDirty = true; 
+            }
 
             // HARDWARE-AWARE LOGGING: 
-            // Instead of duplicating 1Hz GPS data inside a 60Hz loop, we log only when physical hardware provides a new coordinate.
             if (gpsSpeedKmph > 0) {
                 if (!exportBtnShown) { 
                     dom.exportGroup.style.display = 'flex'; 
@@ -916,7 +938,6 @@
 
             prevDistance = distanceMeters;
             prevGpsSpeedMs = currentSpeedMs;
-            lastGpsTime = now;
 
             if (validHeading) gpsHeading = c.heading;
             dom.accuracy.textContent = `ACC: ${fmt1.format(acc)} m`;
@@ -997,7 +1018,10 @@
             if (timerQuarter.state === T_RUNNING) setDOM(dom.tQuarter, 'tQuarter', fmt0.format(distanceMeters) + " m");
             if (timer100_0.state   === T_BRAKING) setDOM(dom.t100_0,   't100_0',   fmt0.format(distanceMeters - timer100_0.startDist) + " m");
 
-            if (!isNaN(gpsHeading)) dom.heading.textContent = `HDG: ${Math.round(gpsHeading)}°`;
+            // BUGFIX: Wrapped DOM update behind cached setDOM string check to prevent frame thrashing
+            if (!isNaN(gpsHeading)) {
+                setDOM(dom.heading, 'heading', `HDG: ${Math.round(gpsHeading)}°`);
+            }
 
             // UPDATE LIVE G-METER WIDGET
             const alphaG = 1 - Math.exp(-dt * 0.015);
