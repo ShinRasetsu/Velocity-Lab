@@ -60,7 +60,7 @@
     
     <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true">
         <span class="text-[#00ff88] font-bold text-xl neon-accent tracking-widest">VELOCITY-LAB</span>
-        <span class="text-gray-400 text-xs text-center px-8 leading-relaxed">Motion sensor access required for G-force telemetry.</span>
+        <span class="text-gray-400 text-xs text-center px-8 leading-relaxed">Motion sensor access required for IMU fallback telemetry.</span>
         <button id="ios-grant-btn" aria-label="Grant Motion Access"
             class="px-6 py-3 rounded border border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88] text-sm font-bold tracking-widest uppercase neon-accent hover:bg-[#00ff88]/20 transition-all">
             ⚡ GRANT MOTION ACCESS
@@ -102,7 +102,7 @@
         </div>
 
         <div class="flex flex-col items-end gap-1" aria-live="polite">
-            <span id="update-rate" class="text-[#00bfff] neon-blue">PURE GNSS MODE</span>
+            <span id="update-rate" class="text-[#00bfff] neon-blue">GPS+IMU FUSION</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">WAKELOCK: OFF</span>
             <span id="max-speed-display" class="text-gray-500">MAX: 0.0</span>
         </div>
@@ -121,24 +121,24 @@
     <!-- VEHICLE PERFORMANCE INDEX (V-SCORE) -->
     <section class="w-full max-w-md bg-gray-900/60 rounded-lg p-2 mb-2 flex flex-col gap-1 border border-gray-800" aria-label="Vehicle Performance Score">
         <div class="flex justify-between items-center px-2">
-            <span class="text-[0.65rem] text-gray-400 uppercase font-bold tracking-widest">Performance Index</span>
+            <span class="text-[0.65rem] text-gray-400 uppercase font-bold tracking-widest">Performance Index (GPS)</span>
             <span id="v-score-total" class="text-2xl font-extrabold text-[#00ff88] neon-accent lcd-text">0</span>
         </div>
         <div class="grid grid-cols-4 gap-1 text-center">
             <div class="bg-black/40 rounded py-1 border-t border-gray-800/50">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">SPD</div>
+                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">SPD <span class="text-gray-700">/20</span></div>
                 <div id="v-score-spd" class="text-sm font-bold text-white lcd-text">0</div>
             </div>
             <div class="bg-black/40 rounded py-1 border-t border-gray-800/50">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">ACC</div>
+                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">ACC <span class="text-gray-700">/30</span></div>
                 <div id="v-score-acc" class="text-sm font-bold text-[#00bfff] lcd-text">0</div>
             </div>
             <div class="bg-black/40 rounded py-1 border-t border-gray-800/50">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">BRK</div>
+                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">BRK <span class="text-gray-700">/25</span></div>
                 <div id="v-score-brk" class="text-sm font-bold text-red-400 lcd-text">0</div>
             </div>
             <div class="bg-black/40 rounded py-1 border-t border-gray-800/50">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">HDL</div>
+                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">HDL <span class="text-gray-700">/25</span></div>
                 <div id="v-score-hdl" class="text-sm font-bold text-[#bb86fc] lcd-text">0</div>
             </div>
         </div>
@@ -148,12 +148,12 @@
         <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">0-100 km/h</span><span id="timer-0-100" class="text-lg font-bold text-[#00bfff] lcd-text">--.--- s</span></div>
         <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">100-200 km/h</span><span id="timer-100-200" class="text-lg font-bold text-[#bb86fc] lcd-text">--.--- s</span></div>
         <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">1/4 Mile</span><span id="timer-quarter" class="text-lg font-bold text-yellow-400 lcd-text">--.--- s</span></div>
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">Braking</span><span id="brake-score" class="text-lg font-bold text-red-400 lcd-text">-- G</span></div>
+        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">Peak Brk</span><span id="brake-score" class="text-lg font-bold text-red-400 lcd-text">-- G</span></div>
         
         <div class="metric-card"><span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Lat G</span><span id="lat-g" class="text-lg font-bold text-white lcd-text">0.00</span></div>
         <div class="metric-card"><span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Long G</span><span id="long-g" class="text-lg font-bold text-white lcd-text">0.00</span></div>
         <div class="metric-card"><span class="text-gray-500 text-[0.6rem] uppercase font-bold tracking-wider mb-1">Peak G</span><span id="peak-g" class="text-lg font-bold text-[#00ff88] lcd-text">0.00</span></div>
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">Gear Bias</span><span id="gear-bias" class="text-sm font-bold text-gray-400 lcd-text">--</span></div>
+        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">100-0m Dist</span><span id="timer-100-0" class="text-sm font-bold text-gray-400 lcd-text">-- m</span></div>
     </footer>
 
     <script>
@@ -165,11 +165,11 @@
         const MAX_LOG_SAMPLES      = 100_000;
         const IMU_ALPHA            = 0.15;
         const SPEED_ZERO_SNAP_KMPH = 1.5;
-        const GPS_STALE_MS         = 3000;   
+        const GPS_STALE_MS         = 2500;   
         const GPS_MAX_DT_SEC       = 3.0;    
-        const STORAGE_KEY          = "VelocityLab_Telemetry_Data";
+        const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
 
-        const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2;
+        const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2, T_BRAKING = 3;
 
         const fmt3 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
         const fmt2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -179,7 +179,7 @@
         const CLS_TIMER_BASE = "text-lg font-bold lcd-text ";
         const CLS_BTN_BASE   = "flex items-center gap-1.5 px-3 py-1 rounded border text-[0.65rem] font-bold tracking-widest uppercase transition-all ";
 
-        // ─── STATE (Pure GNSS Architecture) ───────────────────────────────────────
+        // ─── STATE ────────────────────────────────────────────────────────────────
         let wakeLock        = null;
         let currentSpeedMs  = 0.0;     
         let displaySpeedMs  = 0.0;     
@@ -188,6 +188,7 @@
         let lastGpsTime     = -1;      
         let prevGpsSpeedMs  = 0.0;
         let prevDistance    = 0.0;
+        let prevHeading     = NaN;
         
         let lastSecUiTime   = 0;
         let lastLogTime     = 0;
@@ -196,27 +197,35 @@
         let exportBtnShown  = false;   
         let gpsHeading      = NaN;     
 
-        // High-frequency IMU State
+        // Physics State (GPS Derived)
+        let gpsCalculatedLongG = 0.0;
+        let gpsCalculatedLatG  = 0.0;
+
+        // UI Interpolation State
+        let uiLongG = 0.0;
+        let uiLatG  = 0.0;
+
+        // High-frequency IMU State (Fallback Only)
         let filteredAccelX  = 0.0;
         let filteredAccelZ  = 0.0;
         let mountOffsetX    = 0.0;
         let mountOffsetZ    = 0.0;
-        let longGForce      = 0.0;
-        let latGForce       = 0.0;
+        let imuLongG        = 0.0;
+        let imuLatG         = 0.0;
 
-        // Peak Profiling (For Scoring)
-        let peakG           = 0.0;
-        let bestBrakingG    = 0.0;
-        let maxAccelG       = 0.0;
-        let maxLatG         = 0.0;
-        let stateDirty      = false; // Write batching flag
+        // Peak Profiling (Strictly GPS for V-Score)
+        let peakG           = 0.0; // Max combined UI G
+        let bestGpsBrakingG = 0.0;
+        let maxGpsAccelG    = 0.0;
+        let maxGpsLatG      = 0.0;
+        let stateDirty      = false;
 
         const timer0_100   = { state: T_IDLE, start: 0, result: 0 };
         const timer100_200 = { state: T_IDLE, start: 0, result: 0 };
         const timerQuarter = { state: T_IDLE, start: 0, result: 0 };
+        const timer100_0   = { state: T_IDLE, startDist: 0, result: 0 }; // 100-0m Tracker
 
         let telemetrySession = [];
-        let analyticsBuffer  = []; // Sliding window for Vehicle Analysis
         let isLogging        = false;
 
         // ─── DOM CACHE ────────────────────────────────────────────────────────────
@@ -232,7 +241,7 @@
             latG:         document.getElementById('lat-g'),
             peakG:        document.getElementById('peak-g'),
             brakeScore:   document.getElementById('brake-score'),
-            gearBias:     document.getElementById('gear-bias'),
+            t100_0:       document.getElementById('timer-100-0'),
             
             // Score Elements
             vScoreTotal:  document.getElementById('v-score-total'),
@@ -257,8 +266,8 @@
 
         const prev = {
             speed: null, speedBar: null, longG: null, latG: null,
-            peakG: null, t0_100: null, t100_200: null, tQuarter: null,
-            brakeScore: null, gearBias: null, logCount: 0, maxSpeed: null,
+            peakG: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
+            brakeScore: null, logCount: 0, maxSpeed: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1
         };
 
@@ -276,19 +285,20 @@
             }
         }
 
-        // ─── PERSISTENCE LAYER (LOCAL STORAGE) ────────────────────────────────────
+        // ─── PERSISTENCE LAYER ────────────────────────────────────────────────────
         function saveSession() {
             try {
                 const data = {
-                    maxSpeedKmph, peakG, bestBrakingG, maxAccelG, maxLatG,
+                    maxSpeedKmph, peakG, bestGpsBrakingG, maxGpsAccelG, maxGpsLatG,
                     t0_100: timer0_100.result,
                     t100_200: timer100_200.result,
                     tQuarter: timerQuarter.result,
+                    t100_0: timer100_0.result,
                     lastUpdated: Date.now()
                 };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                 stateDirty = false;
-            } catch (e) { console.warn("Storage quota exceeded or disabled.", e); }
+            } catch (e) { console.warn("Storage quota exceeded or disabled."); }
         }
 
         function loadSession() {
@@ -299,57 +309,57 @@
                 const data = JSON.parse(raw);
                 if (Date.now() - data.lastUpdated > 86400000) {
                     localStorage.removeItem(STORAGE_KEY);
-                    return; // Purge stale data > 24 hours
+                    return; 
                 }
 
-                maxSpeedKmph = data.maxSpeedKmph || 0.0;
-                peakG        = data.peakG || 0.0;
-                bestBrakingG = data.bestBrakingG || 0.0;
-                maxAccelG    = data.maxAccelG || 0.0;
-                maxLatG      = data.maxLatG || 0.0;
+                maxSpeedKmph    = data.maxSpeedKmph || 0.0;
+                peakG           = data.peakG || 0.0;
+                bestGpsBrakingG = data.bestGpsBrakingG || 0.0;
+                maxGpsAccelG    = data.maxGpsAccelG || 0.0;
+                maxGpsLatG      = data.maxGpsLatG || 0.0;
                 
                 setDOM(dom.maxSpeed, 'maxSpeed', "MAX: " + fmt1.format(maxSpeedKmph));
                 setDOM(dom.peakG, 'peakG', fmt2.format(peakG));
-                if (bestBrakingG > 0) setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestBrakingG) + " G");
+                if (bestGpsBrakingG > 0) setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G");
                 
                 if (data.t0_100) { timer0_100.result = data.t0_100; setDOM(dom.t0_100, 't0_100', fmt3.format(data.t0_100 / 1000) + " s", CLS_TIMER_BASE, "text-white neon-accent"); }
                 if (data.t100_200) { timer100_200.result = data.t100_200; setDOM(dom.t100_200, 't100_200', fmt3.format(data.t100_200 / 1000) + " s", CLS_TIMER_BASE, "text-white neon-purple"); }
                 if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(data.tQuarter / 1000)}s`, "text-[0.9rem] font-bold text-white neon-warning lcd-text"); }
+                if (data.t100_0) { timer100_0.result = data.t100_0; setDOM(dom.t100_0, 't100_0', fmt1.format(data.t100_0) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger"); }
                 
                 evaluateAndRenderScore();
-            } catch (e) { console.warn("Failed to load session", e); }
+            } catch (e) { console.warn("Failed to load session"); }
         }
 
         // ─── UI CONTROLS ──────────────────────────────────────────────────────────
         function resetRun() {
-            distanceMeters = 0.0;
-            prevDistance   = 0.0;
-            maxSpeedKmph   = 0.0;
-            peakG          = 0.0;
-            bestBrakingG   = 0.0;
-            maxAccelG      = 0.0;
-            maxLatG        = 0.0;
+            distanceMeters  = 0.0;
+            prevDistance    = 0.0;
+            maxSpeedKmph    = 0.0;
+            peakG           = 0.0;
+            bestGpsBrakingG = 0.0;
+            maxGpsAccelG    = 0.0;
+            maxGpsLatG      = 0.0;
 
-            prev.maxSpeed  = null;
-            prev.peakG     = null;
-            prev.brakeScore= null;
-            prev.gearBias  = null;
+            prev.maxSpeed   = null;
+            prev.peakG      = null;
+            prev.brakeScore = null;
 
             timer0_100.state = T_IDLE;
             timer100_200.state = T_IDLE;
             timerQuarter.state = T_IDLE;
+            timer100_0.state = T_IDLE;
 
             setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "text-[#00bfff]");
             setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "text-[#bb86fc]");
             setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
+            setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
             
             dom.peakG.textContent      = "0.00";
             dom.maxSpeed.textContent   = "MAX: 0.0";
             dom.brakeScore.textContent = "-- G";
-            dom.gearBias.textContent   = "--";
-            dom.gearBias.className     = "text-sm font-bold text-gray-400 lcd-text";
 
-            evaluateAndRenderScore(); // Reset scores to 0
+            evaluateAndRenderScore();
             localStorage.removeItem(STORAGE_KEY);
         }
 
@@ -365,10 +375,8 @@
         });
 
         dom.resetRunBtn.addEventListener('click', resetRun);
-
         dom.clearLogsBtn.addEventListener('click', () => {
             telemetrySession = [];
-            analyticsBuffer  = [];
             prev.logCount = 0;
             dom.logCount.textContent = "0";
             dom.exportGroup.style.display = 'none';
@@ -383,8 +391,8 @@
             
             setTimeout(() => {
                 const vs = calculateVehicleScore();
-                const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(1)}km/h | PEAK G: ${peakG.toFixed(2)} | BEST BRAKING: ${bestBrakingG.toFixed(2)}G\n`;
-                const header = "Timestamp(ms),Speed(kmh),Distance(m),LatG,LongG,Heading(deg)\n";
+                const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(1)}km/h | PEAK FWD: ${maxGpsAccelG.toFixed(2)}G | BEST BRAKING: ${bestGpsBrakingG.toFixed(2)}G | PEAK LAT: ${maxGpsLatG.toFixed(2)}G\n`;
+                const header = "Timestamp(ms),Speed(kmh),Distance(m),GPS_LatG,GPS_LongG,Heading(deg)\n";
                 const csv = metadata + header + telemetrySession.join("\n");
                 
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -431,9 +439,8 @@
                 wakeLock = null;
             }
         });
-        window.addEventListener('beforeunload', () => { if (wakeLock !== null) wakeLock.release(); });
 
-        // ─── IMU SENSOR (G-Force Only, Zero Integration) ──────────────────────────
+        // ─── IMU SENSOR (Fallback Only) ───────────────────────────────────────────
         function handleMotion(event) {
             const hasLinear = event.acceleration && typeof event.acceleration.z === 'number';
             const rawX = hasLinear ? event.acceleration.x : (event.accelerationIncludingGravity?.x ?? 0);
@@ -442,20 +449,39 @@
             filteredAccelX = IMU_ALPHA * rawX + (1 - IMU_ALPHA) * filteredAccelX;
             filteredAccelZ = IMU_ALPHA * rawZ + (1 - IMU_ALPHA) * filteredAccelZ;
 
-            longGForce = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
-            latGForce  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
+            imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
+            imuLatG  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
         }
 
-        // ─── ANALYTICS ENGINE (Vehicle Sizing & Scoring) ──────────────────────────
+        // ─── 100-POINT GAMIFICATION ENGINE (GPS Strict) ───────────────────────────
         function calculateVehicleScore() {
-            // Speed factor: 200km/h = 20 pts (max ~25)
-            const ptsSpeed = Math.min((maxSpeedKmph / 200.0) * 20.0, 25.0);
-            // Accel factor: 1.0G Launch = 35 pts (max ~40)
-            const ptsAccel = Math.min((maxAccelG / 1.0) * 35.0, 40.0);
-            // Braking factor: 1.2G Decel = 25 pts (max ~30)
-            const ptsBrake = Math.min((bestBrakingG / 1.2) * 25.0, 30.0);
-            // Handling factor: 1.0G Lateral = 20 pts (max ~25)
-            const ptsHndl  = Math.min((maxLatG / 1.0) * 20.0, 25.0);
+            // SPD: Max 20 pts at 200 km/h
+            const ptsSpeed = Math.min((maxSpeedKmph / 200.0) * 20.0, 20.0);
+            
+            // ACC: Max 30 pts (15 for 0-100, 5 for 100-200, 10 for Peak Launch G)
+            let pts0_100 = 0;
+            if (timer0_100.result > 0) {
+                const tSec = timer0_100.result / 1000;
+                pts0_100 = Math.max(0, Math.min(15, 15 * (10 - tSec) / (10 - 3.5)));
+            }
+            let pts100_200 = 0;
+            if (timer100_200.result > 0) {
+                const tSec = timer100_200.result / 1000;
+                pts100_200 = Math.max(0, Math.min(5, 5 * (15 - tSec) / (15 - 6.0)));
+            }
+            const ptsFwdG = Math.min((maxGpsAccelG / 1.0) * 10.0, 10.0);
+            const ptsAccel = pts0_100 + pts100_200 + ptsFwdG;
+
+            // BRK: Max 25 pts (15 for peak decel G, 10 for 100-0m Distance)
+            const ptsDecelG = Math.min((bestGpsBrakingG / 1.2) * 15.0, 15.0);
+            let ptsBrakeDist = 0;
+            if (timer100_0.result > 0) {
+                ptsBrakeDist = Math.max(0, Math.min(10, 10 * (80 - timer100_0.result) / (80 - 35)));
+            }
+            const ptsBrake = ptsDecelG + ptsBrakeDist;
+
+            // HDL: Max 25 pts (Peak Lateral G)
+            const ptsHndl = Math.min((maxGpsLatG / 1.1) * 25.0, 25.0);
 
             return {
                 total: Math.round(ptsSpeed + ptsAccel + ptsBrake + ptsHndl),
@@ -475,56 +501,50 @@
             setDOM(dom.vScoreHdl, 'vHdl', score.hdl);
         }
 
-        function analyzeVehiclePerformance() {
-            if (analyticsBuffer.length < 20) return; 
-
-            // 1. Braking Efficiency Analysis (Seek sustained negative G clusters)
-            const decelEvents = analyticsBuffer.filter(d => d.longG < -0.3);
-            if (decelEvents.length >= 10) { // ~1 sec of heavy braking required
-                const avgDecel = Math.abs(decelEvents.reduce((acc, d) => acc + d.longG, 0) / decelEvents.length);
-                if (avgDecel > bestBrakingG) {
-                    bestBrakingG = avgDecel;
-                    setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestBrakingG) + " G", "text-lg font-bold lcd-text ", "text-red-400 neon-danger");
-                    stateDirty = true;
-                }
-            }
-
-            // 2. Gearing & Drive Ratio Profile
-            const currentSpeedKmph = currentSpeedMs * MS_TO_KMPH;
-            if (currentSpeedKmph > 40.0) {
-                const recentAccel = analyticsBuffer.slice(-15).reduce((acc, d) => acc + d.longG, 0) / 15;
-                let bias = "CALC...";
-                
-                if (recentAccel > 0.30) bias = "ACCEL"; 
-                else if (recentAccel > 0.05 && recentAccel <= 0.15 && currentSpeedKmph > 80.0) bias = "SPEED"; 
-
-                if (bias !== "CALC..." && prev.gearBias !== bias) {
-                    prev.gearBias = bias;
-                    dom.gearBias.textContent = bias;
-                    dom.gearBias.className = "text-sm font-bold lcd-text " + (bias === "ACCEL" ? "text-yellow-400 neon-warning" : "text-[#00bfff] neon-blue");
-                }
-            }
-        }
-
-        // ─── PURE GNSS HANDLER & MATHEMATICAL INTERPOLATOR ────────────────────────
+        // ─── PURE GNSS PHYSICS MODEL & EVENT ENGINE ───────────────────────────────
         function onPositionSuccess(position) {
             const c   = position.coords;
             const now = performance.now();
 
             const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
+            const validHeading = typeof c.heading === 'number' && !isNaN(c.heading) && c.heading !== null;
 
             if (lastGpsTime > 0) {
                 const gpsDt = Math.min((now - lastGpsTime) / 1000.0, GPS_MAX_DT_SEC);
+                
+                // Integrate Distance
                 if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
+
+                // 1. GPS Longitudinal G-Force Derivative
+                const gpsDv = gpsSpeedMs - prevGpsSpeedMs;
+                gpsCalculatedLongG = (gpsDv / gpsDt) / GRAVITY_MS2;
+
+                // 2. GPS Lateral G-Force (Centripetal Acceleration)
+                if (validHeading && gpsSpeedMs > 1.4) { // >5km/h required for stable heading
+                    if (!isNaN(prevHeading)) {
+                        let dHeading = c.heading - prevHeading;
+                        // Handle 360 wrap
+                        while (dHeading <= -180) dHeading += 360;
+                        while (dHeading >   180) dHeading -= 360;
+
+                        const avgSpeedMs = (gpsSpeedMs + prevGpsSpeedMs) / 2.0;
+                        // a_c = v * omega / g
+                        gpsCalculatedLatG = (avgSpeedMs * Math.abs(dHeading * Math.PI / 180.0) / gpsDt) / GRAVITY_MS2;
+                    }
+                    prevHeading = c.heading;
+                } else {
+                    gpsCalculatedLatG = 0.0;
+                    prevHeading = NaN;
+                }
             }
 
             currentSpeedMs = gpsSpeedMs;
             const gpsSpeedKmph = currentSpeedMs * MS_TO_KMPH;
             const prevKmph = prevGpsSpeedMs * MS_TO_KMPH;
 
+            // ─── STATE MACHINES ───
             if (gpsSpeedKmph < 2.0) {
-                distanceMeters = 0.0;
                 if (timer0_100.state === T_RUNNING)   { timer0_100.state = T_IDLE;   setDOM(dom.t0_100, 't0_100', "READY", CLS_TIMER_BASE, "text-[#00bfff]"); }
                 if (timer100_200.state === T_RUNNING) { timer100_200.state = T_IDLE; setDOM(dom.t100_200, 't100_200', "READY", CLS_TIMER_BASE, "text-[#bb86fc]"); }
                 if (timerQuarter.state === T_RUNNING) { timerQuarter.state = T_IDLE; setDOM(dom.tQuarter, 'tQuarter', "READY", CLS_TIMER_BASE, "text-yellow-400"); }
@@ -534,6 +554,7 @@
                 const speedDelta = gpsSpeedKmph - prevKmph;
                 const distDelta = distanceMeters - prevDistance;
 
+                // Arm Accel Timers
                 if (prevKmph < 2.0 && gpsSpeedKmph >= 2.0) {
                     const r = speedDelta !== 0 ? (2.0 - prevKmph) / speedDelta : 0;
                     const exactStart = lastGpsTime + (r * timeDelta);
@@ -547,6 +568,7 @@
                     dom.t100_200.className = CLS_TIMER_BASE + "text-yellow-400";
                 }
 
+                // Complete Accel Timers
                 if (timer0_100.state === T_RUNNING && prevKmph < 100.0 && gpsSpeedKmph >= 100.0) {
                     const r = speedDelta !== 0 ? (100.0 - prevKmph) / speedDelta : 0;
                     timer0_100.state = T_DONE; timer0_100.result = (lastGpsTime + (r * timeDelta)) - timer0_100.start;
@@ -570,12 +592,44 @@
                 }
             }
 
+            // 100-0 Braking Tracker
+            if (timer100_0.state === T_IDLE && prevKmph >= 100.0 && gpsSpeedKmph < 100.0 && gpsCalculatedLongG <= -0.2) {
+                timer100_0.state = T_BRAKING;
+                timer100_0.startDist = distanceMeters;
+                timer100_0.result = 0;
+                setDOM(dom.t100_0, 't100_0', "MEASURING", "text-sm font-bold lcd-text ", "text-yellow-400 neon-warning");
+            } else if (timer100_0.state === T_BRAKING) {
+                if (gpsCalculatedLongG > 0.1 && gpsSpeedKmph > 5.0) {
+                    // Aborted brake test
+                    timer100_0.state = T_IDLE;
+                    setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
+                } else if (gpsSpeedKmph < 2.0) {
+                    // Completed 100-0
+                    timer100_0.result = distanceMeters - timer100_0.startDist;
+                    timer100_0.state = T_DONE;
+                    setDOM(dom.t100_0, 't100_0', fmt1.format(timer100_0.result) + " m", "text-sm font-bold lcd-text ", "text-[#ff3366] neon-danger");
+                    stateDirty = true;
+                }
+            }
+
+            // Peak GPS Profiling for V-Score
+            if (gpsCalculatedLongG > maxGpsAccelG) { maxGpsAccelG = gpsCalculatedLongG; stateDirty = true; }
+            if (gpsCalculatedLongG < -0.3) {
+                const decelG = Math.abs(gpsCalculatedLongG);
+                if (decelG > bestGpsBrakingG) {
+                    bestGpsBrakingG = decelG;
+                    setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G", "text-lg font-bold lcd-text ", "text-red-400 neon-danger");
+                    stateDirty = true;
+                }
+            }
+            if (gpsCalculatedLatG > maxGpsLatG) { maxGpsLatG = gpsCalculatedLatG; stateDirty = true; }
+
             prevDistance = distanceMeters;
             prevGpsSpeedMs = currentSpeedMs;
             lastGpsTime = now;
             isLogging = true;
 
-            if (typeof c.heading === 'number' && !isNaN(c.heading)) gpsHeading = c.heading;
+            if (validHeading) gpsHeading = c.heading;
             dom.accuracy.textContent = `ACC: ${fmt1.format(acc)} m`;
 
             if (acc <= 4.0) {
@@ -596,13 +650,13 @@
             dom.status.className   = "text-red-500 neon-danger";
         }
 
-        // ─── RENDER LOOP (Visual UX Only) ─────────────────────────────────────────
+        // ─── RENDER LOOP & DATA FUSION ────────────────────────────────────────────
         function renderLoop() {
             const now = performance.now();
             let rawKmph = currentSpeedMs * MS_TO_KMPH;
 
-            const gpsAge = lastGpsTime > 0 ? (now - lastGpsTime) : 0;
-            if (rawKmph < SPEED_ZERO_SNAP_KMPH && gpsAge > GPS_STALE_MS) {
+            const gpsStale = (now - lastGpsTime) > GPS_STALE_MS;
+            if (rawKmph < SPEED_ZERO_SNAP_KMPH && gpsStale) {
                 currentSpeedMs = 0.0;
                 rawKmph = 0.0;
             }
@@ -612,13 +666,14 @@
             
             const displayKmph = displaySpeedMs * MS_TO_KMPH;
 
-            const isIdle = rawKmph < 1.0 && timer0_100.state !== T_RUNNING && timer100_200.state !== T_RUNNING && timerQuarter.state !== T_RUNNING;
+            const isIdle = rawKmph < 1.0 && timer0_100.state !== T_RUNNING && timer100_200.state !== T_RUNNING && timerQuarter.state !== T_RUNNING && timer100_0.state !== T_BRAKING;
             if (isIdle && (now - lastIdleFrame < 100)) {
                 requestAnimationFrame(renderLoop);
                 return;
             }
             lastIdleFrame = now;
 
+            // Render Speed
             const speedStr = fmt1.format(displayKmph);
             const B = "text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text ";
             const colorCls = displayKmph >= 160 ? "spd-red" : displayKmph >= 80 ? "spd-yellow" : "spd-green";
@@ -633,28 +688,44 @@
                 stateDirty = true;
             }
 
+            // Render Distance Updates
             if (timer0_100.state   === T_RUNNING) setDOM(dom.t0_100,   't0_100',   fmt2.format((now - timer0_100.start)   / 1000) + " s");
             if (timer100_200.state === T_RUNNING) setDOM(dom.t100_200, 't100_200', fmt2.format((now - timer100_200.start) / 1000) + " s");
             if (timerQuarter.state === T_RUNNING) setDOM(dom.tQuarter, 'tQuarter', fmt0.format(distanceMeters) + " m");
+            if (timer100_0.state   === T_BRAKING) setDOM(dom.t100_0,   't100_0',   fmt0.format(distanceMeters - timer100_0.startDist) + " m");
 
             if (now - lastSecUiTime >= 50) {
                 lastSecUiTime = now;
 
-                const lngAbs = fmt2.format(Math.abs(longGForce));
-                const lngTag = longGForce >  0.05 ? " ACC" : longGForce < -0.05 ? " BRK" : "";
+                // GPS / IMU FUSION (Render only, Physics purely in GPS loop)
+                let activeLongG = 0;
+                let activeLatG = 0;
+                const lowSpeed = currentSpeedMs < 1.4; // < 5kmh
+
+                if (!gpsStale && !lowSpeed) {
+                    // Smoothly ease UI towards the strict 1Hz GPS calculated Gs
+                    uiLongG += (gpsCalculatedLongG - uiLongG) * 0.15;
+                    uiLatG  += (gpsCalculatedLatG - uiLatG) * 0.15;
+                    activeLongG = uiLongG;
+                    activeLatG  = uiLatG;
+                } else {
+                    // Fallback to raw IMU if GPS is slow/stale
+                    activeLongG = imuLongG;
+                    activeLatG  = imuLatG;
+                }
+
+                const lngAbs = fmt2.format(Math.abs(activeLongG));
+                const lngTag = activeLongG >  0.05 ? " ACC" : activeLongG < -0.05 ? " BRK" : "";
                 setDOM(dom.longG, 'longG', lngAbs + lngTag);
 
-                const latAbs = fmt2.format(Math.abs(latGForce));
-                const latTag = latGForce >  0.05 ? " R" : latGForce < -0.05 ? " L" : "";
+                const latAbs = fmt2.format(Math.abs(activeLatG));
+                const latTag = activeLatG >  0.05 ? " R" : activeLatG < -0.05 ? " L" : "";
                 setDOM(dom.latG, 'latG', latAbs + latTag);
 
-                // Profiling Max Values for Score Engine
-                if (longGForce > maxAccelG) { maxAccelG = longGForce; stateDirty = true; }
-                if (Math.abs(latGForce) > maxLatG) { maxLatG = Math.abs(latGForce); stateDirty = true; }
-
-                const peak = Math.max(Math.abs(longGForce), Math.abs(latGForce));
-                if (peak > peakG) { 
-                    peakG = peak; 
+                // Peak Render (Visual Peak only, V-Score purely uses GPS)
+                const combinedPeak = Math.max(Math.abs(activeLongG), Math.abs(activeLatG));
+                if (combinedPeak > peakG) { 
+                    peakG = combinedPeak; 
                     setDOM(dom.peakG, 'peakG', fmt2.format(peakG));
                     stateDirty = true;
                 }
@@ -662,7 +733,7 @@
                 if (!isNaN(gpsHeading)) dom.heading.textContent = `HDG: ${Math.round(gpsHeading)}°`;
             }
 
-            // TIER 3 — 10Hz Logger & Analytics Trigger
+            // TIER 3 — 10Hz Logger & Analytics Batch
             if (isLogging && rawKmph > 0 && (now - lastLogTime >= 100)) {
                 lastLogTime = now;
 
@@ -670,13 +741,8 @@
                     dom.exportGroup.style.display = 'flex'; 
                     exportBtnShown = true; 
                 }
-                
-                analyticsBuffer.push({ speedKmph: rawKmph, longG: longGForce });
-                if (analyticsBuffer.length > 50) analyticsBuffer.shift(); 
-                
-                analyzeVehiclePerformance();
 
-                // Batch Save state if any records were broken to prevent render stutter
+                // Batch Save state if records were broken
                 if (stateDirty) {
                     saveSession();
                     evaluateAndRenderScore();
@@ -685,8 +751,9 @@
                 if (telemetrySession.length < MAX_LOG_SAMPLES) {
                     const hdg = isNaN(gpsHeading) ? "" : Math.round(gpsHeading);
                     const pureSpeedStr = fmt1.format(rawKmph);
+                    // Log the strict GPS G-forces, not the IMU fusion, for data integrity
                     telemetrySession.push(
-                        `${Math.floor(now)},${pureSpeedStr},${fmt2.format(distanceMeters)},${fmt3.format(latGForce)},${fmt3.format(longGForce)},${hdg}`
+                        `${Math.floor(now)},${pureSpeedStr},${fmt2.format(distanceMeters)},${fmt3.format(gpsCalculatedLatG)},${fmt3.format(gpsCalculatedLongG)},${hdg}`
                     );
                     const len = telemetrySession.length;
                     if (prev.logCount !== len) { prev.logCount = len; dom.logCount.textContent = len; }
@@ -716,7 +783,7 @@
 
         // ─── LIFECYCLE INIT ───────────────────────────────────────────────────────
         async function checkPermissionsAndInit() {
-            loadSession(); // Rehydrate from LocalStorage immediately
+            loadSession(); 
             if ('permissions' in navigator) {
                 try {
                     const status = await navigator.permissions.query({ name: 'geolocation' });
@@ -725,7 +792,7 @@
                         return;
                     }
                     status.addEventListener('change', () => { if (status.state === 'denied') onPositionError(); });
-                } catch (e) { /* Fallthrough for unsupporting browsers */ }
+                } catch (e) {}
             }
             initSensors();
         }
