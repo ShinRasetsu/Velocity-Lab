@@ -56,6 +56,12 @@
         
         canvas { touch-action: none; }
 
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(187,134,252,0.5); }
+            50% { opacity: 0.7; text-shadow: 0 0 20px rgba(187,134,252,0.9); }
+        }
+        .ai-loading { animation: pulse-glow 1.5s infinite; }
+
         @media (prefers-reduced-transparency) {
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
             .spd-green, .spd-yellow, .spd-red { text-shadow: none !important; }
@@ -78,11 +84,17 @@
     <div id="analytics-modal" style="display:none;" role="dialog" aria-modal="true" class="p-4 overflow-y-auto">
         <div class="flex justify-between items-center mb-6 mt-2">
             <span class="text-[#00ff88] font-bold text-lg neon-accent tracking-widest uppercase">Kinematic Profile</span>
-            <button id="close-analytics-btn" class="text-gray-400 hover:text-white font-bold text-xl px-4 py-1 bg-gray-900 rounded border border-gray-800 transition-colors">✕</button>
+            <div class="flex gap-2 items-center">
+                <button id="ai-pit-boss-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#bb86fc]/50 bg-[#bb86fc]/10 text-[#bb86fc] text-[0.65rem] font-bold tracking-widest uppercase neon-purple transition-all hover:bg-[#bb86fc]/20 active:bg-[#bb86fc]/40">
+                    ✨ AI PIT BOSS
+                </button>
+                <button id="close-analytics-btn" class="text-gray-400 hover:text-white font-bold text-xl px-4 py-1 bg-gray-900 rounded border border-gray-800 transition-colors">✕</button>
+            </div>
         </div>
         
         <!-- DIAGNOSTIC ENGINE OUTPUT -->
         <div class="w-full bg-gray-900/60 rounded-lg p-3 mb-4 border border-gray-800 flex flex-col gap-3">
+            <div id="ai-error-msg" class="hidden text-xs text-red-400 border border-red-500/30 bg-red-500/10 p-2 rounded mb-1"></div>
             <div>
                 <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Launch & Traction</div>
                 <div id="diag-traction" class="text-sm text-gray-300">Analyzing...</div>
@@ -94,6 +106,12 @@
             <div class="border-t border-gray-800/50 pt-2">
                 <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Braking Efficiency</div>
                 <div id="diag-braking" class="text-sm text-gray-300">Analyzing...</div>
+            </div>
+            
+            <!-- AI Pit Boss Insight Section -->
+            <div id="ai-insight-container" class="border-t border-[#bb86fc]/30 pt-2 hidden">
+                <div class="text-[0.65rem] text-[#bb86fc] uppercase tracking-widest font-bold mb-1 neon-purple flex items-center gap-1">✨ Pit Boss Insight</div>
+                <div id="diag-ai-insight" class="text-sm text-[#e2d5f8] italic border-l-2 border-[#bb86fc] pl-2 py-1">Analyzing...</div>
             </div>
         </div>
 
@@ -221,6 +239,9 @@
     </footer>
 
     <script>
+        // ─── GEMINI API CONFIG ────────────────────────────────────────────────────
+        const apiKey = ""; // API key gets injected at runtime
+        
         // ─── CONFIG ───────────────────────────────────────────────────────────────
         const MS_TO_KMPH           = 3.6;
         const MPH_60_IN_KMPH       = 96.5606;
@@ -338,6 +359,12 @@
             diagBraking:    document.getElementById('diag-braking'),
             chartCanvas:    document.getElementById('telemetry-chart'),
 
+            // AI specific
+            aiPitBossBtn:   document.getElementById('ai-pit-boss-btn'),
+            aiInsightContainer: document.getElementById('ai-insight-container'),
+            aiInsightText:  document.getElementById('diag-ai-insight'),
+            aiErrorMsg:     document.getElementById('ai-error-msg'),
+
             // Live G-Meter
             gDot:         document.getElementById('g-dot'),
             liveLatG:     document.getElementById('live-lat-g'),
@@ -421,7 +448,6 @@
             maxGpsAccelG    = 0.0;
             maxGpsLatG      = 0.0;
 
-            // BUGFIX: Flush physical state to prevent false deceleration spikes during reset
             prevGpsSpeedMs     = currentSpeedMs; 
             prevHeading        = NaN;
             gpsCalculatedLongG = 0.0;
@@ -448,6 +474,9 @@
             dom.peakG.textContent      = "0.00 G";
             dom.maxSpeed.textContent   = "MAX: 0.00";
             dom.brakeScore.textContent = "0.00 G";
+            
+            // Hide AI insight panel on reset
+            dom.aiInsightContainer.classList.add("hidden");
 
             evaluateAndRenderScore();
             localStorage.removeItem(STORAGE_KEY);
@@ -520,9 +549,9 @@
             }
         });
 
-        // ─── KINEMATIC PROFILING & VISUALIZER (Phase 1 Roadmap) ───────────────────
+        // ─── KINEMATIC PROFILING & VISUALIZER ─────────────────────────────────────
         dom.analyzeBtn.addEventListener('click', () => {
-            if (!telemetrySession.length) return;
+            if (!telemetrySession.length && maxSpeedKmph === 0) return;
             dom.analyticsModal.style.display = 'flex';
             setTimeout(runDiagnostics, 50); 
         });
@@ -531,8 +560,118 @@
             dom.analyticsModal.style.display = 'none';
         });
 
+        // Gemini AI Integration for Pit Boss Analysis
+        async function fetchWithRetry(url, options) {
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < 6; i++) {
+                try {
+                    const res = await fetch(url, options);
+                    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+                    return await res.json();
+                } catch (err) {
+                    if (i === 5) throw err;
+                    await new Promise(r => setTimeout(r, delays[i]));
+                }
+            }
+        }
+
+        dom.aiPitBossBtn.addEventListener('click', async () => {
+            if (maxGpsAccelG === 0 && maxSpeedKmph === 0) {
+                dom.aiErrorMsg.textContent = "No telemetry data recorded yet. Make a run first.";
+                dom.aiErrorMsg.classList.remove('hidden');
+                return;
+            }
+
+            // Set loading state
+            dom.aiErrorMsg.classList.add('hidden');
+            dom.aiPitBossBtn.disabled = true;
+            dom.aiPitBossBtn.innerHTML = `⏳ THINKING...`;
+            dom.aiInsightContainer.classList.remove("hidden");
+            
+            dom.diagTraction.className = "text-sm text-[#bb86fc] ai-loading";
+            dom.diagPower.className = "text-sm text-[#bb86fc] ai-loading";
+            dom.diagBraking.className = "text-sm text-[#bb86fc] ai-loading";
+            dom.aiInsightText.className = "text-sm text-[#bb86fc] italic border-l-2 border-[#bb86fc] pl-2 py-1 ai-loading";
+            
+            dom.diagTraction.textContent = "Analyzing tire slip and launch forces...";
+            dom.diagPower.textContent = "Calculating drag coefficient and power band...";
+            dom.diagBraking.textContent = "Evaluating rotor threshold and pad bite...";
+            dom.aiInsightText.textContent = "The Pit Boss is reviewing the telemetry logs...";
+
+            const t0_60_s = timer0_60.result > 0 ? (timer0_60.result / 1000).toFixed(2) + "s" : "N/A";
+            const t0_100_s = timer0_100.result > 0 ? (timer0_100.result / 1000).toFixed(2) + "s" : "N/A";
+            const t100_200_s = timer100_200.result > 0 ? (timer100_200.result / 1000).toFixed(2) + "s" : "N/A";
+            const quarter_s = timerQuarter.result > 0 ? (timerQuarter.result / 1000).toFixed(2) + "s" : "N/A";
+
+            const prompt = `You are an expert motorsport telemetry engineer/pit boss. Analyze the following vehicle telemetry data from a recent run:
+                Max Speed: ${maxSpeedKmph.toFixed(1)} km/h
+                0-60 mph: ${t0_60_s}
+                0-100 km/h: ${t0_100_s}
+                100-200 km/h: ${t100_200_s}
+                1/4 Mile: ${quarter_s}
+                Max Acceleration: ${maxGpsAccelG.toFixed(2)} G
+                Max Braking: ${bestGpsBrakingG.toFixed(2)} G
+                Max Lateral G: ${maxGpsLatG.toFixed(2)} G
+
+                Provide brief, punchy, actionable evaluations (1-2 sentences max) in the structured JSON format provided. Address the driver directly (e.g., "Your launch was...").
+                In the "ai_insight" field, guess what specific kind of car this might be based on the physics profile (e.g., "Based on the high acceleration but low top speed, this feels like an AWD Electric Vehicle like a Tesla Model 3." or "These stats scream lightweight RWD sports car like a Miata.").`;
+
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: "You are an expert racing pit boss analyzing telemetry. Be analytical but have a bit of attitude." }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            traction: { type: "STRING" },
+                            power: { type: "STRING" },
+                            braking: { type: "STRING" },
+                            ai_insight: { type: "STRING" }
+                        }
+                    }
+                }
+            };
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const result = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const textResp = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!textResp) throw new Error("Empty AI response");
+                
+                const data = JSON.parse(textResp);
+
+                // Populate UI
+                dom.diagTraction.className = "text-sm text-gray-300";
+                dom.diagPower.className = "text-sm text-gray-300";
+                dom.diagBraking.className = "text-sm text-gray-300";
+                dom.aiInsightText.className = "text-sm text-[#e2d5f8] italic border-l-2 border-[#bb86fc] pl-2 py-1";
+
+                dom.diagTraction.textContent = data.traction || "No data.";
+                dom.diagPower.textContent = data.power || "No data.";
+                dom.diagBraking.textContent = data.braking || "No data.";
+                dom.aiInsightText.textContent = data.ai_insight || "Drive faster, I need more data to guess your car.";
+
+            } catch (err) {
+                console.error("AI Pit Boss Error:", err);
+                dom.aiErrorMsg.textContent = "Pit Boss comms are down (API Error). Showing standard diagnostics.";
+                dom.aiErrorMsg.classList.remove('hidden');
+                
+                // Fallback to static analysis
+                runDiagnostics();
+            } finally {
+                dom.aiPitBossBtn.disabled = false;
+                dom.aiPitBossBtn.innerHTML = `✨ RE-ASK PIT BOSS`;
+            }
+        });
+
         function runDiagnostics() {
-            if (telemetrySession.length === 0) return;
+            if (telemetrySession.length === 0 && maxSpeedKmph === 0) return;
 
             const parsedData = [];
             for (let i = 0; i < telemetrySession.length; i++) {
@@ -654,8 +793,6 @@
                 return padY + chartH - (normalized * chartH);
             };
 
-            // Memory-Safe Downsampling Step (Stride based on width)
-            // Ensures we never render more than 2 points per physical pixel
             const step = Math.max(1, Math.floor(data.length / (chartW * 2)));
 
             // 1. Draw Longitudinal G (Blue)
@@ -668,7 +805,6 @@
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
-            // Ensure last point is drawn
             ctx.lineTo(getX(data[data.length-1].t), getY_G(data[data.length-1].longG));
             ctx.stroke();
 
@@ -735,7 +871,6 @@
                 const tSec = timer0_100.result / 1000;
                 pts0_100 = Math.max(0, Math.min(15, 15 * (10 - tSec) / (10 - 3.5)));
             } else if (timer0_60.result > 0) {
-                // BUGFIX: Fallback score using 0-60mph if 0-100kmh sprint is incomplete
                 const tSec = timer0_60.result / 1000;
                 pts0_100 = Math.max(0, Math.min(15, 15 * (9.5 - tSec) / (9.5 - 3.3)));
             }
@@ -784,13 +919,11 @@
                 const deltaMs = now - lastGpsTime;
                 gpsDt = Math.min(deltaMs / 1000.0, GPS_MAX_DT_SEC);
                 
-                // Hardware Polling Rate Monitor
                 const hz = 1000 / deltaMs;
-                if (hz < 50) { // Filter out instant double-fires on some Androids
+                if (hz < 50) { 
                     dom.updateRate.textContent = `GPS: ${hz.toFixed(1)} HZ`;
                 }
             }
-            // BUGFIX: Set exact timestamp marker at the start of loop for accurate physical delta
             lastGpsTime = now;
 
             const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
@@ -810,7 +943,6 @@
                         while (dHeading >   180) dHeading -= 360;
                         
                         const avgSpeedMs = (gpsSpeedMs + prevGpsSpeedMs) / 2.0;
-                        // BUGFIX: Preserved direction sign to measure left/right turns dynamically
                         const dHeadingRad = dHeading * Math.PI / 180.0;
                         gpsCalculatedLatG = (avgSpeedMs * dHeadingRad / gpsDt) / GRAVITY_MS2;
                     }
@@ -852,7 +984,6 @@
                     dom.t100_200.className = CLS_TIMER_BASE + "text-yellow-400";
                 }
 
-                // Complete 0-60mph
                 if (timer0_60.state === T_RUNNING && prevKmph < MPH_60_IN_KMPH && gpsSpeedKmph >= MPH_60_IN_KMPH) {
                     const r = speedDelta !== 0 ? (MPH_60_IN_KMPH - prevKmph) / speedDelta : 0;
                     timer0_60.state = T_DONE; timer0_60.result = ((now - timeDelta) + (r * timeDelta)) - timer0_60.start;
@@ -914,13 +1045,11 @@
                 }
             }
 
-            // BUGFIX: Wrapped condition to correctly track max Lat G even if user only turns left
             if (Math.abs(gpsCalculatedLatG) > maxGpsLatG) { 
                 maxGpsLatG = Math.abs(gpsCalculatedLatG); 
                 stateDirty = true; 
             }
 
-            // HARDWARE-AWARE LOGGING: 
             if (gpsSpeedKmph > 0) {
                 if (!exportBtnShown) { 
                     dom.exportGroup.style.display = 'flex'; 
@@ -967,7 +1096,6 @@
 
             let rawKmph = currentSpeedMs * MS_TO_KMPH;
 
-            // GNSS STALE CHECK - Hard reset to zero if GPS completely drops
             const gpsStale = (now - lastGpsTime) > GPS_STALE_MS;
             if (gpsStale && lastGpsTime > 0) {
                 currentSpeedMs = 0.0;
@@ -981,7 +1109,6 @@
                 rawKmph = 0.0;
             }
 
-            // TIME-DELTA NORMALIZED SMOOTHING (Fixed 60hz vs 120hz variance bug)
             if (Math.abs(currentSpeedMs - displaySpeedMs) < 0.05) {
                 displaySpeedMs = currentSpeedMs;
             } else {
@@ -1018,12 +1145,10 @@
             if (timerQuarter.state === T_RUNNING) setDOM(dom.tQuarter, 'tQuarter', fmt0.format(distanceMeters) + " m");
             if (timer100_0.state   === T_BRAKING) setDOM(dom.t100_0,   't100_0',   fmt0.format(distanceMeters - timer100_0.startDist) + " m");
 
-            // BUGFIX: Wrapped DOM update behind cached setDOM string check to prevent frame thrashing
             if (!isNaN(gpsHeading)) {
                 setDOM(dom.heading, 'heading', `HDG: ${Math.round(gpsHeading)}°`);
             }
 
-            // UPDATE LIVE G-METER WIDGET
             const alphaG = 1 - Math.exp(-dt * 0.015);
             uiLongG += (gpsCalculatedLongG - uiLongG) * alphaG;
             uiLatG  += (gpsCalculatedLatG - uiLatG) * alphaG;
@@ -1031,10 +1156,8 @@
             dom.liveLatG.textContent = Math.abs(uiLatG).toFixed(2);
             dom.liveLonG.textContent = Math.abs(uiLongG).toFixed(2);
             
-            // Map 1.5G to 20 pixels max radius
             const limit = 20; 
             const pxX = Math.max(-limit, Math.min(limit, (uiLatG / 1.5) * limit));
-            // Negative Long is forward acceleration, so map it to up (negative Y)
             const pxY = Math.max(-limit, Math.min(limit, (-uiLongG / 1.5) * limit));
             dom.gDot.style.transform = `translate(${pxX}px, ${pxY}px)`;
 
@@ -1066,7 +1189,6 @@
 
         // ─── LIFECYCLE INIT ───────────────────────────────────────────────────────
         async function checkPermissionsAndInit() {
-            // Service Worker Registration for PWA caching
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('./sw.js').catch(() => console.warn("SW Registration failed."));
             }
