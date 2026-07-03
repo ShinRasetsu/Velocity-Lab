@@ -412,6 +412,10 @@
                 <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Braking Efficiency</div>
                 <div id="diag-braking" class="text-sm text-gray-300">Analyzing...</div>
             </div>
+            <div class="border-t border-gray-800/50 pt-2">
+                <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Data Quality &amp; Sensor Fusion</div>
+                <div id="diag-quality" class="text-sm text-gray-300">Analyzing...</div>
+            </div>
             
             <!-- AI Pit Boss Insight Section -->
             <div id="ai-insight-container" class="border-t border-[#bb86fc]/30 pt-2 hidden">
@@ -440,6 +444,7 @@
         <div class="status-stack" aria-live="polite">
             <span id="status-indicator" class="text-yellow-500 neon-warning">ACQUIRING GNSS...</span>
             <span id="accuracy-display">ACC: -- m</span>
+            <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
             <span id="heading-display" class="text-gray-600">HDG: ---°</span>
         </div>
 
@@ -516,7 +521,7 @@
     <!-- VEHICLE PERFORMANCE INDEX (V-SCORE) -->
     <section class="score-panel flex flex-col gap-2" aria-label="Vehicle Performance Score">
         <div class="flex justify-between items-center px-2">
-            <span class="text-[0.65rem] text-gray-400 uppercase font-bold tracking-widest">Performance Index (GPS)</span>
+            <span id="score-panel-label" class="text-[0.65rem] text-gray-400 uppercase font-bold tracking-widest">Performance Index (GPS)</span>
             <span id="v-score-total" class="text-2xl font-extrabold text-[#00ff88] neon-accent lcd-text">0</span>
         </div>
         <div class="grid grid-cols-4 gap-1 text-center">
@@ -551,7 +556,8 @@
     </footer>
 </div>
 
-    <script>
+
+<script>
         // ─── GEMINI API CONFIG ────────────────────────────────────────────────────
         const apiKey = ""; // API key gets injected at runtime
         
@@ -567,6 +573,15 @@
         const GPS_STALE_MS         = 2500;   
         const GPS_MAX_DT_SEC       = 3.0;    
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
+
+        // -- sensor fusion / accuracy optimization --
+        const GPS_ACC_TRUST_MIN_M    = 4.0;   // accuracy <= this => 100% GPS confidence
+        const GPS_ACC_TRUST_MAX_M    = 25.0;  // accuracy >= this => 0% GPS confidence, fix ignored for fusion
+        const FUSION_CORRECTION_GAIN = 0.35;  // how hard one trusted GPS fix pulls IMU bias toward truth
+        const IMU_BIAS_CLAMP         = 2.0;   // G, anti-windup ceiling on the learned bias
+        const IMU_UNHEALTHY_STREAK   = 5;     // consecutive pinned corrections before IMU is distrusted
+        const PHYSICAL_G_CLAMP_LONG  = 3.5;   // |longG| above this on a single sample = GPS glitch, discarded
+        const PHYSICAL_G_CLAMP_LAT   = 3.0;   // same, lateral axis
 
         const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2, T_BRAKING = 3;
 
@@ -603,7 +618,7 @@
         let uiLongG = 0.0;
         let uiLatG  = 0.0;
 
-        // High-frequency IMU State (Fallback Only)
+        // High-Frequency IMU State (raw accelerometer input to the fusion engine below)
         let filteredAccelX  = 0.0;
         let filteredAccelZ  = 0.0;
         let mountOffsetX    = 0.0;
@@ -611,7 +626,20 @@
         let imuLongG        = 0.0;
         let imuLatG         = 0.0;
 
-        // Peak Profiling (Strictly GPS for V-Score)
+        // Sensor Fusion State (GPS + IMU complementary filter — this is the accuracy upgrade)
+        let imuFusionActive   = false;  // true once at least one devicemotion sample has landed
+        let imuHealthy        = true;   // false if IMU keeps disagreeing with GPS beyond the bias clamp
+        let imuBiasPinStreak  = 0;      // consecutive GPS fixes where the bias corrector hit its clamp
+        let imuLongGBias      = 0.0;    // learned correction applied on top of raw IMU long G
+        let imuLatGBias       = 0.0;    // learned correction applied on top of raw IMU lat G
+        let fusedLongG        = 0.0;    // best-estimate long G — drives V-Score, peaks, chart, CSV
+        let fusedLatG         = 0.0;    // best-estimate lat G  — drives V-Score, peaks, chart, CSV
+        let lastGpsConfidence = 0.0;    // 0..1, derived from reported GPS accuracy
+        let gpsGlitchCount    = 0;      // GPS samples rejected as physically implausible this run
+        let confidenceSum     = 0.0;    // running sum for this run's average confidence
+        let confidenceSamples = 0;      // count backing confidenceSum
+
+        // Peak Profiling (fused GPS+IMU when available, GPS-only otherwise — drives V-Score)
         let bestGpsBrakingG = 0.0;
         let maxGpsAccelG    = 0.0;
         let maxGpsLatG      = 0.0;
@@ -632,6 +660,7 @@
         const dom = {
             speed:        document.getElementById('speed-display'),
             accuracy:     document.getElementById('accuracy-display'),
+            fusionStatus: document.getElementById('fusion-display'),
             heading:      document.getElementById('heading-display'),
             status:       document.getElementById('status-indicator'),
             speedBar:     document.getElementById('speed-bar'),
@@ -642,6 +671,7 @@
             brakeScore:   document.getElementById('brake-score'),
             t100_0:       document.getElementById('timer-100-0'),
             
+            scorePanelLabel: document.getElementById('score-panel-label'),
             vScoreTotal:  document.getElementById('v-score-total'),
             vScoreSpd:    document.getElementById('v-score-spd'),
             vScoreAcc:    document.getElementById('v-score-acc'),
@@ -670,6 +700,7 @@
             diagTraction:   document.getElementById('diag-traction'),
             diagPower:      document.getElementById('diag-power'),
             diagBraking:    document.getElementById('diag-braking'),
+            diagQuality:    document.getElementById('diag-quality'),
             chartCanvas:    document.getElementById('telemetry-chart'),
 
             // AI specific
@@ -703,6 +734,14 @@
             } else if (baseCls !== null && el.className !== baseCls) {
                 el.className = baseCls; 
             }
+        }
+
+        // Maps GPS accuracy (meters) to a 0..1 trust score used to gate sensor fusion.
+        function gpsConfidence(accuracyMeters) {
+            if (typeof accuracyMeters !== 'number' || isNaN(accuracyMeters)) return 0.0;
+            if (accuracyMeters <= GPS_ACC_TRUST_MIN_M) return 1.0;
+            if (accuracyMeters >= GPS_ACC_TRUST_MAX_M) return 0.0;
+            return 1.0 - (accuracyMeters - GPS_ACC_TRUST_MIN_M) / (GPS_ACC_TRUST_MAX_M - GPS_ACC_TRUST_MIN_M);
         }
 
         // ─── PERSISTENCE LAYER ────────────────────────────────────────────────────
@@ -765,8 +804,16 @@
             prevHeading        = NaN;
             gpsCalculatedLongG = 0.0;
             gpsCalculatedLatG  = 0.0;
+            fusedLongG         = 0.0;
+            fusedLatG          = 0.0;
             uiLongG            = 0.0;
             uiLatG             = 0.0;
+
+            // Data-quality counters are per-run; the IMU bias/health estimate is a
+            // sensor calibration property and survives a run reset on purpose.
+            gpsGlitchCount    = 0;
+            confidenceSum     = 0.0;
+            confidenceSamples = 0;
 
             prev.maxSpeed   = null;
             prev.peakG      = null;
@@ -798,6 +845,14 @@
         dom.calibrateBtn.addEventListener('click', () => {
             mountOffsetX = filteredAccelX;
             mountOffsetZ = filteredAccelZ;
+
+            // A fresh tare changes the IMU baseline, so any previously-learned
+            // bias correction (and any "unhealthy" verdict) no longer applies.
+            imuLongGBias     = 0.0;
+            imuLatGBias      = 0.0;
+            imuHealthy       = true;
+            imuBiasPinStreak = 0;
+
             dom.calibrateBtn.textContent = "✔ TARE OK";
             dom.calibrateBtn.className = CLS_BTN_BASE + "border-[#00ff88]/50 bg-[#00ff88]/20 text-[#00ff88] neon-accent";
             setTimeout(() => {
@@ -822,8 +877,9 @@
             
             setTimeout(() => {
                 const vs = calculateVehicleScore();
-                const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(2)} km/h | MAX ACC: ${maxGpsAccelG.toFixed(2)} G | MAX BRAKING: ${bestGpsBrakingG.toFixed(2)} G | MAX LAT: ${maxGpsLatG.toFixed(2)} G\n`;
-                const header = "Timestamp(ms),Speed(kmh),Distance(m),GPS_LatG,GPS_LongG,Heading(deg)\n";
+                const avgConfPct = confidenceSamples > 0 ? Math.round((confidenceSum / confidenceSamples) * 100) : 0;
+                const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(2)} km/h | MAX ACC: ${maxGpsAccelG.toFixed(2)} G | MAX BRAKING: ${bestGpsBrakingG.toFixed(2)} G | MAX LAT: ${maxGpsLatG.toFixed(2)} G | FUSION: ${(imuFusionActive && imuHealthy) ? "IMU+GPS" : "GPS ONLY"} | AVG CONF: ${avgConfPct}% | GLITCHES FILTERED: ${gpsGlitchCount}\n`;
+                const header = "Timestamp(ms),Speed(kmh),Distance(m),LatG,LongG,Heading(deg),GPSAcc(m),Fusion\n";
                 const csv = metadata + header + telemetrySession.join("\n");
                 
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1048,6 +1104,28 @@
                 dom.diagBraking.className = "text-sm text-gray-300";
             }
 
+            // --- 4. Data Quality & Sensor Fusion ---
+            const avgConfPct = confidenceSamples > 0 ? Math.round((confidenceSum / confidenceSamples) * 100) : 0;
+            const fusionLabel = (imuFusionActive && imuHealthy)
+                ? "IMU+GPS complementary fusion"
+                : imuFusionActive
+                    ? "GPS only — IMU distrusted this run (re-TARE recommended)"
+                    : "GPS only — no IMU stream this run";
+
+            if (confidenceSamples === 0) {
+                dom.diagQuality.textContent = "No GPS samples recorded for this run.";
+                dom.diagQuality.className = "text-sm text-gray-500";
+            } else if (avgConfPct >= 80 && gpsGlitchCount === 0) {
+                dom.diagQuality.innerHTML = `${fusionLabel}. Avg. GPS confidence <span class="text-[#00ff88] font-bold">${avgConfPct}%</span>, 0 glitches filtered. Peaks in this report are trustworthy.`;
+                dom.diagQuality.className = "text-sm text-gray-300";
+            } else if (avgConfPct >= 50) {
+                dom.diagQuality.innerHTML = `${fusionLabel}. Avg. GPS confidence <span class="text-yellow-400 font-bold">${avgConfPct}%</span>, <span class="text-yellow-400 font-bold">${gpsGlitchCount}</span> glitch sample(s) filtered. Mostly reliable — treat single-run peaks with some caution.`;
+                dom.diagQuality.className = "text-sm text-gray-300";
+            } else {
+                dom.diagQuality.innerHTML = `${fusionLabel}. Avg. GPS confidence <span class="text-red-400 font-bold">${avgConfPct}%</span>, <span class="text-red-400 font-bold">${gpsGlitchCount}</span> glitch sample(s) filtered. Signal was poor for much of this run — treat the peak values above with heavy skepticism.`;
+                dom.diagQuality.className = "text-sm text-gray-300";
+            }
+
             // --- Draw Telemetry Canvas ---
             drawTelemetryChart(parsedData);
         }
@@ -1162,7 +1240,12 @@
             }
         });
 
-        // ─── IMU SENSOR (Fallback Only) ───────────────────────────────────────────
+        // ─── IMU SENSOR + FUSION ENGINE (accuracy upgrade, runs ~60Hz) ────────────
+        // GPS-only long/lat G came from differentiating coords.speed/heading at
+        // ~1Hz — every fix's noise gets amplified by the derivative. IMU updates
+        // ~60x faster but drifts / carries a mount-angle bias. Complementary
+        // filter: IMU drives the live signal, GPS periodically corrects the bias
+        // IMU has accumulated. See updateImuFusionFromGps() below.
         function handleMotion(event) {
             const hasLinear = event.acceleration && typeof event.acceleration.z === 'number';
             const rawX = hasLinear ? event.acceleration.x : (event.accelerationIncludingGravity?.x ?? 0);
@@ -1173,9 +1256,74 @@
 
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
             imuLatG  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
+
+            imuFusionActive = true;
+
+            // High-rate output. GPS fixes (onPositionSuccess) never write
+            // fusedLongG/fusedLatG directly while the IMU is healthy — they only
+            // steer the bias terms below. This is what makes the G-meter track
+            // smooth instead of stepping once per GPS fix.
+            if (imuHealthy) {
+                fusedLongG = imuLongG - imuLongGBias;
+                fusedLatG  = imuLatG  - imuLatGBias;
+            }
         }
 
-        // ─── 100-POINT GAMIFICATION ENGINE (GPS Strict) ───────────────────────────
+        // Called once per GPS fix. Nudges the learned IMU bias toward whatever
+        // value would make (imuG - bias) match this fix's GPS-derived G. Gain
+        // scales with GPS confidence — a noisy fix barely moves the bias, a
+        // clean RTK-grade fix corrects it hard. Anti-windup: if the correction
+        // needed pins against IMU_BIAS_CLAMP several fixes running, the
+        // mount/IMU is flagged unhealthy and fusion falls back to GPS-only
+        // until the driver hits TARE MOUNT again.
+        function updateImuFusionFromGps(gpsLongG, gpsLatG, confidence) {
+            if (!imuFusionActive || confidence <= 0) return;
+
+            const gain = FUSION_CORRECTION_GAIN * confidence;
+            const targetLongBias = imuLongG - gpsLongG;
+            const targetLatBias  = imuLatG  - gpsLatG;
+
+            let nextLongBias = imuLongGBias + (targetLongBias - imuLongGBias) * gain;
+            let nextLatBias  = imuLatGBias  + (targetLatBias  - imuLatGBias)  * gain;
+
+            let pinned = false;
+            if (nextLongBias >  IMU_BIAS_CLAMP) { nextLongBias =  IMU_BIAS_CLAMP; pinned = true; }
+            if (nextLongBias < -IMU_BIAS_CLAMP) { nextLongBias = -IMU_BIAS_CLAMP; pinned = true; }
+            if (nextLatBias  >  IMU_BIAS_CLAMP) { nextLatBias  =  IMU_BIAS_CLAMP; pinned = true; }
+            if (nextLatBias  < -IMU_BIAS_CLAMP) { nextLatBias  = -IMU_BIAS_CLAMP; pinned = true; }
+
+            imuLongGBias = nextLongBias;
+            imuLatGBias  = nextLatBias;
+
+            if (pinned) {
+                imuBiasPinStreak++;
+                if (imuBiasPinStreak >= IMU_UNHEALTHY_STREAK) imuHealthy = false;
+            } else {
+                imuBiasPinStreak = 0;
+            }
+        }
+
+        // Reflects fusion state into the HUD badge + score panel label.
+        function updateFusionStatusUI() {
+            if (imuFusionActive && imuHealthy) {
+                dom.fusionStatus.textContent = "FUSION: GPS+IMU";
+                dom.fusionStatus.className   = "text-[#00ff88] neon-accent";
+                dom.scorePanelLabel.textContent = "Performance Index (GPS+IMU Fused)";
+            } else if (imuFusionActive && !imuHealthy) {
+                dom.fusionStatus.textContent = "FUSION: RE-TARE NEEDED";
+                dom.fusionStatus.className   = "text-red-500 neon-danger";
+                dom.scorePanelLabel.textContent = "Performance Index (GPS Only)";
+            } else {
+                dom.fusionStatus.textContent = "FUSION: GPS ONLY";
+                dom.fusionStatus.className   = "text-gray-600";
+                dom.scorePanelLabel.textContent = "Performance Index (GPS Only)";
+            }
+        }
+
+        // ─── 100-POINT GAMIFICATION ENGINE (fed by fused GPS+IMU peaks) ───────────
+        // Unchanged math — it already reads maxGpsAccelG / bestGpsBrakingG /
+        // maxGpsLatG, which are now populated by the fusion engine above instead
+        // of raw GPS. No edits needed here, the accuracy gain flows through for free.
         function calculateVehicleScore() {
             const ptsSpeed = Math.min((maxSpeedKmph / 200.0) * 20.0, 20.0);
             
@@ -1243,12 +1391,15 @@
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
             const validHeading = typeof c.heading === 'number' && !isNaN(c.heading) && c.heading !== null;
 
+            lastGpsConfidence = gpsConfidence(acc);
+
             if (gpsDt > 0) {
                 if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
 
                 const gpsDv = gpsSpeedMs - prevGpsSpeedMs;
-                gpsCalculatedLongG = (gpsDv / gpsDt) / GRAVITY_MS2;
+                const rawGpsLongG = (gpsDv / gpsDt) / GRAVITY_MS2;
 
+                let rawGpsLatG = 0.0;
                 if (validHeading && gpsSpeedMs > 1.4) { 
                     if (!isNaN(prevHeading)) {
                         let dHeading = c.heading - prevHeading;
@@ -1257,13 +1408,36 @@
                         
                         const avgSpeedMs = (gpsSpeedMs + prevGpsSpeedMs) / 2.0;
                         const dHeadingRad = dHeading * Math.PI / 180.0;
-                        gpsCalculatedLatG = (avgSpeedMs * dHeadingRad / gpsDt) / GRAVITY_MS2;
+                        rawGpsLatG = (avgSpeedMs * dHeadingRad / gpsDt) / GRAVITY_MS2;
                     }
                     prevHeading = c.heading;
                 } else {
-                    gpsCalculatedLatG = 0.0;
                     prevHeading = NaN;
                 }
+
+                // Reject physically implausible derivative spikes (bad fix, GPS
+                // speed jump, dt hiccup) before they touch peaks or bias learning.
+                const plausible = Math.abs(rawGpsLongG) <= PHYSICAL_G_CLAMP_LONG && Math.abs(rawGpsLatG) <= PHYSICAL_G_CLAMP_LAT;
+
+                confidenceSum += lastGpsConfidence;
+                confidenceSamples++;
+
+                if (plausible) {
+                    gpsCalculatedLongG = rawGpsLongG;
+                    gpsCalculatedLatG  = rawGpsLatG;
+                    updateImuFusionFromGps(gpsCalculatedLongG, gpsCalculatedLatG, lastGpsConfidence);
+                } else {
+                    gpsGlitchCount++;
+                    // Discard this sample's G — keep the last plausible reading
+                    // so one bad fix can't spike the bias or the peak trackers.
+                }
+
+                if (!imuFusionActive || !imuHealthy) {
+                    fusedLongG = gpsCalculatedLongG;
+                    fusedLatG  = gpsCalculatedLatG;
+                }
+                // else: fusedLongG/fusedLatG are already being driven continuously
+                // by handleMotion() at IMU rate — this tick only just fed the bias.
             }
 
             currentSpeedMs = gpsSpeedMs;
@@ -1327,13 +1501,13 @@
                 }
             }
 
-            if (timer100_0.state === T_IDLE && prevKmph >= 100.0 && gpsSpeedKmph < 100.0 && gpsCalculatedLongG <= -0.2) {
+            if (timer100_0.state === T_IDLE && prevKmph >= 100.0 && gpsSpeedKmph < 100.0 && fusedLongG <= -0.2) {
                 timer100_0.state = T_BRAKING;
                 timer100_0.startDist = distanceMeters;
                 timer100_0.result = 0;
                 setDOM(dom.t100_0, 't100_0', "MEASURING", "text-sm font-bold lcd-text ", "text-yellow-400 neon-warning");
             } else if (timer100_0.state === T_BRAKING) {
-                if (gpsCalculatedLongG > 0.1 && gpsSpeedKmph > 5.0) {
+                if (fusedLongG > 0.1 && gpsSpeedKmph > 5.0) {
                     timer100_0.state = T_IDLE;
                     setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
                 } else if (gpsSpeedKmph < 2.0) {
@@ -1344,13 +1518,13 @@
                 }
             }
 
-            if (gpsCalculatedLongG > maxGpsAccelG) { 
-                maxGpsAccelG = gpsCalculatedLongG; 
+            if (fusedLongG > maxGpsAccelG) { 
+                maxGpsAccelG = fusedLongG; 
                 setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G");
                 stateDirty = true; 
             }
-            if (gpsCalculatedLongG < -0.3) {
-                const decelG = Math.abs(gpsCalculatedLongG);
+            if (fusedLongG < -0.3) {
+                const decelG = Math.abs(fusedLongG);
                 if (decelG > bestGpsBrakingG) {
                     bestGpsBrakingG = decelG;
                     setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G");
@@ -1358,8 +1532,8 @@
                 }
             }
 
-            if (Math.abs(gpsCalculatedLatG) > maxGpsLatG) { 
-                maxGpsLatG = Math.abs(gpsCalculatedLatG); 
+            if (Math.abs(fusedLatG) > maxGpsLatG) { 
+                maxGpsLatG = Math.abs(fusedLatG); 
                 stateDirty = true; 
             }
 
@@ -1370,8 +1544,9 @@
                 }
                 if (telemetrySession.length < MAX_LOG_SAMPLES) {
                     const hdg = isNaN(gpsHeading) ? "" : Math.round(gpsHeading);
+                    const fusionFlag = (imuFusionActive && imuHealthy) ? 1 : 0;
                     telemetrySession.push(
-                        `${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(gpsCalculatedLatG)},${fmt2.format(gpsCalculatedLongG)},${hdg}`
+                        `${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},${hdg},${fmt1.format(acc)},${fusionFlag}`
                     );
                     const len = telemetrySession.length;
                     if (prev.logCount !== len) { prev.logCount = len; dom.logCount.textContent = len; }
@@ -1382,7 +1557,8 @@
             prevGpsSpeedMs = currentSpeedMs;
 
             if (validHeading) gpsHeading = c.heading;
-            dom.accuracy.textContent = `ACC: ${fmt1.format(acc)} m`;
+            dom.accuracy.textContent = `ACC: ${fmt1.format(acc)} m · ${Math.round(lastGpsConfidence * 100)}%`;
+            updateFusionStatusUI();
 
             if (acc <= 4.0) {
                 dom.status.textContent = "L1/L5 GNSS: RTK";
@@ -1462,9 +1638,12 @@
                 setDOM(dom.heading, 'heading', `HDG: ${Math.round(gpsHeading)}°`);
             }
 
+            // Dot now tracks fusedLongG/fusedLatG instead of raw GPS G. When
+            // fusion is healthy this updates at IMU rate between GPS fixes
+            // instead of snapping once a second — reads as fluid motion.
             const alphaG = 1 - Math.exp(-dt * 0.015);
-            uiLongG += (gpsCalculatedLongG - uiLongG) * alphaG;
-            uiLatG  += (gpsCalculatedLatG - uiLatG) * alphaG;
+            uiLongG += (fusedLongG - uiLongG) * alphaG;
+            uiLatG  += (fusedLatG - uiLatG) * alphaG;
             
             dom.liveLatG.textContent = Math.abs(uiLatG).toFixed(2);
             dom.liveLonG.textContent = Math.abs(uiLongG).toFixed(2);
