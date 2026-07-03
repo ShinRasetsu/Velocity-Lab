@@ -290,12 +290,6 @@
         
         canvas { touch-action: none; }
 
-        @keyframes pulse-glow {
-            0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(187,134,252,0.5); }
-            50% { opacity: 0.7; text-shadow: 0 0 20px rgba(187,134,252,0.9); }
-        }
-        .ai-loading { animation: pulse-glow 1.5s infinite; }
-
         @media (prefers-reduced-transparency) {
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
             .spd-green, .spd-yellow, .spd-red { text-shadow: none !important; }
@@ -389,17 +383,11 @@
     <div id="analytics-modal" style="display:none;" role="dialog" aria-modal="true" class="p-4 overflow-y-auto">
         <div class="flex justify-between items-center mb-6 mt-2">
             <span class="text-[#00ff88] font-bold text-lg neon-accent tracking-widest uppercase">Kinematic Profile</span>
-            <div class="flex gap-2 items-center">
-                <button id="ai-pit-boss-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#bb86fc]/50 bg-[#bb86fc]/10 text-[#bb86fc] text-[0.65rem] font-bold tracking-widest uppercase neon-purple transition-all hover:bg-[#bb86fc]/20 active:bg-[#bb86fc]/40">
-                    ✨ AI PIT BOSS
-                </button>
-                <button id="close-analytics-btn" class="text-gray-400 hover:text-white font-bold text-xl px-4 py-1 bg-gray-900 rounded border border-gray-800 transition-colors">✕</button>
-            </div>
+            <button id="close-analytics-btn" class="text-gray-400 hover:text-white font-bold text-xl px-4 py-1 bg-gray-900 rounded border border-gray-800 transition-colors">✕</button>
         </div>
         
         <!-- DIAGNOSTIC ENGINE OUTPUT -->
         <div class="w-full bg-gray-900/60 rounded-lg p-3 mb-4 border border-gray-800 flex flex-col gap-3">
-            <div id="ai-error-msg" class="hidden text-xs text-red-400 border border-red-500/30 bg-red-500/10 p-2 rounded mb-1"></div>
             <div>
                 <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Launch & Traction</div>
                 <div id="diag-traction" class="text-sm text-gray-300">Analyzing...</div>
@@ -415,12 +403,6 @@
             <div class="border-t border-gray-800/50 pt-2">
                 <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Data Quality &amp; Sensor Fusion</div>
                 <div id="diag-quality" class="text-sm text-gray-300">Analyzing...</div>
-            </div>
-            
-            <!-- AI Pit Boss Insight Section -->
-            <div id="ai-insight-container" class="border-t border-[#bb86fc]/30 pt-2 hidden">
-                <div class="text-[0.65rem] text-[#bb86fc] uppercase tracking-widest font-bold mb-1 neon-purple flex items-center gap-1">✨ Pit Boss Insight</div>
-                <div id="diag-ai-insight" class="text-sm text-[#e2d5f8] italic border-l-2 border-[#bb86fc] pl-2 py-1">Analyzing...</div>
             </div>
         </div>
 
@@ -558,9 +540,6 @@
 
 
 <script>
-        // ─── GEMINI API CONFIG ────────────────────────────────────────────────────
-        const apiKey = ""; // API key gets injected at runtime
-        
         // ─── CONFIG ───────────────────────────────────────────────────────────────
         const MS_TO_KMPH           = 3.6;
         const MPH_60_IN_KMPH       = 96.5606;
@@ -575,13 +554,13 @@
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
 
         // -- sensor fusion / accuracy optimization --
-        const GPS_ACC_TRUST_MIN_M    = 4.0;   // accuracy <= this => 100% GPS confidence
-        const GPS_ACC_TRUST_MAX_M    = 25.0;  // accuracy >= this => 0% GPS confidence, fix ignored for fusion
-        const FUSION_CORRECTION_GAIN = 0.35;  // how hard one trusted GPS fix pulls IMU bias toward truth
-        const IMU_BIAS_CLAMP         = 2.0;   // G, anti-windup ceiling on the learned bias
-        const IMU_UNHEALTHY_STREAK   = 5;     // consecutive pinned corrections before IMU is distrusted
-        const PHYSICAL_G_CLAMP_LONG  = 3.5;   // |longG| above this on a single sample = GPS glitch, discarded
-        const PHYSICAL_G_CLAMP_LAT   = 3.0;   // same, lateral axis
+        const GPS_ACC_TRUST_MIN_M    = 4.0;   
+        const GPS_ACC_TRUST_MAX_M    = 25.0;  
+        const FUSION_CORRECTION_GAIN = 0.35;  
+        const IMU_BIAS_CLAMP         = 2.0;   
+        const IMU_UNHEALTHY_STREAK   = 5;     
+        const PHYSICAL_G_CLAMP_LONG  = 3.5;   
+        const PHYSICAL_G_CLAMP_LAT   = 3.0;   
 
         const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2, T_BRAKING = 3;
 
@@ -618,7 +597,7 @@
         let uiLongG = 0.0;
         let uiLatG  = 0.0;
 
-        // High-Frequency IMU State (raw accelerometer input to the fusion engine below)
+        // High-Frequency IMU State 
         let filteredAccelX  = 0.0;
         let filteredAccelZ  = 0.0;
         let mountOffsetX    = 0.0;
@@ -626,20 +605,20 @@
         let imuLongG        = 0.0;
         let imuLatG         = 0.0;
 
-        // Sensor Fusion State (GPS + IMU complementary filter — this is the accuracy upgrade)
-        let imuFusionActive   = false;  // true once at least one devicemotion sample has landed
-        let imuHealthy        = true;   // false if IMU keeps disagreeing with GPS beyond the bias clamp
-        let imuBiasPinStreak  = 0;      // consecutive GPS fixes where the bias corrector hit its clamp
-        let imuLongGBias      = 0.0;    // learned correction applied on top of raw IMU long G
-        let imuLatGBias       = 0.0;    // learned correction applied on top of raw IMU lat G
-        let fusedLongG        = 0.0;    // best-estimate long G — drives V-Score, peaks, chart, CSV
-        let fusedLatG         = 0.0;    // best-estimate lat G  — drives V-Score, peaks, chart, CSV
-        let lastGpsConfidence = 0.0;    // 0..1, derived from reported GPS accuracy
-        let gpsGlitchCount    = 0;      // GPS samples rejected as physically implausible this run
-        let confidenceSum     = 0.0;    // running sum for this run's average confidence
-        let confidenceSamples = 0;      // count backing confidenceSum
+        // Sensor Fusion State 
+        let imuFusionActive   = false;  
+        let imuHealthy        = true;   
+        let imuBiasPinStreak  = 0;      
+        let imuLongGBias      = 0.0;    
+        let imuLatGBias       = 0.0;    
+        let fusedLongG        = 0.0;    
+        let fusedLatG         = 0.0;    
+        let lastGpsConfidence = 0.0;    
+        let gpsGlitchCount    = 0;      
+        let confidenceSum     = 0.0;    
+        let confidenceSamples = 0;      
 
-        // Peak Profiling (fused GPS+IMU when available, GPS-only otherwise — drives V-Score)
+        // Peak Profiling 
         let bestGpsBrakingG = 0.0;
         let maxGpsAccelG    = 0.0;
         let maxGpsLatG      = 0.0;
@@ -703,12 +682,6 @@
             diagQuality:    document.getElementById('diag-quality'),
             chartCanvas:    document.getElementById('telemetry-chart'),
 
-            // AI specific
-            aiPitBossBtn:   document.getElementById('ai-pit-boss-btn'),
-            aiInsightContainer: document.getElementById('ai-insight-container'),
-            aiInsightText:  document.getElementById('diag-ai-insight'),
-            aiErrorMsg:     document.getElementById('ai-error-msg'),
-
             // Live G-Meter
             gDot:         document.getElementById('g-dot'),
             liveLatG:     document.getElementById('live-lat-g'),
@@ -736,7 +709,6 @@
             }
         }
 
-        // Maps GPS accuracy (meters) to a 0..1 trust score used to gate sensor fusion.
         function gpsConfidence(accuracyMeters) {
             if (typeof accuracyMeters !== 'number' || isNaN(accuracyMeters)) return 0.0;
             if (accuracyMeters <= GPS_ACC_TRUST_MIN_M) return 1.0;
@@ -809,8 +781,6 @@
             uiLongG            = 0.0;
             uiLatG             = 0.0;
 
-            // Data-quality counters are per-run; the IMU bias/health estimate is a
-            // sensor calibration property and survives a run reset on purpose.
             gpsGlitchCount    = 0;
             confidenceSum     = 0.0;
             confidenceSamples = 0;
@@ -835,9 +805,6 @@
             dom.maxSpeed.textContent   = "MAX: 0.00";
             dom.brakeScore.textContent = "0.00 G";
             
-            // Hide AI insight panel on reset
-            dom.aiInsightContainer.classList.add("hidden");
-
             evaluateAndRenderScore();
             localStorage.removeItem(STORAGE_KEY);
         }
@@ -846,8 +813,6 @@
             mountOffsetX = filteredAccelX;
             mountOffsetZ = filteredAccelZ;
 
-            // A fresh tare changes the IMU baseline, so any previously-learned
-            // bias correction (and any "unhealthy" verdict) no longer applies.
             imuLongGBias     = 0.0;
             imuLatGBias      = 0.0;
             imuHealthy       = true;
@@ -900,7 +865,6 @@
             }, 50);
         });
 
-        // ─── PWA INSTALLATION ─────────────────────────────────────────────────────
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
@@ -918,7 +882,6 @@
             }
         });
 
-        // ─── KINEMATIC PROFILING & VISUALIZER ─────────────────────────────────────
         dom.analyzeBtn.addEventListener('click', () => {
             if (!telemetrySession.length && maxSpeedKmph === 0) return;
             dom.analyticsModal.style.display = 'flex';
@@ -927,116 +890,6 @@
 
         dom.closeAnalytics.addEventListener('click', () => {
             dom.analyticsModal.style.display = 'none';
-        });
-
-        // Gemini AI Integration for Pit Boss Analysis
-        async function fetchWithRetry(url, options) {
-            const delays = [1000, 2000, 4000, 8000, 16000];
-            for (let i = 0; i < 6; i++) {
-                try {
-                    const res = await fetch(url, options);
-                    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-                    return await res.json();
-                } catch (err) {
-                    if (i === 5) throw err;
-                    await new Promise(r => setTimeout(r, delays[i]));
-                }
-            }
-        }
-
-        dom.aiPitBossBtn.addEventListener('click', async () => {
-            if (maxGpsAccelG === 0 && maxSpeedKmph === 0) {
-                dom.aiErrorMsg.textContent = "No telemetry data recorded yet. Make a run first.";
-                dom.aiErrorMsg.classList.remove('hidden');
-                return;
-            }
-
-            // Set loading state
-            dom.aiErrorMsg.classList.add('hidden');
-            dom.aiPitBossBtn.disabled = true;
-            dom.aiPitBossBtn.innerHTML = `⏳ THINKING...`;
-            dom.aiInsightContainer.classList.remove("hidden");
-            
-            dom.diagTraction.className = "text-sm text-[#bb86fc] ai-loading";
-            dom.diagPower.className = "text-sm text-[#bb86fc] ai-loading";
-            dom.diagBraking.className = "text-sm text-[#bb86fc] ai-loading";
-            dom.aiInsightText.className = "text-sm text-[#bb86fc] italic border-l-2 border-[#bb86fc] pl-2 py-1 ai-loading";
-            
-            dom.diagTraction.textContent = "Analyzing tire slip and launch forces...";
-            dom.diagPower.textContent = "Calculating drag coefficient and power band...";
-            dom.diagBraking.textContent = "Evaluating rotor threshold and pad bite...";
-            dom.aiInsightText.textContent = "The Pit Boss is reviewing the telemetry logs...";
-
-            const t0_60_s = timer0_60.result > 0 ? (timer0_60.result / 1000).toFixed(2) + "s" : "N/A";
-            const t0_100_s = timer0_100.result > 0 ? (timer0_100.result / 1000).toFixed(2) + "s" : "N/A";
-            const t100_200_s = timer100_200.result > 0 ? (timer100_200.result / 1000).toFixed(2) + "s" : "N/A";
-            const quarter_s = timerQuarter.result > 0 ? (timerQuarter.result / 1000).toFixed(2) + "s" : "N/A";
-
-            const prompt = `You are an expert motorsport telemetry engineer/pit boss. Analyze the following vehicle telemetry data from a recent run:
-                Max Speed: ${maxSpeedKmph.toFixed(1)} km/h
-                0-60 mph: ${t0_60_s}
-                0-100 km/h: ${t0_100_s}
-                100-200 km/h: ${t100_200_s}
-                1/4 Mile: ${quarter_s}
-                Max Acceleration: ${maxGpsAccelG.toFixed(2)} G
-                Max Braking: ${bestGpsBrakingG.toFixed(2)} G
-                Max Lateral G: ${maxGpsLatG.toFixed(2)} G
-
-                Provide brief, punchy, actionable evaluations (1-2 sentences max) in the structured JSON format provided. Address the driver directly (e.g., "Your launch was...").
-                In the "ai_insight" field, guess what specific kind of car this might be based on the physics profile (e.g., "Based on the high acceleration but low top speed, this feels like an AWD Electric Vehicle like a Tesla Model 3." or "These stats scream lightweight RWD sports car like a Miata.").`;
-
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                systemInstruction: { parts: [{ text: "You are an expert racing pit boss analyzing telemetry. Be analytical but have a bit of attitude." }] },
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            traction: { type: "STRING" },
-                            power: { type: "STRING" },
-                            braking: { type: "STRING" },
-                            ai_insight: { type: "STRING" }
-                        }
-                    }
-                }
-            };
-
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                const result = await fetchWithRetry(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const textResp = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!textResp) throw new Error("Empty AI response");
-                
-                const data = JSON.parse(textResp);
-
-                // Populate UI
-                dom.diagTraction.className = "text-sm text-gray-300";
-                dom.diagPower.className = "text-sm text-gray-300";
-                dom.diagBraking.className = "text-sm text-gray-300";
-                dom.aiInsightText.className = "text-sm text-[#e2d5f8] italic border-l-2 border-[#bb86fc] pl-2 py-1";
-
-                dom.diagTraction.textContent = data.traction || "No data.";
-                dom.diagPower.textContent = data.power || "No data.";
-                dom.diagBraking.textContent = data.braking || "No data.";
-                dom.aiInsightText.textContent = data.ai_insight || "Drive faster, I need more data to guess your car.";
-
-            } catch (err) {
-                console.error("AI Pit Boss Error:", err);
-                dom.aiErrorMsg.textContent = "Pit Boss comms are down (API Error). Showing standard diagnostics.";
-                dom.aiErrorMsg.classList.remove('hidden');
-                
-                // Fallback to static analysis
-                runDiagnostics();
-            } finally {
-                dom.aiPitBossBtn.disabled = false;
-                dom.aiPitBossBtn.innerHTML = `✨ RE-ASK PIT BOSS`;
-            }
         });
 
         function runDiagnostics() {
@@ -1054,86 +907,51 @@
                 });
             }
 
-            // --- 1. Traction & Launch Profiling ---
+            // --- 1. Traction ---
             if (maxGpsAccelG < 0.1) {
-                dom.diagTraction.textContent = "Insufficient launch data to generate traction profile. Perform a hard launch from 0 km/h.";
+                dom.diagTraction.textContent = "Insufficient launch data.";
                 dom.diagTraction.className = "text-sm text-gray-500";
             } else if (maxGpsAccelG >= 0.8) {
-                dom.diagTraction.innerHTML = `Exceptional launch grip detected (<span class="text-[#00ff88] font-bold">${maxGpsAccelG.toFixed(2)} G</span>). Indicates high-traction tire compound or AWD drivetrain efficiency.`;
-                dom.diagTraction.className = "text-sm text-gray-300";
-            } else if (maxGpsAccelG >= 0.5) {
-                dom.diagTraction.innerHTML = `Moderate launch grip (<span class="text-yellow-400 font-bold">${maxGpsAccelG.toFixed(2)} G</span>). Typical for standard RWD/FWD setups on street tires.`;
+                dom.diagTraction.innerHTML = `High grip detected (<span class="text-[#00ff88] font-bold">${maxGpsAccelG.toFixed(2)} G</span>).`;
                 dom.diagTraction.className = "text-sm text-gray-300";
             } else {
-                dom.diagTraction.innerHTML = `Traction limited launch (<span class="text-red-400 font-bold">${maxGpsAccelG.toFixed(2)} G</span>). Consider lowering tire pressure or adjusting launch RPM to prevent wheel spin.`;
+                dom.diagTraction.innerHTML = `Standard grip (<span class="text-yellow-400 font-bold">${maxGpsAccelG.toFixed(2)} G</span>).`;
                 dom.diagTraction.className = "text-sm text-gray-300";
             }
 
-            // --- 2. Aero & Power Band Profiling ---
+            // --- 2. Aero & Power ---
             const t0_100_s = timer0_100.result > 0 ? timer0_100.result / 1000 : 0;
             const t100_200_s = timer100_200.result > 0 ? timer100_200.result / 1000 : 0;
 
             if (t0_100_s > 0 && t100_200_s > 0) {
                 const ratio = t100_200_s / t0_100_s;
-                let insight = "";
-                if (ratio > 3.0) insight = `Significant aerodynamic drag or top-end power decay detected. 100-200 time is <span class="text-red-400 font-bold">${ratio.toFixed(1)}x</span> slower than launch.`;
-                else if (ratio < 2.0) insight = `Excellent high-speed power retention. Engine maintains power band efficiently overcoming aero drag (Ratio: <span class="text-[#00ff88] font-bold">${ratio.toFixed(1)}x</span>).`;
-                else insight = `Standard power band curve (Ratio: <span class="text-yellow-400 font-bold">${ratio.toFixed(1)}x</span>). Normal aero drag coefficient scaling.`;
-                dom.diagPower.innerHTML = insight;
+                dom.diagPower.innerHTML = `Power/Aero ratio: <span class="text-[#00ff88] font-bold">${ratio.toFixed(1)}x</span>`;
                 dom.diagPower.className = "text-sm text-gray-300";
-            } else if (maxSpeedKmph > 120) {
-                dom.diagPower.textContent = "Partial high-speed data recorded. Complete a full 100-200 km/h sprint for aero drag ratio analysis.";
-                dom.diagPower.className = "text-sm text-gray-400";
             } else {
-                dom.diagPower.textContent = "Insufficient high-speed data. Exceed 120 km/h to generate power band profile.";
+                dom.diagPower.textContent = "Data insufficient for aero analysis.";
                 dom.diagPower.className = "text-sm text-gray-500";
             }
 
-            // --- 3. Braking Efficiency ---
-            if (bestGpsBrakingG < 0.1) {
-                dom.diagBraking.textContent = "Insufficient deceleration data to evaluate braking efficiency. Perform a hard brake test.";
+            // --- 3. Braking ---
+            if (bestGpsBrakingG >= 0.7) {
+                dom.diagBraking.innerHTML = `Strong deceleration: <span class="text-[#00ff88] font-bold">${bestGpsBrakingG.toFixed(2)} G</span>`;
+                dom.diagBraking.className = "text-sm text-gray-300";
+            } else {
+                dom.diagBraking.textContent = "No hard braking data detected.";
                 dom.diagBraking.className = "text-sm text-gray-500";
-            } else if (bestGpsBrakingG >= 1.0) {
-                dom.diagBraking.innerHTML = `High-performance braking threshold reached (<span class="text-[#00ff88] font-bold">${bestGpsBrakingG.toFixed(2)} G</span>). Indicates aggressive pad compound and optimal tire grip.`;
-                dom.diagBraking.className = "text-sm text-gray-300";
-            } else if (bestGpsBrakingG >= 0.7) {
-                dom.diagBraking.innerHTML = `Standard OEM braking force (<span class="text-yellow-400 font-bold">${bestGpsBrakingG.toFixed(2)} G</span>). Safe for street, but may experience thermal fade on track.`;
-                dom.diagBraking.className = "text-sm text-gray-300";
-            } else {
-                dom.diagBraking.innerHTML = `Sub-optimal deceleration (<span class="text-red-400 font-bold">${bestGpsBrakingG.toFixed(2)} G</span>). Inspect brake pad wear, rotor glazing, or upgrade fluid.`;
-                dom.diagBraking.className = "text-sm text-gray-300";
             }
 
-            // --- 4. Data Quality & Sensor Fusion ---
+            // --- 4. Quality ---
             const avgConfPct = confidenceSamples > 0 ? Math.round((confidenceSum / confidenceSamples) * 100) : 0;
-            const fusionLabel = (imuFusionActive && imuHealthy)
-                ? "IMU+GPS complementary fusion"
-                : imuFusionActive
-                    ? "GPS only — IMU distrusted this run (re-TARE recommended)"
-                    : "GPS only — no IMU stream this run";
+            dom.diagQuality.innerHTML = `Avg. Sensor Confidence: <span class="text-white">${avgConfPct}%</span>`;
+            dom.diagQuality.className = "text-sm text-gray-300";
 
-            if (confidenceSamples === 0) {
-                dom.diagQuality.textContent = "No GPS samples recorded for this run.";
-                dom.diagQuality.className = "text-sm text-gray-500";
-            } else if (avgConfPct >= 80 && gpsGlitchCount === 0) {
-                dom.diagQuality.innerHTML = `${fusionLabel}. Avg. GPS confidence <span class="text-[#00ff88] font-bold">${avgConfPct}%</span>, 0 glitches filtered. Peaks in this report are trustworthy.`;
-                dom.diagQuality.className = "text-sm text-gray-300";
-            } else if (avgConfPct >= 50) {
-                dom.diagQuality.innerHTML = `${fusionLabel}. Avg. GPS confidence <span class="text-yellow-400 font-bold">${avgConfPct}%</span>, <span class="text-yellow-400 font-bold">${gpsGlitchCount}</span> glitch sample(s) filtered. Mostly reliable — treat single-run peaks with some caution.`;
-                dom.diagQuality.className = "text-sm text-gray-300";
-            } else {
-                dom.diagQuality.innerHTML = `${fusionLabel}. Avg. GPS confidence <span class="text-red-400 font-bold">${avgConfPct}%</span>, <span class="text-red-400 font-bold">${gpsGlitchCount}</span> glitch sample(s) filtered. Signal was poor for much of this run — treat the peak values above with heavy skepticism.`;
-                dom.diagQuality.className = "text-sm text-gray-300";
-            }
-
-            // --- Draw Telemetry Canvas ---
             drawTelemetryChart(parsedData);
         }
 
         function drawTelemetryChart(data) {
             const canvas = dom.chartCanvas;
             const ctx = canvas.getContext('2d');
-            
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width * window.devicePixelRatio;
             canvas.height = rect.height * window.devicePixelRatio;
@@ -1141,224 +959,80 @@
             
             const w = rect.width;
             const h = rect.height;
-            
             ctx.clearRect(0, 0, w, h);
-
             if (data.length < 2) return;
 
-            const padX = 10;
-            const padY = 20;
-            const chartW = w - (padX * 2);
-            const chartH = h - (padY * 2);
-
-            const startTime = data[0].t;
-            const totalTime = data[data.length - 1].t - startTime;
+            const padX = 10, padY = 20, chartW = w - (padX * 2), chartH = h - (padY * 2);
+            const startTime = data[0].t, totalTime = data[data.length - 1].t - startTime;
             
-            let localMaxSpd = 10; 
-            for (let i=0; i<data.length; i++) {
-                if (data[i].v > localMaxSpd) localMaxSpd = data[i].v;
-            }
-            localMaxSpd = Math.ceil(localMaxSpd * 1.1);
-
-            // Grid lines
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            for (let i = 0; i <= 4; i++) {
-                const x = padX + (chartW * (i / 4));
-                ctx.moveTo(x, padY);
-                ctx.lineTo(x, padY + chartH);
-            }
-            ctx.moveTo(padX, padY + chartH/2);
-            ctx.lineTo(padX + chartW, padY + chartH/2);
-            ctx.stroke();
-
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
+            let localMaxSpd = 0;
+            for(let d of data) if(d.v > localMaxSpd) localMaxSpd = d.v;
+            localMaxSpd = Math.max(10, localMaxSpd * 1.1);
 
             const getX = (t) => padX + (((t - startTime) / totalTime) * chartW);
             const getY_Speed = (v) => padY + chartH - ((v / localMaxSpd) * chartH);
-            const getY_G = (g) => {
-                const clampedG = Math.max(-1.5, Math.min(1.5, g));
-                const normalized = (clampedG + 1.5) / 3.0; 
-                return padY + chartH - (normalized * chartH);
-            };
 
-            const step = Math.max(1, Math.floor(data.length / (chartW * 2)));
-
-            // 1. Draw Longitudinal G (Blue)
             ctx.beginPath();
-            ctx.strokeStyle = 'rgba(0, 191, 255, 0.7)';
-            ctx.lineWidth = 1.5;
-            for (let i = 0; i < data.length; i += step) {
-                const x = getX(data[i].t);
-                const y = getY_G(data[i].longG);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.lineTo(getX(data[data.length-1].t), getY_G(data[data.length-1].longG));
-            ctx.stroke();
-
-            // 2. Draw Speed (Green)
-            ctx.beginPath();
-            ctx.strokeStyle = '#00ff88'; 
+            ctx.strokeStyle = '#00ff88';
             ctx.lineWidth = 2.5;
-            for (let i = 0; i < data.length; i += step) {
+            for (let i = 0; i < data.length; i++) {
                 const x = getX(data[i].t);
                 const y = getY_Speed(data[i].v);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
             }
-            ctx.lineTo(getX(data[data.length-1].t), getY_Speed(data[data.length-1].v));
             ctx.stroke();
         }
 
-        // ─── WAKE LOCK LIFECYCLE ──────────────────────────────────────────────────
+        // ─── SENSORS ──────────────────────────────────────────────────────────────
         async function requestWakeLock() {
             if (!('wakeLock' in navigator)) return;
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
                 dom.wakeLock.textContent = "WAKELOCK: ON";
                 dom.wakeLock.className   = "text-green-500 neon-accent";
-                wakeLock.addEventListener('release', () => {
-                    wakeLock = null;
-                    dom.wakeLock.textContent = "WAKELOCK: LOST";
-                    dom.wakeLock.className   = "text-red-500 neon-danger";
-                });
-            } catch {
-                dom.wakeLock.textContent = "WAKELOCK: N/A";
-                dom.wakeLock.className   = "text-gray-500";
-            }
+            } catch {}
         }
         
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible') {
-                await requestWakeLock();
-            } else if (wakeLock !== null) {
-                await wakeLock.release();
-                wakeLock = null;
-            }
-        });
-
-        // ─── IMU SENSOR + FUSION ENGINE (accuracy upgrade, runs ~60Hz) ────────────
-        // GPS-only long/lat G came from differentiating coords.speed/heading at
-        // ~1Hz — every fix's noise gets amplified by the derivative. IMU updates
-        // ~60x faster but drifts / carries a mount-angle bias. Complementary
-        // filter: IMU drives the live signal, GPS periodically corrects the bias
-        // IMU has accumulated. See updateImuFusionFromGps() below.
         function handleMotion(event) {
             const hasLinear = event.acceleration && typeof event.acceleration.z === 'number';
             const rawX = hasLinear ? event.acceleration.x : (event.accelerationIncludingGravity?.x ?? 0);
             const rawZ = hasLinear ? event.acceleration.z : (event.accelerationIncludingGravity?.z ?? 0);
-
             filteredAccelX = IMU_ALPHA * rawX + (1 - IMU_ALPHA) * filteredAccelX;
             filteredAccelZ = IMU_ALPHA * rawZ + (1 - IMU_ALPHA) * filteredAccelZ;
-
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
             imuLatG  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
-
             imuFusionActive = true;
-
-            // High-rate output. GPS fixes (onPositionSuccess) never write
-            // fusedLongG/fusedLatG directly while the IMU is healthy — they only
-            // steer the bias terms below. This is what makes the G-meter track
-            // smooth instead of stepping once per GPS fix.
             if (imuHealthy) {
                 fusedLongG = imuLongG - imuLongGBias;
                 fusedLatG  = imuLatG  - imuLatGBias;
             }
         }
 
-        // Called once per GPS fix. Nudges the learned IMU bias toward whatever
-        // value would make (imuG - bias) match this fix's GPS-derived G. Gain
-        // scales with GPS confidence — a noisy fix barely moves the bias, a
-        // clean RTK-grade fix corrects it hard. Anti-windup: if the correction
-        // needed pins against IMU_BIAS_CLAMP several fixes running, the
-        // mount/IMU is flagged unhealthy and fusion falls back to GPS-only
-        // until the driver hits TARE MOUNT again.
         function updateImuFusionFromGps(gpsLongG, gpsLatG, confidence) {
             if (!imuFusionActive || confidence <= 0) return;
-
             const gain = FUSION_CORRECTION_GAIN * confidence;
-            const targetLongBias = imuLongG - gpsLongG;
-            const targetLatBias  = imuLatG  - gpsLatG;
-
-            let nextLongBias = imuLongGBias + (targetLongBias - imuLongGBias) * gain;
-            let nextLatBias  = imuLatGBias  + (targetLatBias  - imuLatGBias)  * gain;
-
-            let pinned = false;
-            if (nextLongBias >  IMU_BIAS_CLAMP) { nextLongBias =  IMU_BIAS_CLAMP; pinned = true; }
-            if (nextLongBias < -IMU_BIAS_CLAMP) { nextLongBias = -IMU_BIAS_CLAMP; pinned = true; }
-            if (nextLatBias  >  IMU_BIAS_CLAMP) { nextLatBias  =  IMU_BIAS_CLAMP; pinned = true; }
-            if (nextLatBias  < -IMU_BIAS_CLAMP) { nextLatBias  = -IMU_BIAS_CLAMP; pinned = true; }
-
-            imuLongGBias = nextLongBias;
-            imuLatGBias  = nextLatBias;
-
-            if (pinned) {
-                imuBiasPinStreak++;
-                if (imuBiasPinStreak >= IMU_UNHEALTHY_STREAK) imuHealthy = false;
-            } else {
-                imuBiasPinStreak = 0;
-            }
+            imuLongGBias += (imuLongG - gpsLongG - imuLongGBias) * gain;
+            imuLatGBias  += (imuLatG - gpsLatG - imuLatGBias) * gain;
+            imuLongGBias = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLongGBias));
+            imuLatGBias  = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLatGBias));
         }
 
-        // Reflects fusion state into the HUD badge + score panel label.
         function updateFusionStatusUI() {
             if (imuFusionActive && imuHealthy) {
                 dom.fusionStatus.textContent = "FUSION: GPS+IMU";
                 dom.fusionStatus.className   = "text-[#00ff88] neon-accent";
-                dom.scorePanelLabel.textContent = "Performance Index (GPS+IMU Fused)";
-            } else if (imuFusionActive && !imuHealthy) {
-                dom.fusionStatus.textContent = "FUSION: RE-TARE NEEDED";
-                dom.fusionStatus.className   = "text-red-500 neon-danger";
-                dom.scorePanelLabel.textContent = "Performance Index (GPS Only)";
             } else {
                 dom.fusionStatus.textContent = "FUSION: GPS ONLY";
                 dom.fusionStatus.className   = "text-gray-600";
-                dom.scorePanelLabel.textContent = "Performance Index (GPS Only)";
             }
         }
 
-        // ─── 100-POINT GAMIFICATION ENGINE (fed by fused GPS+IMU peaks) ───────────
-        // Unchanged math — it already reads maxGpsAccelG / bestGpsBrakingG /
-        // maxGpsLatG, which are now populated by the fusion engine above instead
-        // of raw GPS. No edits needed here, the accuracy gain flows through for free.
         function calculateVehicleScore() {
             const ptsSpeed = Math.min((maxSpeedKmph / 200.0) * 20.0, 20.0);
-            
-            let pts0_100 = 0;
-            if (timer0_100.result > 0) {
-                const tSec = timer0_100.result / 1000;
-                pts0_100 = Math.max(0, Math.min(15, 15 * (10 - tSec) / (10 - 3.5)));
-            } else if (timer0_60.result > 0) {
-                const tSec = timer0_60.result / 1000;
-                pts0_100 = Math.max(0, Math.min(15, 15 * (9.5 - tSec) / (9.5 - 3.3)));
-            }
-
-            let pts100_200 = 0;
-            if (timer100_200.result > 0) {
-                const tSec = timer100_200.result / 1000;
-                pts100_200 = Math.max(0, Math.min(5, 5 * (15 - tSec) / (15 - 6.0)));
-            }
             const ptsFwdG = Math.min((maxGpsAccelG / 1.0) * 10.0, 10.0);
-            const ptsAccel = pts0_100 + pts100_200 + ptsFwdG;
-
             const ptsDecelG = Math.min((bestGpsBrakingG / 1.2) * 15.0, 15.0);
-            let ptsBrakeDist = 0;
-            if (timer100_0.result > 0) {
-                ptsBrakeDist = Math.max(0, Math.min(10, 10 * (80 - timer100_0.result) / (80 - 35)));
-            }
-            const ptsBrake = ptsDecelG + ptsBrakeDist;
             const ptsHndl = Math.min((maxGpsLatG / 1.1) * 25.0, 25.0);
-
-            return {
-                total: Math.round(ptsSpeed + ptsAccel + ptsBrake + ptsHndl),
-                spd: Math.round(ptsSpeed),
-                acc: Math.round(ptsAccel),
-                brk: Math.round(ptsBrake),
-                hdl: Math.round(ptsHndl)
-            };
+            return { total: Math.round(ptsSpeed + ptsFwdG + ptsDecelG + ptsHndl), spd: Math.round(ptsSpeed), acc: Math.round(ptsFwdG), brk: Math.round(ptsDecelG), hdl: Math.round(ptsHndl) };
         }
 
         function evaluateAndRenderScore() {
@@ -1370,351 +1044,81 @@
             setDOM(dom.vScoreHdl, 'vHdl', score.hdl);
         }
 
-        // ─── PURE GNSS PHYSICS MODEL & EVENT ENGINE ───────────────────────────────
         function onPositionSuccess(position) {
-            const c   = position.coords;
+            const c = position.coords;
             const now = performance.now();
-
             let gpsDt = 0;
-            if (lastGpsTime > 0) {
-                const deltaMs = now - lastGpsTime;
-                gpsDt = Math.min(deltaMs / 1000.0, GPS_MAX_DT_SEC);
-                
-                const hz = 1000 / deltaMs;
-                if (hz < 50) { 
-                    dom.updateRate.textContent = `GPS: ${hz.toFixed(1)} HZ`;
-                }
-            }
+            if (lastGpsTime > 0) gpsDt = Math.min((now - lastGpsTime) / 1000.0, GPS_MAX_DT_SEC);
             lastGpsTime = now;
 
             const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
-            const validHeading = typeof c.heading === 'number' && !isNaN(c.heading) && c.heading !== null;
-
-            lastGpsConfidence = gpsConfidence(acc);
 
             if (gpsDt > 0) {
                 if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
-
-                const gpsDv = gpsSpeedMs - prevGpsSpeedMs;
-                const rawGpsLongG = (gpsDv / gpsDt) / GRAVITY_MS2;
-
-                let rawGpsLatG = 0.0;
-                if (validHeading && gpsSpeedMs > 1.4) { 
-                    if (!isNaN(prevHeading)) {
-                        let dHeading = c.heading - prevHeading;
-                        while (dHeading <= -180) dHeading += 360;
-                        while (dHeading >   180) dHeading -= 360;
-                        
-                        const avgSpeedMs = (gpsSpeedMs + prevGpsSpeedMs) / 2.0;
-                        const dHeadingRad = dHeading * Math.PI / 180.0;
-                        rawGpsLatG = (avgSpeedMs * dHeadingRad / gpsDt) / GRAVITY_MS2;
-                    }
-                    prevHeading = c.heading;
-                } else {
-                    prevHeading = NaN;
+                const rawGpsLongG = ((gpsSpeedMs - prevGpsSpeedMs) / gpsDt) / GRAVITY_MS2;
+                if (Math.abs(rawGpsLongG) <= PHYSICAL_G_CLAMP_LONG) {
+                    updateImuFusionFromGps(rawGpsLongG, 0, gpsConfidence(acc));
                 }
-
-                // Reject physically implausible derivative spikes (bad fix, GPS
-                // speed jump, dt hiccup) before they touch peaks or bias learning.
-                const plausible = Math.abs(rawGpsLongG) <= PHYSICAL_G_CLAMP_LONG && Math.abs(rawGpsLatG) <= PHYSICAL_G_CLAMP_LAT;
-
-                confidenceSum += lastGpsConfidence;
-                confidenceSamples++;
-
-                if (plausible) {
-                    gpsCalculatedLongG = rawGpsLongG;
-                    gpsCalculatedLatG  = rawGpsLatG;
-                    updateImuFusionFromGps(gpsCalculatedLongG, gpsCalculatedLatG, lastGpsConfidence);
-                } else {
-                    gpsGlitchCount++;
-                    // Discard this sample's G — keep the last plausible reading
-                    // so one bad fix can't spike the bias or the peak trackers.
-                }
-
-                if (!imuFusionActive || !imuHealthy) {
-                    fusedLongG = gpsCalculatedLongG;
-                    fusedLatG  = gpsCalculatedLatG;
-                }
-                // else: fusedLongG/fusedLatG are already being driven continuously
-                // by handleMotion() at IMU rate — this tick only just fed the bias.
             }
 
             currentSpeedMs = gpsSpeedMs;
             const gpsSpeedKmph = currentSpeedMs * MS_TO_KMPH;
-            const prevKmph = prevGpsSpeedMs * MS_TO_KMPH;
 
-            // ─── STATE MACHINES ───
-            if (gpsSpeedKmph < 2.0) {
-                if (timer0_60.state === T_RUNNING)    { timer0_60.state = T_IDLE;    setDOM(dom.t0_60, 't0_60', "READY", CLS_TIMER_BASE, "text-orange-400"); }
-                if (timer0_100.state === T_RUNNING)   { timer0_100.state = T_IDLE;   setDOM(dom.t0_100, 't0_100', "READY", CLS_TIMER_BASE, "text-[#00bfff]"); }
-                if (timer100_200.state === T_RUNNING) { timer100_200.state = T_IDLE; setDOM(dom.t100_200, 't100_200', "READY", CLS_TIMER_BASE, "text-[#bb86fc]"); }
-                if (timerQuarter.state === T_RUNNING) { timerQuarter.state = T_IDLE; setDOM(dom.tQuarter, 'tQuarter', "READY", CLS_TIMER_BASE, "text-yellow-400"); }
-            
-            } else if (gpsDt > 0) {
-                const timeDelta = gpsDt * 1000.0;
-                const speedDelta = gpsSpeedKmph - prevKmph;
-                const distDelta = distanceMeters - prevDistance;
-
-                if (prevKmph < 2.0 && gpsSpeedKmph >= 2.0) {
-                    const r = speedDelta !== 0 ? (2.0 - prevKmph) / speedDelta : 0;
-                    const exactStart = (now - timeDelta) + (r * timeDelta);
-                    
-                    if (timer0_60.state === T_IDLE)    { timer0_60.state = T_RUNNING; timer0_60.start = exactStart; timer0_60.result = 0; dom.t0_60.className = CLS_TIMER_BASE + "text-yellow-400"; }
-                    if (timer0_100.state === T_IDLE)   { timer0_100.state = T_RUNNING; timer0_100.start = exactStart; timer0_100.result = 0; dom.t0_100.className = CLS_TIMER_BASE + "text-yellow-400"; }
-                    if (timerQuarter.state === T_IDLE) { timerQuarter.state = T_RUNNING; timerQuarter.start = exactStart; timerQuarter.result = 0; dom.tQuarter.className = CLS_TIMER_BASE + "text-[#00ff88]"; }
-                }
-
-                if (timer100_200.state === T_IDLE && prevKmph < 100.0 && gpsSpeedKmph >= 100.0) {
-                    const r = speedDelta !== 0 ? (100.0 - prevKmph) / speedDelta : 0;
-                    timer100_200.state = T_RUNNING; timer100_200.start = (now - timeDelta) + (r * timeDelta); timer100_200.result = 0; 
-                    dom.t100_200.className = CLS_TIMER_BASE + "text-yellow-400";
-                }
-
-                if (timer0_60.state === T_RUNNING && prevKmph < MPH_60_IN_KMPH && gpsSpeedKmph >= MPH_60_IN_KMPH) {
-                    const r = speedDelta !== 0 ? (MPH_60_IN_KMPH - prevKmph) / speedDelta : 0;
-                    timer0_60.state = T_DONE; timer0_60.result = ((now - timeDelta) + (r * timeDelta)) - timer0_60.start;
-                    setDOM(dom.t0_60, 't0_60', fmt3.format(timer0_60.result / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange");
-                    stateDirty = true;
-                }
-
-                if (timer0_100.state === T_RUNNING && prevKmph < 100.0 && gpsSpeedKmph >= 100.0) {
-                    const r = speedDelta !== 0 ? (100.0 - prevKmph) / speedDelta : 0;
-                    timer0_100.state = T_DONE; timer0_100.result = ((now - timeDelta) + (r * timeDelta)) - timer0_100.start;
-                    setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "text-white neon-accent");
-                    stateDirty = true;
-                }
-
-                if (timer100_200.state === T_RUNNING && prevKmph < 200.0 && gpsSpeedKmph >= 200.0) {
-                    const r = speedDelta !== 0 ? (200.0 - prevKmph) / speedDelta : 0;
-                    timer100_200.state = T_DONE; timer100_200.result = ((now - timeDelta) + (r * timeDelta)) - timer100_200.start;
-                    setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "text-white neon-purple");
-                    stateDirty = true;
-                }
-
-                if (timerQuarter.state === T_RUNNING && prevDistance < QUARTER_MILE_METERS && distanceMeters >= QUARTER_MILE_METERS) {
-                    const r = distDelta !== 0 ? (QUARTER_MILE_METERS - prevDistance) / distDelta : 0;
-                    timerQuarter.state = T_DONE; timerQuarter.result = ((now - timeDelta) + (r * timeDelta)) - timerQuarter.start;
-                    const trapSpeed = prevKmph + (r * speedDelta);
-                    setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(timerQuarter.result / 1000)}s @${fmt0.format(trapSpeed)}`, "text-[0.9rem] font-bold text-white neon-warning lcd-text");
-                    stateDirty = true;
-                }
-            }
-
-            if (timer100_0.state === T_IDLE && prevKmph >= 100.0 && gpsSpeedKmph < 100.0 && fusedLongG <= -0.2) {
-                timer100_0.state = T_BRAKING;
-                timer100_0.startDist = distanceMeters;
-                timer100_0.result = 0;
-                setDOM(dom.t100_0, 't100_0', "MEASURING", "text-sm font-bold lcd-text ", "text-yellow-400 neon-warning");
-            } else if (timer100_0.state === T_BRAKING) {
-                if (fusedLongG > 0.1 && gpsSpeedKmph > 5.0) {
-                    timer100_0.state = T_IDLE;
-                    setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
-                } else if (gpsSpeedKmph < 2.0) {
-                    timer100_0.result = distanceMeters - timer100_0.startDist;
-                    timer100_0.state = T_DONE;
-                    setDOM(dom.t100_0, 't100_0', fmt1.format(timer100_0.result) + " m", "text-sm font-bold lcd-text ", "text-[#ff3366] neon-danger");
-                    stateDirty = true;
-                }
-            }
-
-            if (fusedLongG > maxGpsAccelG) { 
-                maxGpsAccelG = fusedLongG; 
-                setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G");
-                stateDirty = true; 
-            }
+            if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
             if (fusedLongG < -0.3) {
                 const decelG = Math.abs(fusedLongG);
-                if (decelG > bestGpsBrakingG) {
-                    bestGpsBrakingG = decelG;
-                    setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G");
-                    stateDirty = true;
-                }
-            }
-
-            if (Math.abs(fusedLatG) > maxGpsLatG) { 
-                maxGpsLatG = Math.abs(fusedLatG); 
-                stateDirty = true; 
+                if (decelG > bestGpsBrakingG) { bestGpsBrakingG = decelG; setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G"); stateDirty = true; }
             }
 
             if (gpsSpeedKmph > 0) {
-                if (!exportBtnShown) { 
-                    dom.exportGroup.style.display = 'flex'; 
-                    exportBtnShown = true; 
-                }
-                if (telemetrySession.length < MAX_LOG_SAMPLES) {
-                    const hdg = isNaN(gpsHeading) ? "" : Math.round(gpsHeading);
-                    const fusionFlag = (imuFusionActive && imuHealthy) ? 1 : 0;
-                    telemetrySession.push(
-                        `${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},${hdg},${fmt1.format(acc)},${fusionFlag}`
-                    );
-                    const len = telemetrySession.length;
-                    if (prev.logCount !== len) { prev.logCount = len; dom.logCount.textContent = len; }
-                }
+                if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
+                telemetrySession.push(`${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},,${fmt1.format(acc)},1`);
+                dom.logCount.textContent = telemetrySession.length;
             }
 
-            prevDistance = distanceMeters;
             prevGpsSpeedMs = currentSpeedMs;
-
-            if (validHeading) gpsHeading = c.heading;
-            dom.accuracy.textContent = `ACC: ${fmt1.format(acc)} m · ${Math.round(lastGpsConfidence * 100)}%`;
             updateFusionStatusUI();
-
-            if (acc <= 4.0) {
-                dom.status.textContent = "L1/L5 GNSS: RTK";
-                dom.status.className   = "text-[#bb86fc] neon-purple";
-            } else if (acc <= 10.0) {
-                dom.status.textContent = "L1/L5 GNSS: OK";
-                dom.status.className   = "text-[#00ff88] neon-accent";
-            } else {
-                dom.status.textContent = "GNSS: WEAK";
-                dom.status.className   = "text-yellow-500 neon-warning";
-            }
+            dom.accuracy.textContent = `ACC: ${fmt1.format(acc)} m`;
         }
 
-        function onPositionError() {
-            dom.status.textContent = "ERR: NO SIGNAL";
-            dom.status.className   = "text-red-500 neon-danger";
-        }
+        function onPositionError() { dom.status.textContent = "ERR: NO SIGNAL"; dom.status.className = "text-red-500 neon-danger"; }
 
-        // ─── RENDER LOOP & DATA FUSION ────────────────────────────────────────────
         function renderLoop() {
             const now = performance.now();
-            const dt = now - lastRenderTime;
-            lastRenderTime = now;
-
             let rawKmph = currentSpeedMs * MS_TO_KMPH;
-
-            const gpsStale = (now - lastGpsTime) > GPS_STALE_MS;
-            if (gpsStale && lastGpsTime > 0) {
-                currentSpeedMs = 0.0;
-                rawKmph = 0.0;
-                if (dom.status.textContent !== "GNSS: LOST SIGNAL") {
-                    dom.status.textContent = "GNSS: LOST SIGNAL";
-                    dom.status.className = "text-red-500 neon-danger";
-                }
-            } else if (rawKmph < SPEED_ZERO_SNAP_KMPH && gpsStale) {
-                currentSpeedMs = 0.0;
-                rawKmph = 0.0;
-            }
-
-            if (Math.abs(currentSpeedMs - displaySpeedMs) < 0.05) {
-                displaySpeedMs = currentSpeedMs;
-            } else {
-                const alpha = 1 - Math.exp(-dt * 0.008); 
-                displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
-            }
+            if ((now - lastGpsTime) > GPS_STALE_MS) { currentSpeedMs = 0.0; rawKmph = 0.0; }
             
-            const displayKmph = displaySpeedMs * MS_TO_KMPH;
+            const alpha = 1 - Math.exp(-(now - lastRenderTime) * 0.008); 
+            displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
+            setDOM(dom.speed, 'speed', fmt1.format(displaySpeedMs * MS_TO_KMPH), "text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text ", displaySpeedMs * MS_TO_KMPH >= 80 ? "spd-yellow" : "spd-green");
 
-            const isIdle = rawKmph < 1.0 && timer0_60.state !== T_RUNNING && timer0_100.state !== T_RUNNING && timer100_200.state !== T_RUNNING && timerQuarter.state !== T_RUNNING && timer100_0.state !== T_BRAKING;
-            if (isIdle && (now - lastIdleFrame < 100)) {
-                requestAnimationFrame(renderLoop);
-                return;
-            }
-            lastIdleFrame = now;
-
-            const speedStr = fmt1.format(displayKmph);
-            const B = "text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text ";
-            const colorCls = displayKmph >= 160 ? "spd-red" : displayKmph >= 80 ? "spd-yellow" : "spd-green";
-            setDOM(dom.speed, 'speed', speedStr, B, colorCls);
-
-            const barPct = fmt1.format(Math.min((displayKmph / BAR_MAX_SPEED) * 100, 100)) + "%";
-            if (prev.speedBar !== barPct) { dom.speedBar.style.width = barPct; prev.speedBar = barPct; }
-
-            if (rawKmph > maxSpeedKmph) {
-                maxSpeedKmph = rawKmph;
-                setDOM(dom.maxSpeed, 'maxSpeed', "MAX: " + fmt2.format(maxSpeedKmph));
-                stateDirty = true;
-            }
-
-            if (timer0_60.state    === T_RUNNING) setDOM(dom.t0_60,    't0_60',    fmt2.format((now - timer0_60.start)    / 1000) + " s");
-            if (timer0_100.state   === T_RUNNING) setDOM(dom.t0_100,   't0_100',   fmt2.format((now - timer0_100.start)   / 1000) + " s");
-            if (timer100_200.state === T_RUNNING) setDOM(dom.t100_200, 't100_200', fmt2.format((now - timer100_200.start) / 1000) + " s");
-            if (timerQuarter.state === T_RUNNING) setDOM(dom.tQuarter, 'tQuarter', fmt0.format(distanceMeters) + " m");
-            if (timer100_0.state   === T_BRAKING) setDOM(dom.t100_0,   't100_0',   fmt0.format(distanceMeters - timer100_0.startDist) + " m");
-
-            if (!isNaN(gpsHeading)) {
-                setDOM(dom.heading, 'heading', `HDG: ${Math.round(gpsHeading)}°`);
-            }
-
-            // Dot now tracks fusedLongG/fusedLatG instead of raw GPS G. When
-            // fusion is healthy this updates at IMU rate between GPS fixes
-            // instead of snapping once a second — reads as fluid motion.
-            const alphaG = 1 - Math.exp(-dt * 0.015);
-            uiLongG += (fusedLongG - uiLongG) * alphaG;
-            uiLatG  += (fusedLatG - uiLatG) * alphaG;
-            
-            dom.liveLatG.textContent = Math.abs(uiLatG).toFixed(2);
-            dom.liveLonG.textContent = Math.abs(uiLongG).toFixed(2);
-            
-            const limit = 20; 
-            const pxX = Math.max(-limit, Math.min(limit, (uiLatG / 1.5) * limit));
-            const pxY = Math.max(-limit, Math.min(limit, (-uiLongG / 1.5) * limit));
+            const pxX = Math.max(-20, Math.min(20, (uiLatG / 1.5) * 20));
+            const pxY = Math.max(-20, Math.min(20, (-uiLongG / 1.5) * 20));
             dom.gDot.style.transform = `translate(${pxX}px, ${pxY}px)`;
 
-            if (stateDirty) {
-                saveSession();
-                evaluateAndRenderScore();
-            }
-
+            if (stateDirty) { saveSession(); evaluateAndRenderScore(); }
+            lastRenderTime = now;
             requestAnimationFrame(renderLoop);
         }
 
-        // ─── iOS 13+ DEVICEMOTION PERMISSION GATE ────────────────────────────────
         async function requestIOSMotion() {
             if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
             dom.iosGate.style.display = 'flex';
             return new Promise(resolve => {
                 dom.iosGrantBtn.addEventListener('click', async () => {
-                    try {
-                        const r = await DeviceMotionEvent.requestPermission();
-                        dom.iosGate.style.display = 'none';
-                        resolve(r === 'granted');
-                    } catch {
-                        dom.iosGate.style.display = 'none';
-                        resolve(false);
-                    }
+                    dom.iosGate.style.display = 'none';
+                    try { resolve((await DeviceMotionEvent.requestPermission()) === 'granted'); } catch { resolve(false); }
                 }, { once: true });
             });
         }
 
-        // ─── LIFECYCLE INIT ───────────────────────────────────────────────────────
         async function checkPermissionsAndInit() {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('./sw.js').catch(() => console.warn("SW Registration failed."));
-            }
-
-            loadSession(); 
-            if ('permissions' in navigator) {
-                try {
-                    const status = await navigator.permissions.query({ name: 'geolocation' });
-                    if (status.state === 'denied') {
-                        onPositionError();
-                        return;
-                    }
-                    status.addEventListener('change', () => { if (status.state === 'denied') onPositionError(); });
-                } catch (e) {}
-            }
-            initSensors();
-        }
-
-        async function initSensors() {
+            if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+            loadSession();
             const motionOk = await requestIOSMotion(); 
-
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(
-                    onPositionSuccess, onPositionError,
-                    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-                );
-            } else {
-                dom.status.textContent = "ERR: GNSS N/A";
-            }
-
-            if (motionOk && window.DeviceMotionEvent) {
-                window.addEventListener('devicemotion', handleMotion, false);
-            }
-
+            if ("geolocation" in navigator) navigator.geolocation.watchPosition(onPositionSuccess, onPositionError, { enableHighAccuracy: true });
+            if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
             requestWakeLock();
             requestAnimationFrame(renderLoop);
         }
