@@ -7,11 +7,121 @@
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#050505">
-    <link rel="apple-touch-icon" href="icon-192.png">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <style>
+        /* ─── Tailwind-replacement utility layer ─────────────────────────────── */
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .grid { display: grid; }
+        .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .text-center { text-align: center; }
+        .uppercase { text-transform: uppercase; }
+        .overflow-hidden { overflow: hidden; }
+        .relative { position: relative; }
+        .absolute { position: absolute; }
+        .top-0 { top: 0; }
+        .left-0 { left: 0; }
+        .h-full { height: 100%; }
+        .w-full { width: 100%; }
+        .w-0 { width: 0; }
+        .gap-1 { gap: 0.25rem; }
+        .gap-1\.5 { gap: 0.375rem; }
+        .gap-2 { gap: 0.5rem; }
+        .mb-1 { margin-bottom: 0.25rem; }
+        .px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
+        .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+        .rounded { border-radius: 0.25rem; }
+        .rounded-full { border-radius: 9999px; }
+        .border { border-width: 1px; border-style: solid; }
+        .font-bold { font-weight: 700; }
+        .font-extrabold { font-weight: 800; }
+        .text-xs { font-size: 0.75rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-2xl { font-size: 1.5rem; }
+        .tracking-wider { letter-spacing: 0.05em; }
+        .tracking-widest { letter-spacing: 0.1em; }
+        .transition-all, .transition-transform { transition-property: background-color, border-color, color, transform, width; transition-duration: 100ms; transition-timing-function: linear; }
+
+        /* buttons (utility class combos used in markup) */
+        button { cursor: pointer; background: transparent; border-style: solid; color: inherit; }
+        .action-btn { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 0.25rem; border-width: 1px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; transition: background-color 100ms linear; }
+
+        /* neon / colour utilities */
+        .text-gray-400 { color: #9ca3af; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-700 { color: #374151; }
+        .text-white   { color: #ffffff; }
+        .text-red-500 { color: #ef4444; }
+        .text-red-400 { color: #f87171; }
+        .text-orange-400 { color: #fb923c; }
+        .text-yellow-400 { color: #facc15; }
+        .text-yellow-500 { color: #eab308; }
+        .text-green-500 { color: #22c55e; }
+        .clr-green  { color: #00ff88; }
+        .clr-blue   { color: #00bfff; }
+        .clr-purple { color: #bb86fc; }
+        .clr-orange { color: #fb923c; }
+        .clr-gray   { color: #9ca3af; }
+
+        /* semantic action buttons (paired with .action-btn from above) */
+        .btn-tare { color: #00bfff; border-color: rgba(0,191,255,0.5); background: rgba(0,191,255,0.10); }
+        .btn-tare:hover  { background: rgba(0,191,255,0.20); }
+        .btn-tare:active { background: rgba(0,191,255,0.40); }
+        .btn-reset { color: #facc15; border-color: rgba(250,204,21,0.5); background: rgba(250,204,21,0.10); }
+        .btn-reset:hover  { background: rgba(250,204,21,0.20); }
+        .btn-reset:active { background: rgba(250,204,21,0.40); }
+        .btn-install { color: #00ff88; border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); }
+        .btn-install:hover { background: rgba(0,255,136,0.20); }
+        .btn-csv { color: #bb86fc; border-color: rgba(187,134,252,0.5); background: rgba(187,134,252,0.10); }
+        .btn-csv:hover  { background: rgba(187,134,252,0.20); }
+        .btn-csv:active { background: rgba(187,134,252,0.40); }
+        .btn-clear { color: #f87171; border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.10); padding: 0.25rem 0.5rem; }
+        .btn-clear:hover  { background: rgba(239,68,68,0.20); }
+        .btn-clear:active { background: rgba(239,68,68,0.40); }
+        .btn-ios-grant { color: #00ff88; border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); padding: 0.75rem 1.5rem; font-size: 0.875rem; }
+        .btn-ios-grant:hover { background: rgba(0,255,136,0.20); }
+
+        /* timer/score base classes (used by JS via CLS_TIMER_BASE) */
+        .timer-lbl { font-size: 1.125rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+        .timer-mini { font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .tile-lbl { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .tile-lbl-clr { font-size: 0.65rem; }
+        .score-total { font-size: 1.5rem; font-weight: 800; }
+        .score-rdout { font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .metric-caption { font-size: 0.55rem; }
+
+        /* speed bar fill (replaces #speed-bar markup) */
+        .speed-bar-fill {
+            position: absolute; top: 0; left: 0; height: 100%;
+            background: #00ff88; width: 0;
+            transition: width 75ms linear;
+            will-change: width;
+        }
+
+        /* g-meter dial internals */
+        .dial-cross-h { position: absolute; width: 100%; height: 1px; background: rgba(31,41,55,0.80); }
+        .dial-cross-v { position: absolute; height: 100%; width: 1px; background: rgba(31,41,55,0.80); }
+        .dial-ring {
+            position: absolute; width: 2.5rem; height: 2.5rem;
+            border-radius: 9999px; border: 1px solid rgba(31,41,55,0.50);
+        }
+        .g-dot {
+            position: absolute; width: 0.75rem; height: 0.75rem; border-radius: 9999px;
+            background: #00bfff; box-shadow: 0 0 8px #00bfff;
+            will-change: transform; transition: transform 75ms linear;
+        }
+
+        .col-span-2 { grid-column: span 2 / span 2; }
+        @media (max-width: 520px) { .sm\:col-span-2 { grid-column: span 2 / span 2; } }
+
+        /* ─── Original app CSS (unchanged, below) ──────────────────────────── */
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
         
         :root {
@@ -204,9 +314,6 @@
             box-shadow: inset 0 1px 4px rgba(0,0,0,0.65);
         }
 
-        #speed-bar { will-change: width; }
-        #g-dot { will-change: transform; }
-
         .g-meter-card {
             margin-top: 1.35rem;
             display: flex;
@@ -282,12 +389,10 @@
             text-align: center;
         }
         
-        #ios-gate, #analytics-modal { 
+        #ios-gate { 
             position: fixed; inset: 0; background: #050505; 
             z-index: 9999; display: flex; flex-direction: column; 
         }
-        
-        canvas { touch-action: none; }
 
         @media (prefers-reduced-transparency) {
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
@@ -370,54 +475,11 @@
     
     <!-- iOS SENSOR GATE -->
     <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true" class="items-center justify-center gap-6">
-        <span class="text-[#00ff88] font-bold text-xl neon-accent tracking-widest">VELOCITY-LAB</span>
+        <span class="clr-green font-bold text-2xl neon-accent tracking-widest">VELOCITY-LAB</span>
         <span class="text-gray-400 text-xs text-center px-8 leading-relaxed">Motion sensor access required for IMU fallback telemetry.</span>
-        <button id="ios-grant-btn" aria-label="Grant Motion Access"
-            class="px-6 py-3 rounded border border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88] text-sm font-bold tracking-widest uppercase neon-accent hover:bg-[#00ff88]/20 transition-all">
+        <button id="ios-grant-btn" aria-label="Grant Motion Access" class="action-btn btn-ios-grant neon-accent">
             ⚡ GRANT MOTION ACCESS
         </button>
-    </div>
-
-    <!-- POST-RUN ANALYTICS MODAL -->
-    <div id="analytics-modal" style="display:none;" role="dialog" aria-modal="true" class="p-4 overflow-y-auto">
-        <div class="flex justify-between items-center mb-6 mt-2">
-            <span class="text-[#00ff88] font-bold text-lg neon-accent tracking-widest uppercase">Kinematic Profile</span>
-            <button id="close-analytics-btn" class="text-gray-400 hover:text-white font-bold text-xl px-4 py-1 bg-gray-900 rounded border border-gray-800 transition-colors">✕</button>
-        </div>
-        
-        <!-- DIAGNOSTIC ENGINE OUTPUT -->
-        <div class="w-full bg-gray-900/60 rounded-lg p-3 mb-4 border border-gray-800 flex flex-col gap-3">
-            <div>
-                <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Launch & Traction</div>
-                <div id="diag-traction" class="text-sm text-gray-300">Analyzing...</div>
-            </div>
-            <div class="border-t border-gray-800/50 pt-2">
-                <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Power Band & Aero</div>
-                <div id="diag-power" class="text-sm text-gray-300">Analyzing...</div>
-            </div>
-            <div class="border-t border-gray-800/50 pt-2">
-                <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Braking Efficiency</div>
-                <div id="diag-braking" class="text-sm text-gray-300">Analyzing...</div>
-            </div>
-            <div class="border-t border-gray-800/50 pt-2">
-                <div class="text-[0.65rem] text-gray-500 uppercase tracking-widest font-bold mb-1">Data Quality &amp; Sensor Fusion</div>
-                <div id="diag-quality" class="text-sm text-gray-300">Analyzing...</div>
-            </div>
-        </div>
-
-        <!-- TELEMETRY CHART -->
-        <div class="w-full flex-1 min-h-[300px] bg-gray-900/60 rounded-lg p-2 border border-gray-800 flex flex-col relative">
-            <div class="flex justify-between items-center px-1 mb-2">
-                <span class="text-[0.65rem] text-gray-400 uppercase font-bold tracking-widest">Run Telemetry</span>
-                <div class="flex gap-3 text-[0.6rem] font-bold">
-                    <span class="text-[#00ff88] flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#00ff88]"></span> SPEED</span>
-                    <span class="text-[#00bfff] flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#00bfff]"></span> ACCEL</span>
-                </div>
-            </div>
-            <div class="flex-1 w-full relative">
-                <canvas id="telemetry-chart" class="absolute inset-0 w-full h-full"></canvas>
-            </div>
-        </div>
     </div>
 
     <!-- MAIN DASHBOARD -->
@@ -436,38 +498,34 @@
             <span class="brand-subtitle">Active Telemetry HUD</span>
             <div class="action-rail">
             <button id="calibrate-btn" aria-label="Tare Device Mount"
-                class="flex items-center gap-1.5 px-3 py-1 rounded border border-[#00bfff]/50 bg-[#00bfff]/10 text-[#00bfff] text-[0.65rem] font-bold tracking-widest uppercase neon-blue transition-all hover:bg-[#00bfff]/20 active:bg-[#00bfff]/40">
+                class="action-btn gap-1.5 neon-blue btn-tare">
                 ⌖ TARE MOUNT
             </button>
             <button id="reset-run-btn" aria-label="Reset Telemetry Run"
-                class="flex items-center gap-1.5 px-3 py-1 rounded border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 text-[0.65rem] font-bold tracking-widest uppercase neon-warning transition-all hover:bg-yellow-500/20 active:bg-yellow-500/40">
+                class="action-btn gap-1.5 neon-warning btn-reset">
                 ↺ RESET RUN
             </button>
             
-            <div id="export-group" style="display:none;" class="flex gap-1">
-                <button id="analyze-run-btn" aria-label="Analyze Telemetry"
-                    class="flex items-center gap-1.5 px-3 py-1 rounded border border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88] text-[0.65rem] font-bold tracking-widest uppercase neon-accent transition-all hover:bg-[#00ff88]/20 active:bg-[#00ff88]/40">
-                    📈 ANALYZE
-                </button>
+            <div id="export-group" class="flex gap-1">
                 <button id="export-csv-btn" aria-label="Export Telemetry to CSV"
-                    class="flex items-center gap-1.5 px-3 py-1 rounded border border-[#bb86fc]/50 bg-[#bb86fc]/10 text-[#bb86fc] text-[0.65rem] font-bold tracking-widest uppercase neon-purple transition-all hover:bg-[#bb86fc]/20 active:bg-[#bb86fc]/40">
+                    class="action-btn gap-1.5 neon-purple btn-csv">
                     💾 CSV (<span id="log-count">0</span>)
                 </button>
                 <button id="clear-logs-btn" aria-label="Clear Telemetry Logs"
-                    class="flex items-center gap-1 px-2 py-1 rounded border border-red-500/50 bg-red-500/10 text-red-400 text-[0.65rem] font-bold tracking-widest uppercase transition-all hover:bg-red-500/20 active:bg-red-500/40">
+                    class="action-btn gap-1 btn-clear">
                     ✕
                 </button>
             </div>
             
             <button id="pwa-install-btn" style="display:none;" aria-label="Install App"
-                class="flex items-center gap-1.5 px-3 py-1 rounded border border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88] text-[0.65rem] font-bold tracking-widest uppercase neon-accent transition-all hover:bg-[#00ff88]/20">
+                class="action-btn gap-1.5 neon-accent btn-install">
                 ⬇ INSTALL
             </button>
             </div>
         </div>
 
         <div class="system-stack" aria-live="polite">
-            <span id="update-rate" class="text-[#00bfff] neon-blue">GPS: 0.0 HZ</span>
+            <span id="update-rate" class="clr-blue neon-blue">GPS: 0.0 HZ</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">WAKELOCK: OFF</span>
             <span id="max-speed-display" class="text-gray-500">MAX: 0.00</span>
         </div>
@@ -475,25 +533,24 @@
 
     <main class="speed-stage" aria-label="Dashboard">
         <div class="speed-readout">
-            <span id="speed-display" class="font-extrabold lcd-text spd-green">0.0</span>
+            <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
             <span class="speed-unit">km/h</span>
         </div>
         <div class="speed-track">
-            <div id="speed-bar" class="absolute top-0 left-0 h-full bg-[#00ff88] w-0 transition-all duration-75 ease-linear"></div>
+            <div id="speed-bar" class="speed-bar-fill"></div>
         </div>
 
         <!-- LIVE G-METER WIDGET -->
         <div class="g-meter-card">
-            <div class="g-meter-dial">
-                <div class="absolute w-full h-[1px] bg-gray-800/80"></div>
-                <div class="absolute h-full w-[1px] bg-gray-800/80"></div>
-                <div class="absolute w-10 h-10 rounded-full border border-gray-800/50"></div>
-                <!-- The dot represents G-forces. Negative Long = Forward (Accel), Positive Long = Back (Brake) in UI terms -->
-                <div id="g-dot" class="w-3 h-3 rounded-full bg-[#00bfff] shadow-[0_0_8px_#00bfff] absolute transition-transform duration-75 ease-linear"></div>
+            <div class="g-meter-dial" role="img" aria-label="Lateral and longitudinal G meter">
+                <div class="dial-cross-h"></div>
+                <div class="dial-cross-v"></div>
+                <div class="dial-ring"></div>
+                <div id="g-dot" class="g-dot"></div>
             </div>
             <div class="g-meter-readings tracking-widest">
-                <div><span>LAT G:</span> <span id="live-lat-g" class="text-white lcd-text">0.00</span></div>
-                <div><span>LON G:</span> <span id="live-lon-g" class="text-white lcd-text">0.00</span></div>
+                <div><span>LAT G:</span> <span id="live-lat-g" class="text-white lcd-text" aria-live="polite" aria-atomic="true">0.00</span></div>
+                <div><span>LON G:</span> <span id="live-lon-g" class="text-white lcd-text" aria-live="polite" aria-atomic="true">0.00</span></div>
             </div>
         </div>
     </main>
@@ -501,38 +558,38 @@
     <!-- VEHICLE PERFORMANCE INDEX (V-SCORE) -->
     <section class="score-panel flex flex-col gap-2" aria-label="Vehicle Performance Score">
         <div class="flex justify-between items-center px-2">
-            <span id="score-panel-label" class="text-[0.65rem] text-gray-400 uppercase font-bold tracking-widest">Performance Index (GPS)</span>
-            <span id="v-score-total" class="text-2xl font-extrabold text-[#00ff88] neon-accent lcd-text">0</span>
+            <span id="score-panel-label" class="tile-lbl-clr text-gray-400 uppercase font-bold tracking-widest">Performance Index (GPS)</span>
+            <span id="v-score-total" class="score-total clr-green neon-accent lcd-text">0</span>
         </div>
         <div class="grid grid-cols-4 gap-1 text-center">
             <div class="score-tile">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">SPD <span class="text-gray-700">/20</span></div>
-                <div id="v-score-spd" class="text-sm font-bold text-white lcd-text">0</div>
+                <div class="tile-lbl text-gray-500 uppercase tracking-wider">SPD <span class="text-gray-700">/20</span></div>
+                <div id="v-score-spd" class="score-rdout text-white lcd-text">0</div>
             </div>
             <div class="score-tile">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">ACC <span class="text-gray-700">/30</span></div>
-                <div id="v-score-acc" class="text-sm font-bold text-[#00bfff] lcd-text">0</div>
+                <div class="tile-lbl text-gray-500 uppercase tracking-wider">ACC <span class="text-gray-700">/30</span></div>
+                <div id="v-score-acc" class="score-rdout clr-blue lcd-text">0</div>
             </div>
             <div class="score-tile">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">BRK <span class="text-gray-700">/25</span></div>
-                <div id="v-score-brk" class="text-sm font-bold text-red-400 lcd-text">0</div>
+                <div class="tile-lbl text-gray-500 uppercase tracking-wider">BRK <span class="text-gray-700">/25</span></div>
+                <div id="v-score-brk" class="score-rdout text-red-400 lcd-text">0</div>
             </div>
             <div class="score-tile">
-                <div class="text-[0.5rem] text-gray-500 uppercase tracking-wider">HDL <span class="text-gray-700">/25</span></div>
-                <div id="v-score-hdl" class="text-sm font-bold text-[#bb86fc] lcd-text">0</div>
+                <div class="tile-lbl text-gray-500 uppercase tracking-wider">HDL <span class="text-gray-700">/25</span></div>
+                <div id="v-score-hdl" class="score-rdout clr-purple lcd-text">0</div>
             </div>
         </div>
     </section>
 
     <footer class="metric-grid" aria-label="Telemetry Metrics">
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">0-60 mph</span><span id="timer-0-60" class="text-lg font-bold text-orange-400 lcd-text">--.--- s</span></div>
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">0-100 km/h</span><span id="timer-0-100" class="text-lg font-bold text-[#00bfff] lcd-text">--.--- s</span></div>
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">100-200 km/h</span><span id="timer-100-200" class="text-lg font-bold text-[#bb86fc] lcd-text">--.--- s</span></div>
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">1/4 Mile</span><span id="timer-quarter" class="text-lg font-bold text-yellow-400 lcd-text">--.--- s</span></div>
+        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 mph</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
+        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 km/h</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
+        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 km/h</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
+        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 Mile</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
         
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">Max Braking</span><span id="brake-score" class="text-lg font-bold text-red-400 lcd-text">0.00 G</span></div>
-        <div class="metric-card"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">Max ACC</span><span id="peak-g" class="text-lg font-bold text-[#00ff88] lcd-text">0.00 G</span></div>
-        <div class="metric-card col-span-2 sm:col-span-2"><span class="text-gray-500 text-[0.55rem] uppercase font-bold tracking-wider mb-1">100-0m Dist</span><span id="timer-100-0" class="text-sm font-bold text-gray-400 lcd-text">-- m</span></div>
+        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max Braking</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
+        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max ACC</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
+        <div class="metric-card col-span-2 sm:col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0m Dist</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
     </footer>
 </div>
 
@@ -552,9 +609,11 @@
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
 
         // -- sensor fusion / accuracy optimization --
-        const GPS_ACC_TRUST_MIN_M    = 4.0;   
-        const GPS_ACC_TRUST_MAX_M    = 25.0;  
+        const GPS_ACC_TRUST_MIN_M    = 4.0;
+        const GPS_ACC_TRUST_MAX_M    = 25.0;
+        const GPS_QUALITY_MIN        = 0.5;
         const FUSION_CORRECTION_GAIN = 0.35;
+        const FUSION_GPS_WEIGHT      = 0.12;
         const IMU_BIAS_CLAMP         = 2.0;
         const PHYSICAL_G_CLAMP_LONG  = 3.5;
         const PHYSICAL_G_CLAMP_LAT   = 3.0;
@@ -565,8 +624,8 @@
         const fmt2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const fmt1 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-        const CLS_TIMER_BASE = "text-lg font-bold lcd-text ";
-        const CLS_BTN_BASE   = "flex items-center gap-1.5 px-3 py-1 rounded border text-[0.65rem] font-bold tracking-widest uppercase transition-all ";
+        const CLS_TIMER_BASE = "timer-lbl lcd-text ";
+        const CLS_BTN_BASE   = "action-btn gap-1.5 ";
 
         // ─── STATE ────────────────────────────────────────────────────────────────
         let wakeLock        = null;
@@ -596,7 +655,6 @@
 
         // Sensor Fusion State 
         let imuFusionActive   = false;  
-        let imuHealthy        = true;   
         let imuLongGBias      = 0.0;    
         let imuLatGBias       = 0.0;    
         let fusedLongG        = 0.0;    
@@ -654,22 +712,12 @@
             resetRunBtn:  document.getElementById('reset-run-btn'),
             exportGroup:  document.getElementById('export-group'),
             exportBtn:    document.getElementById('export-csv-btn'),
-            analyzeBtn:   document.getElementById('analyze-run-btn'),
             clearLogsBtn: document.getElementById('clear-logs-btn'),
             logCount:     document.getElementById('log-count'),
             
             iosGate:      document.getElementById('ios-gate'),
             iosGrantBtn:  document.getElementById('ios-grant-btn'),
             
-            // Analytics Modal
-            analyticsModal: document.getElementById('analytics-modal'),
-            closeAnalytics: document.getElementById('close-analytics-btn'),
-            diagTraction:   document.getElementById('diag-traction'),
-            diagPower:      document.getElementById('diag-power'),
-            diagBraking:    document.getElementById('diag-braking'),
-            diagQuality:    document.getElementById('diag-quality'),
-            chartCanvas:    document.getElementById('telemetry-chart'),
-
             // Live G-Meter
             gDot:         document.getElementById('g-dot'),
             liveLatG:     document.getElementById('live-lat-g'),
@@ -743,8 +791,8 @@
                 setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G");
                 
                 if (data.t0_60)  { timer0_60.result = data.t0_60; setDOM(dom.t0_60, 't0_60', fmt3.format(data.t0_60 / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange"); }
-                if (data.t0_100) { timer0_100.result = data.t0_100; setDOM(dom.t0_100, 't0_100', fmt3.format(data.t0_100 / 1000) + " s", CLS_TIMER_BASE, "text-[#00bfff] neon-blue"); }
-                if (data.t100_200) { timer100_200.result = data.t100_200; setDOM(dom.t100_200, 't100_200', fmt3.format(data.t100_200 / 1000) + " s", CLS_TIMER_BASE, "text-[#bb86fc] neon-purple"); }
+                if (data.t0_100) { timer0_100.result = data.t0_100; setDOM(dom.t0_100, 't0_100', fmt3.format(data.t0_100 / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue"); }
+                if (data.t100_200) { timer100_200.result = data.t100_200; setDOM(dom.t100_200, 't100_200', fmt3.format(data.t100_200 / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple"); }
                 if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(data.tQuarter / 1000)}s`, CLS_TIMER_BASE, "text-yellow-400 neon-warning"); }
                 if (data.t100_0) { timer100_0.result = data.t100_0; setDOM(dom.t100_0, 't100_0', fmt1.format(data.t100_0) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger"); }
                 
@@ -785,8 +833,8 @@
             timer100_0.state = T_IDLE;
 
             setDOM(dom.t0_60, 't0_60', "--.--- s", CLS_TIMER_BASE, "text-orange-400");
-            setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "text-[#00bfff]");
-            setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "text-[#bb86fc]");
+            setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "clr-blue");
+            setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "clr-purple");
             setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
             setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
             
@@ -804,13 +852,12 @@
 
             imuLongGBias     = 0.0;
             imuLatGBias      = 0.0;
-            imuHealthy       = true;
 
             dom.calibrateBtn.textContent = "✔ TARE OK";
-            dom.calibrateBtn.className = CLS_BTN_BASE + "border-[#00ff88]/50 bg-[#00ff88]/20 text-[#00ff88] neon-accent";
+            dom.calibrateBtn.className = CLS_BTN_BASE + "btn-install neon-accent";
             setTimeout(() => {
                 dom.calibrateBtn.textContent = "⌖ TARE MOUNT";
-                dom.calibrateBtn.className   = CLS_BTN_BASE + "border-[#00bfff]/50 bg-[#00bfff]/10 text-[#00bfff] neon-blue hover:bg-[#00bfff]/20 active:bg-[#00bfff]/40";
+                dom.calibrateBtn.className   = CLS_BTN_BASE + "btn-tare neon-blue";
             }, 2000);
         });
 
@@ -831,7 +878,7 @@
             setTimeout(() => {
                 const vs = calculateVehicleScore();
                 const avgConfPct = confidenceSamples > 0 ? Math.round((confidenceSum / confidenceSamples) * 100) : 0;
-                const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(2)} km/h | MAX ACC: ${maxGpsAccelG.toFixed(2)} G | MAX BRAKING: ${bestGpsBrakingG.toFixed(2)} G | MAX LAT: ${maxGpsLatG.toFixed(2)} G | FUSION: ${(imuFusionActive && imuHealthy) ? "IMU+GPS" : "GPS ONLY"} | AVG CONF: ${avgConfPct}% | GLITCHES FILTERED: ${gpsGlitchCount}\n`;
+                const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(2)} km/h | MAX ACC: ${maxGpsAccelG.toFixed(2)} G | MAX BRAKING: ${bestGpsBrakingG.toFixed(2)} G | MAX LAT: ${maxGpsLatG.toFixed(2)} G | FUSION: ${imuFusionActive ? "IMU+GPS" : "GPS ONLY"} | AVG CONF: ${avgConfPct}% | GLITCHES FILTERED: ${gpsGlitchCount}\n`;
                 const header = "Timestamp(ms),Speed(kmh),Distance(m),LatG,LongG,Heading(deg),GPSAcc(m),Fusion\n";
                 const csv = metadata + header + telemetrySession.join("\n");
                 
@@ -870,107 +917,6 @@
             }
         });
 
-        dom.analyzeBtn.addEventListener('click', () => {
-            if (!telemetrySession.length && maxSpeedKmph === 0) return;
-            dom.analyticsModal.style.display = 'flex';
-            setTimeout(runDiagnostics, 50); 
-        });
-
-        dom.closeAnalytics.addEventListener('click', () => {
-            dom.analyticsModal.style.display = 'none';
-        });
-
-        function runDiagnostics() {
-            if (telemetrySession.length === 0 && maxSpeedKmph === 0) return;
-
-            const parsedData = [];
-            for (let i = 0; i < telemetrySession.length; i++) {
-                const parts = telemetrySession[i].split(',');
-                parsedData.push({
-                    t: parseFloat(parts[0]),
-                    v: parseFloat(parts[1]),
-                    dist: parseFloat(parts[2]),
-                    latG: parseFloat(parts[3]),
-                    longG: parseFloat(parts[4])
-                });
-            }
-
-            // --- 1. Traction ---
-            if (maxGpsAccelG < 0.1) {
-                dom.diagTraction.textContent = "Insufficient launch data.";
-                dom.diagTraction.className = "text-sm text-gray-500";
-            } else if (maxGpsAccelG >= 0.8) {
-                dom.diagTraction.innerHTML = `High grip detected (<span class="text-[#00ff88] font-bold">${maxGpsAccelG.toFixed(2)} G</span>).`;
-                dom.diagTraction.className = "text-sm text-gray-300";
-            } else {
-                dom.diagTraction.innerHTML = `Standard grip (<span class="text-yellow-400 font-bold">${maxGpsAccelG.toFixed(2)} G</span>).`;
-                dom.diagTraction.className = "text-sm text-gray-300";
-            }
-
-            // --- 2. Aero & Power ---
-            const t0_100_s = timer0_100.result > 0 ? timer0_100.result / 1000 : 0;
-            const t100_200_s = timer100_200.result > 0 ? timer100_200.result / 1000 : 0;
-
-            if (t0_100_s > 0 && t100_200_s > 0) {
-                const ratio = t100_200_s / t0_100_s;
-                dom.diagPower.innerHTML = `Power/Aero ratio: <span class="text-[#00ff88] font-bold">${ratio.toFixed(1)}x</span>`;
-                dom.diagPower.className = "text-sm text-gray-300";
-            } else {
-                dom.diagPower.textContent = "Data insufficient for aero analysis.";
-                dom.diagPower.className = "text-sm text-gray-500";
-            }
-
-            // --- 3. Braking ---
-            if (bestGpsBrakingG >= 0.7) {
-                dom.diagBraking.innerHTML = `Strong deceleration: <span class="text-[#00ff88] font-bold">${bestGpsBrakingG.toFixed(2)} G</span>`;
-                dom.diagBraking.className = "text-sm text-gray-300";
-            } else {
-                dom.diagBraking.textContent = "No hard braking data detected.";
-                dom.diagBraking.className = "text-sm text-gray-500";
-            }
-
-            // --- 4. Quality ---
-            const avgConfPct = confidenceSamples > 0 ? Math.round((confidenceSum / confidenceSamples) * 100) : 0;
-            dom.diagQuality.innerHTML = `Avg. Sensor Confidence: <span class="text-white">${avgConfPct}%</span>`;
-            dom.diagQuality.className = "text-sm text-gray-300";
-
-            drawTelemetryChart(parsedData);
-        }
-
-        function drawTelemetryChart(data) {
-            const canvas = dom.chartCanvas;
-            const ctx = canvas.getContext('2d');
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width * window.devicePixelRatio;
-            canvas.height = rect.height * window.devicePixelRatio;
-            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-            
-            const w = rect.width;
-            const h = rect.height;
-            ctx.clearRect(0, 0, w, h);
-            if (data.length < 2) return;
-
-            const padX = 10, padY = 20, chartW = w - (padX * 2), chartH = h - (padY * 2);
-            const startTime = data[0].t, totalTime = data[data.length - 1].t - startTime;
-            
-            let localMaxSpd = 0;
-            for(let d of data) if(d.v > localMaxSpd) localMaxSpd = d.v;
-            localMaxSpd = Math.max(10, localMaxSpd * 1.1);
-
-            const getX = (t) => padX + (((t - startTime) / totalTime) * chartW);
-            const getY_Speed = (v) => padY + chartH - ((v / localMaxSpd) * chartH);
-
-            ctx.beginPath();
-            ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 2.5;
-            for (let i = 0; i < data.length; i++) {
-                const x = getX(data[i].t);
-                const y = getY_Speed(data[i].v);
-                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-        }
-
         // ─── SENSORS ──────────────────────────────────────────────────────────────
         async function requestWakeLock() {
             if (!('wakeLock' in navigator)) return;
@@ -1003,25 +949,32 @@
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
             imuLatG  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
             imuFusionActive = true;
-            if (imuHealthy) {
-                fusedLongG = imuLongG - imuLongGBias;
-                fusedLatG  = imuLatG  - imuLatGBias;
-            }
+            // High-frequency IMU drives the live fused estimate; GPS nudge from
+            // updateImuFusionFromGps pulls it toward GPS-derived truth per sample.
+            fusedLongG = imuLongG - imuLongGBias;
+            fusedLatG  = imuLatG  - imuLatGBias;
         }
 
         function updateImuFusionFromGps(gpsLongG, gpsLatG, confidence) {
             if (!imuFusionActive || confidence <= 0) return;
-            const gain = FUSION_CORRECTION_GAIN * confidence;
-            imuLongGBias += (imuLongG - gpsLongG - imuLongGBias) * gain;
-            imuLatGBias  += (imuLatG - gpsLatG - imuLatGBias) * gain;
+            // 1. Slowly drift IMU bias toward the IMU-vs-GPS residual (a complementary filter).
+            const biasGain = FUSION_CORRECTION_GAIN * confidence;
+            imuLongGBias += (imuLongG - gpsLongG - imuLongGBias) * biasGain;
+            imuLatGBias  += (imuLatG  - gpsLatG  - imuLatGBias)  * biasGain;
             imuLongGBias = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLongGBias));
             imuLatGBias  = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLatGBias));
+            // 2. Nudge the live fused estimate toward the GPS-derived G sample,
+            //    weighted by GPS quality. At low accuracy this is a no-op; at high
+            //    accuracy it corrects short-term IMU drift and suppresses bias overshoot.
+            const w = FUSION_GPS_WEIGHT * confidence;
+            fusedLongG = (1 - w) * fusedLongG + w * gpsLongG;
+            fusedLatG  = (1 - w) * fusedLatG  + w * gpsLatG;
         }
 
         function updateFusionStatusUI() {
-            if (imuFusionActive && imuHealthy) {
+            if (imuFusionActive) {
                 dom.fusionStatus.textContent = "FUSION: GPS+IMU";
-                dom.fusionStatus.className   = "text-[#00ff88] neon-accent";
+                dom.fusionStatus.className   = "clr-green neon-accent";
             } else {
                 dom.fusionStatus.textContent = "FUSION: GPS ONLY";
                 dom.fusionStatus.className   = "text-gray-600";
@@ -1069,20 +1022,20 @@
                 if (timer0_100.state === T_RUNNING) timer0_100.state = T_IDLE;
             } else if (timer0_100.state === T_IDLE) {
                 timer0_100.state = T_RUNNING; timer0_100.start = nowMs;
-                setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "text-[#00bfff]");
+                setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "clr-blue");
             } else if (timer0_100.state === T_RUNNING && speedKmh >= 100.0) {
                 timer0_100.result = nowMs - timer0_100.start; timer0_100.state = T_DONE;
-                setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "text-[#00bfff] neon-blue");
+                setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue");
                 stateDirty = true;
             }
 
             // ── 100-200 km/h (arms once vehicle reaches 100, finishes at 200) ──
             if (timer100_200.state === T_IDLE && speedKmh >= 100.0) {
                 timer100_200.state = T_RUNNING; timer100_200.start = nowMs;
-                setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "text-[#bb86fc]");
+                setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "clr-purple");
             } else if (timer100_200.state === T_RUNNING && speedKmh >= 200.0) {
                 timer100_200.result = nowMs - timer100_200.start; timer100_200.state = T_DONE;
-                setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "text-[#bb86fc] neon-purple");
+                setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple");
                 stateDirty = true;
             } else if (timer100_200.state === T_DONE && stopped) {
                 timer100_200.state = T_IDLE;
@@ -1125,35 +1078,48 @@
 
             const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
+            const conf = gpsConfidence(acc);   // 0..1 GPS quality
+            lastGpsConfidence = conf;
+            confidenceSum     += conf;
+            confidenceSamples  += 1;
 
             if (gpsDt > 0) {
+                // Distances are integrated only above 0.5 m/s; this deliberately
+                // drops sub-walking creep (parking-lot shuffle, traffic-idle roll)
+                // which would otherwise inflate 1/4-mile splits and braking stops.
                 if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
                 const rawGpsLongG = ((gpsSpeedMs - prevGpsSpeedMs) / gpsDt) / GRAVITY_MS2;
-                if (Math.abs(rawGpsLongG) <= PHYSICAL_G_CLAMP_LONG) {
-                    updateImuFusionFromGps(rawGpsLongG, 0, gpsConfidence(acc));
-                }
+                const glitch = Math.abs(rawGpsLongG) > PHYSICAL_G_CLAMP_LONG;
+                if (glitch) gpsGlitchCount++;
+                else         updateImuFusionFromGps(rawGpsLongG, 0, conf);
             }
 
             currentSpeedMs = gpsSpeedMs;
             const gpsSpeedKmph = currentSpeedMs * MS_TO_KMPH;
 
-            updateTimers(gpsSpeedKmph, distanceMeters, now);
+            // Accuracy guard: only high-quality GPS samples drive timers, peaks and the CSV log
+            // so a 25 m fix on a parking ramp can't write a bogus 0-100 time or inflate max G.
+            if (conf >= GPS_QUALITY_MIN) {
+                updateTimers(gpsSpeedKmph, distanceMeters, now);
 
-            if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
-            if (Math.abs(fusedLatG) > maxGpsLatG) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; }
-            if (fusedLongG < -0.3) {
-                const decelG = Math.abs(fusedLongG);
-                if (decelG > bestGpsBrakingG) { bestGpsBrakingG = decelG; setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G"); stateDirty = true; }
-            }
-
-            if (gpsSpeedKmph > 0) {
-                if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
-                telemetrySession.push(`${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},,${fmt1.format(acc)},1`);
-                if (telemetrySession.length > MAX_LOG_SAMPLES) {
-                    telemetrySession.splice(0, telemetrySession.length - MAX_LOG_SAMPLES);
+                if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
+                if (Math.abs(fusedLatG) > maxGpsLatG) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; }
+                if (fusedLongG < -0.3) {
+                    const decelG = Math.abs(fusedLongG);
+                    if (decelG > bestGpsBrakingG) { bestGpsBrakingG = decelG; setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G"); stateDirty = true; }
                 }
-                const logLen = telemetrySession.length;
-                if (prev.logCount !== logLen) { dom.logCount.textContent = String(logLen); prev.logCount = logLen; }
+
+                if (gpsSpeedKmph > 0) {
+                    if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
+                    // Fusion column: 1 = GPS+IMU fused, 0 = GPS-only fallback
+                    const fusionFlag = imuFusionActive ? 1 : 0;
+                    telemetrySession.push(`${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},,${fmt1.format(acc)},${fusionFlag}`);
+                    if (telemetrySession.length > MAX_LOG_SAMPLES) {
+                        telemetrySession.splice(0, telemetrySession.length - MAX_LOG_SAMPLES);
+                    }
+                    const logLen = telemetrySession.length;
+                    if (prev.logCount !== logLen) { dom.logCount.textContent = String(logLen); prev.logCount = logLen; }
+                }
             }
 
             prevGpsSpeedMs = currentSpeedMs;
@@ -1174,7 +1140,7 @@
             uiLatG         += (fusedLatG   - uiLatG)  * alpha;
 
             const displaySpeedKmph = displaySpeedMs * MS_TO_KMPH;
-            setDOM(dom.speed, 'speed', fmt1.format(displaySpeedKmph), "text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
+            setDOM(dom.speed, 'speed', fmt1.format(displaySpeedKmph), "speed-base font-extrabold lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
 
             const barPct = Math.max(0, Math.min(1, displaySpeedKmph / BAR_MAX_SPEED)) * 100;
             const barW   = barPct.toFixed(2) + "%";
