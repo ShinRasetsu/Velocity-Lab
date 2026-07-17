@@ -607,6 +607,9 @@
         const GPS_STALE_MS         = 2500;   
         const GPS_MAX_DT_SEC       = 3.0;    
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
+        const IDB_NAME             = "velocity-lab";
+        const IDB_STORE            = "telemetry";
+        const IDB_KEY              = "session-1";
 
         // -- sensor fusion / accuracy optimization --
         const GPS_ACC_TRUST_MIN_M    = 4.0;
@@ -677,6 +680,8 @@
         const timer100_0   = { state: T_IDLE, startDist: 0, result: 0 }; 
 
         let telemetrySession = [];
+        let telemetryDirty   = false;   
+        let loadedTelemetryAtStartup = false;
         let lastSaveTime     = 0;   
 
         // PWA Install State
@@ -754,6 +759,63 @@
         }
 
         // ─── PERSISTENCE LAYER ────────────────────────────────────────────────────
+        //  • localStorage: small summary (peaks + timer results) — synchronous, fast.
+        //  • IndexedDB:    full telemetrySession array — survives refresh (too big for localStorage).
+
+        function idbOpen() {
+            return new Promise((resolve, reject) => {
+                if (!('indexedDB' in navigator)) return reject(new Error('no-idb'));
+                const req = indexedDB.open(IDB_NAME, 1);
+                req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror   = () => reject(req.error);
+            });
+        }
+
+        async function idbSaveTelemetry() {
+            try {
+                const db = await idbOpen();
+                const tx = db.transaction(IDB_STORE, 'readwrite');
+                tx.objectStore(IDB_STORE).put(telemetrySession, IDB_KEY);
+                await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
+                db.close();
+                telemetryDirty = false;
+            } catch (e) { /* fire-and-forget */ }
+        }
+
+        async function idbLoadTelemetry() {
+            try {
+                const db = await idbOpen();
+                const tx = db.transaction(IDB_STORE, 'readonly');
+                const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+                await new Promise((res, rej) => { req.onsuccess = res; req.onerror = () => rej(req.error); });
+                db.close();
+                const arr = req.result;
+                if (Array.isArray(arr) && arr.length) {
+                    telemetrySession = arr;
+                    if (prev.logCount !== telemetrySession.length) {
+                        dom.logCount.textContent = String(telemetrySession.length);
+                        prev.logCount = telemetrySession.length;
+                    }
+                    if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
+                    loadedTelemetryAtStartup = true;
+                    // Surface the carry-over in the header so a refresh isn't a surprise.
+                    dom.status.textContent = `SESSION RESTORED · ${telemetrySession.length} SAMPLES`;
+                    dom.status.className   = "clr-blue neon-blue";
+                }
+            } catch (e) { /* fire-and-forget */ }
+        }
+
+        async function idbClearTelemetry() {
+            try {
+                const db = await idbOpen();
+                const tx = db.transaction(IDB_STORE, 'readwrite');
+                tx.objectStore(IDB_STORE).delete(IDB_KEY);
+                await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+                db.close();
+            } catch (e) { /* fire-and-forget */ }
+        }
+
         function saveSession() {
             try {
                 const data = {
@@ -768,6 +830,8 @@
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                 stateDirty = false;
             } catch (e) { console.warn("Storage quota exceeded or disabled."); }
+            // Also flush telemetry if it changed since the last IDB save.
+            if (telemetryDirty) idbSaveTelemetry();
         }
 
         function loadSession() {
