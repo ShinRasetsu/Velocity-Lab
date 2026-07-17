@@ -180,7 +180,6 @@
         }
 
         #speed-display {
-            will-change: contents;
             font-size: 7rem;
             line-height: 0.92;
         }
@@ -427,7 +426,6 @@
             <span id="status-indicator" class="text-yellow-500 neon-warning">ACQUIRING GNSS...</span>
             <span id="accuracy-display">ACC: -- m</span>
             <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
-            <span id="heading-display" class="text-gray-600">HDG: ---°</span>
         </div>
 
         <div class="brand-block">
@@ -556,18 +554,16 @@
         // -- sensor fusion / accuracy optimization --
         const GPS_ACC_TRUST_MIN_M    = 4.0;   
         const GPS_ACC_TRUST_MAX_M    = 25.0;  
-        const FUSION_CORRECTION_GAIN = 0.35;  
-        const IMU_BIAS_CLAMP         = 2.0;   
-        const IMU_UNHEALTHY_STREAK   = 5;     
-        const PHYSICAL_G_CLAMP_LONG  = 3.5;   
-        const PHYSICAL_G_CLAMP_LAT   = 3.0;   
+        const FUSION_CORRECTION_GAIN = 0.35;
+        const IMU_BIAS_CLAMP         = 2.0;
+        const PHYSICAL_G_CLAMP_LONG  = 3.5;
+        const PHYSICAL_G_CLAMP_LAT   = 3.0;
 
         const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2, T_BRAKING = 3;
 
         const fmt3 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
         const fmt2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const fmt1 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-        const fmt0 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
         const CLS_TIMER_BASE = "text-lg font-bold lcd-text ";
         const CLS_BTN_BASE   = "flex items-center gap-1.5 px-3 py-1 rounded border text-[0.65rem] font-bold tracking-widest uppercase transition-all ";
@@ -581,19 +577,12 @@
         let lastGpsTime     = -1;
         let prevGpsSpeedMs  = 0.0;
         let prevDistance    = 0.0;
-        let prevHeading     = NaN;
         
         let lastRenderTime  = performance.now();
-        let lastIdleFrame   = 0;       
-        let maxSpeedKmph    = 0.0;     
-        let exportBtnShown  = false;   
-        let gpsHeading      = NaN;     
+        let maxSpeedKmph    = 0.0;
+        let exportBtnShown  = false;
 
-        // Physics State (GPS Derived)
-        let gpsCalculatedLongG = 0.0;
-        let gpsCalculatedLatG  = 0.0;
-
-        // UI Interpolation State
+        // UI Interpolation State (drives the live G-meter dot + readings)
         let uiLongG = 0.0;
         let uiLatG  = 0.0;
 
@@ -608,7 +597,6 @@
         // Sensor Fusion State 
         let imuFusionActive   = false;  
         let imuHealthy        = true;   
-        let imuBiasPinStreak  = 0;      
         let imuLongGBias      = 0.0;    
         let imuLatGBias       = 0.0;    
         let fusedLongG        = 0.0;    
@@ -631,6 +619,7 @@
         const timer100_0   = { state: T_IDLE, startDist: 0, result: 0 }; 
 
         let telemetrySession = [];
+        let lastSaveTime     = 0;   
 
         // PWA Install State
         let deferredPrompt;
@@ -640,7 +629,6 @@
             speed:        document.getElementById('speed-display'),
             accuracy:     document.getElementById('accuracy-display'),
             fusionStatus: document.getElementById('fusion-display'),
-            heading:      document.getElementById('heading-display'),
             status:       document.getElementById('status-indicator'),
             speedBar:     document.getElementById('speed-bar'),
             wakeLock:     document.getElementById('wake-lock-status'),
@@ -689,10 +677,11 @@
         };
 
         const prev = {
-            speed: null, speedBar: null, heading: null,
+            speed: null, speedBar: null,
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, logCount: 0, maxSpeed: null,
-            vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1
+            vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
+            liveLatG: null, liveLonG: null, gDot: null, accuracy: null
         };
 
         // ─── HELPERS ──────────────────────────────────────────────────────────────
@@ -754,9 +743,9 @@
                 setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G");
                 
                 if (data.t0_60)  { timer0_60.result = data.t0_60; setDOM(dom.t0_60, 't0_60', fmt3.format(data.t0_60 / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange"); }
-                if (data.t0_100) { timer0_100.result = data.t0_100; setDOM(dom.t0_100, 't0_100', fmt3.format(data.t0_100 / 1000) + " s", CLS_TIMER_BASE, "text-white neon-accent"); }
-                if (data.t100_200) { timer100_200.result = data.t100_200; setDOM(dom.t100_200, 't100_200', fmt3.format(data.t100_200 / 1000) + " s", CLS_TIMER_BASE, "text-white neon-purple"); }
-                if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(data.tQuarter / 1000)}s`, "text-[0.9rem] font-bold text-white neon-warning lcd-text"); }
+                if (data.t0_100) { timer0_100.result = data.t0_100; setDOM(dom.t0_100, 't0_100', fmt3.format(data.t0_100 / 1000) + " s", CLS_TIMER_BASE, "text-[#00bfff] neon-blue"); }
+                if (data.t100_200) { timer100_200.result = data.t100_200; setDOM(dom.t100_200, 't100_200', fmt3.format(data.t100_200 / 1000) + " s", CLS_TIMER_BASE, "text-[#bb86fc] neon-purple"); }
+                if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(data.tQuarter / 1000)}s`, CLS_TIMER_BASE, "text-yellow-400 neon-warning"); }
                 if (data.t100_0) { timer100_0.result = data.t100_0; setDOM(dom.t100_0, 't100_0', fmt1.format(data.t100_0) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger"); }
                 
                 evaluateAndRenderScore();
@@ -773,9 +762,6 @@
             maxGpsLatG      = 0.0;
 
             prevGpsSpeedMs     = currentSpeedMs; 
-            prevHeading        = NaN;
-            gpsCalculatedLongG = 0.0;
-            gpsCalculatedLatG  = 0.0;
             fusedLongG         = 0.0;
             fusedLatG          = 0.0;
             uiLongG            = 0.0;
@@ -788,6 +774,9 @@
             prev.maxSpeed   = null;
             prev.peakG      = null;
             prev.brakeScore = null;
+            prev.liveLatG  = null;
+            prev.liveLonG  = null;
+            prev.gDot      = null;
 
             timer0_60.state = T_IDLE;
             timer0_100.state = T_IDLE;
@@ -816,7 +805,6 @@
             imuLongGBias     = 0.0;
             imuLatGBias      = 0.0;
             imuHealthy       = true;
-            imuBiasPinStreak = 0;
 
             dom.calibrateBtn.textContent = "✔ TARE OK";
             dom.calibrateBtn.className = CLS_BTN_BASE + "border-[#00ff88]/50 bg-[#00ff88]/20 text-[#00ff88] neon-accent";
@@ -988,10 +976,23 @@
             if (!('wakeLock' in navigator)) return;
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
+                if (wakeLock) {
+                    wakeLock.addEventListener('release', () => {
+                        dom.wakeLock.textContent = "WAKELOCK: OFF";
+                        dom.wakeLock.className   = "text-red-500 neon-danger";
+                        wakeLock = null;
+                    });
+                }
                 dom.wakeLock.textContent = "WAKELOCK: ON";
                 dom.wakeLock.className   = "text-green-500 neon-accent";
             } catch {}
         }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+        });
+
+        window.addEventListener('pagehide', () => { if (stateDirty) saveSession(); });
         
         function handleMotion(event) {
             const hasLinear = event.acceleration && typeof event.acceleration.z === 'number';
@@ -1044,6 +1045,77 @@
             setDOM(dom.vScoreHdl, 'vHdl', score.hdl);
         }
 
+        function updateTimers(speedKmh, distanceM, nowMs) {
+            const stopped = speedKmh <= SPEED_ZERO_SNAP_KMPH;
+
+            // A vehicle stopping during an in-progress sprint (T_RUNNING) aborts it;
+            // completed sprints (T_DONE) keep their value until the next launch
+            // re-arms the timer, or RESET RUN clears it manually.
+
+            // ── 0-60 mph ───────────────────────────────────────────
+            if (stopped) {
+                if (timer0_60.state === T_RUNNING) timer0_60.state = T_IDLE;
+            } else if (timer0_60.state === T_IDLE) {
+                timer0_60.state = T_RUNNING; timer0_60.start = nowMs;
+                setDOM(dom.t0_60, 't0_60', "--.--- s", CLS_TIMER_BASE, "text-orange-400");
+            } else if (timer0_60.state === T_RUNNING && speedKmh >= MPH_60_IN_KMPH) {
+                timer0_60.result = nowMs - timer0_60.start; timer0_60.state = T_DONE;
+                setDOM(dom.t0_60, 't0_60', fmt3.format(timer0_60.result / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange");
+                stateDirty = true;
+            }
+
+            // ── 0-100 km/h ─────────────────────────────────────────
+            if (stopped) {
+                if (timer0_100.state === T_RUNNING) timer0_100.state = T_IDLE;
+            } else if (timer0_100.state === T_IDLE) {
+                timer0_100.state = T_RUNNING; timer0_100.start = nowMs;
+                setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "text-[#00bfff]");
+            } else if (timer0_100.state === T_RUNNING && speedKmh >= 100.0) {
+                timer0_100.result = nowMs - timer0_100.start; timer0_100.state = T_DONE;
+                setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "text-[#00bfff] neon-blue");
+                stateDirty = true;
+            }
+
+            // ── 100-200 km/h (arms once vehicle reaches 100, finishes at 200) ──
+            if (timer100_200.state === T_IDLE && speedKmh >= 100.0) {
+                timer100_200.state = T_RUNNING; timer100_200.start = nowMs;
+                setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "text-[#bb86fc]");
+            } else if (timer100_200.state === T_RUNNING && speedKmh >= 200.0) {
+                timer100_200.result = nowMs - timer100_200.start; timer100_200.state = T_DONE;
+                setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "text-[#bb86fc] neon-purple");
+                stateDirty = true;
+            } else if (timer100_200.state === T_DONE && stopped) {
+                timer100_200.state = T_IDLE;
+            }
+
+            // ── 1/4-mile (arms on launch from rest) ────────────────
+            if (stopped) {
+                if (timerQuarter.state === T_RUNNING) timerQuarter.state = T_IDLE;
+            } else if (timerQuarter.state === T_IDLE) {
+                timerQuarter.state = T_RUNNING;
+                timerQuarter.start = nowMs;
+                timerQuarter.startDist = distanceM;
+                setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
+            } else if (timerQuarter.state === T_RUNNING && (distanceM - timerQuarter.startDist) >= QUARTER_MILE_METERS) {
+                timerQuarter.result = Math.max(1, nowMs - timerQuarter.start);
+                timerQuarter.state = T_DONE;
+                setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(timerQuarter.result / 1000)}s`, CLS_TIMER_BASE, "text-yellow-400 neon-warning");
+                stateDirty = true;
+            }
+
+            // ── 100-0 km/h braking (arms at cruise >= 100, finishes on stop) ──
+            if (timer100_0.state === T_IDLE && speedKmh >= 100.0) {
+                timer100_0.state = T_RUNNING; timer100_0.startDist = distanceM; timer100_0.start = nowMs;
+                setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
+            } else if (timer100_0.state === T_RUNNING && stopped) {
+                timer100_0.result = distanceM - timer100_0.startDist; timer100_0.state = T_DONE;
+                setDOM(dom.t100_0, 't100_0', fmt1.format(Math.max(0, timer100_0.result)) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger");
+                stateDirty = true;
+            } else if (timer100_0.state === T_DONE && speedKmh >= 100.0) {
+                timer100_0.state = T_IDLE;
+            }
+        }
+
         function onPositionSuccess(position) {
             const c = position.coords;
             const now = performance.now();
@@ -1065,7 +1137,10 @@
             currentSpeedMs = gpsSpeedMs;
             const gpsSpeedKmph = currentSpeedMs * MS_TO_KMPH;
 
+            updateTimers(gpsSpeedKmph, distanceMeters, now);
+
             if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
+            if (Math.abs(fusedLatG) > maxGpsLatG) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; }
             if (fusedLongG < -0.3) {
                 const decelG = Math.abs(fusedLongG);
                 if (decelG > bestGpsBrakingG) { bestGpsBrakingG = decelG; setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G"); stateDirty = true; }
@@ -1074,30 +1149,51 @@
             if (gpsSpeedKmph > 0) {
                 if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
                 telemetrySession.push(`${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},,${fmt1.format(acc)},1`);
-                dom.logCount.textContent = telemetrySession.length;
+                if (telemetrySession.length > MAX_LOG_SAMPLES) {
+                    telemetrySession.splice(0, telemetrySession.length - MAX_LOG_SAMPLES);
+                }
+                const logLen = telemetrySession.length;
+                if (prev.logCount !== logLen) { dom.logCount.textContent = String(logLen); prev.logCount = logLen; }
             }
 
             prevGpsSpeedMs = currentSpeedMs;
             updateFusionStatusUI();
-            dom.accuracy.textContent = `ACC: ${fmt1.format(acc)} m`;
+            const accStr = `ACC: ${fmt1.format(acc)} m`;
+            if (prev.accuracy !== accStr) { dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
         }
 
         function onPositionError() { dom.status.textContent = "ERR: NO SIGNAL"; dom.status.className = "text-red-500 neon-danger"; }
 
         function renderLoop() {
             const now = performance.now();
-            let rawKmph = currentSpeedMs * MS_TO_KMPH;
-            if ((now - lastGpsTime) > GPS_STALE_MS) { currentSpeedMs = 0.0; rawKmph = 0.0; }
-            
-            const alpha = 1 - Math.exp(-(now - lastRenderTime) * 0.008); 
+            const dt  = now - lastRenderTime;
+            if ((now - lastGpsTime) > GPS_STALE_MS) { currentSpeedMs = 0.0; }
+            const alpha = 1 - Math.exp(-dt * 0.008); 
             displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
-            setDOM(dom.speed, 'speed', fmt1.format(displaySpeedMs * MS_TO_KMPH), "text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text ", displaySpeedMs * MS_TO_KMPH >= 80 ? "spd-yellow" : "spd-green");
+            uiLongG        += (fusedLongG  - uiLongG) * alpha;
+            uiLatG         += (fusedLatG   - uiLatG)  * alpha;
 
-            const pxX = Math.max(-20, Math.min(20, (uiLatG / 1.5) * 20));
+            const displaySpeedKmph = displaySpeedMs * MS_TO_KMPH;
+            setDOM(dom.speed, 'speed', fmt1.format(displaySpeedKmph), "text-[7rem] sm:text-[12rem] font-extrabold leading-none lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
+
+            const barPct = Math.max(0, Math.min(1, displaySpeedKmph / BAR_MAX_SPEED)) * 100;
+            const barW   = barPct.toFixed(2) + "%";
+            if (prev.speedBar !== barW) { dom.speedBar.style.width = barW; prev.speedBar = barW; }
+
+            const latStr = fmt2.format(uiLatG);
+            const lonStr = fmt2.format(uiLongG);
+            if (prev.liveLatG !== latStr) { dom.liveLatG.textContent = latStr; prev.liveLatG = latStr; }
+            if (prev.liveLonG !== lonStr) { dom.liveLonG.textContent = lonStr; prev.liveLonG = lonStr; }
+
+            const pxX = Math.max(-20, Math.min(20, (uiLatG  / 1.5) * 20));
             const pxY = Math.max(-20, Math.min(20, (-uiLongG / 1.5) * 20));
-            dom.gDot.style.transform = `translate(${pxX}px, ${pxY}px)`;
+            const tf  = `translate(${pxX.toFixed(1)}px, ${pxY.toFixed(1)}px)`;
+            if (prev.gDot !== tf) { dom.gDot.style.transform = tf; prev.gDot = tf; }
 
-            if (stateDirty) { saveSession(); evaluateAndRenderScore(); }
+            if (stateDirty) {
+                evaluateAndRenderScore();
+                if (now - lastSaveTime >= 2000) { saveSession(); lastSaveTime = now; }
+            }
             lastRenderTime = now;
             requestAnimationFrame(renderLoop);
         }
