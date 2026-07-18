@@ -1230,11 +1230,18 @@
 
         async function requestIOSMotion() {
             if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
+            // iOS only grants DeviceMotion once per origin; remember the grant so a
+            // page refresh / re-install does NOT re-prompt the user every single launch.
+            if (localStorage.getItem('VelocityLab_ios_motion_granted') === '1') return true;
             dom.iosGate.style.display = 'flex';
             return new Promise(resolve => {
                 dom.iosGrantBtn.addEventListener('click', async () => {
                     dom.iosGate.style.display = 'none';
-                    try { resolve((await DeviceMotionEvent.requestPermission()) === 'granted'); } catch { resolve(false); }
+                    try {
+                        const ok = (await DeviceMotionEvent.requestPermission()) === 'granted';
+                        if (ok) localStorage.setItem('VelocityLab_ios_motion_granted', '1');
+                        resolve(ok);
+                    } catch { resolve(false); }
                 }, { once: true });
             });
         }
