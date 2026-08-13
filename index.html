@@ -38,7 +38,7 @@
 
         /* buttons (utility class combos used in markup) */
         button { cursor: pointer; background: transparent; border-style: solid; color: inherit; }
-        .action-btn { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 0.25rem; border-width: 1px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; transition: background-color 100ms linear, transform 60ms linear; }
+        .action-btn { display: inline-flex; align-items: center; padding: 0.3rem 0.9rem; border-radius: 999px; border-width: 1px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; transition: background-color 100ms linear, border-color 100ms linear, transform 60ms linear; }
         .action-btn:active { transform: translateY(1px); }
         .action-btn:focus-visible { outline: 1px solid var(--green); outline-offset: 2px; }
 
@@ -79,11 +79,11 @@
         /* timer/score base classes (used by JS via CLS_TIMER_BASE) */
         .timer-lbl { font-size: 1.125rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; }
         .timer-mini { font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .tile-lbl { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .tile-lbl { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .tile-lbl-clr { font-size: 0.65rem; }
-        .score-total { font-size: 1.5rem; font-weight: 800; }
+        .score-total { font-size: 1.6rem; font-weight: 800; }
         .score-rdout { font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .metric-caption { font-size: 0.55rem; }
+        .metric-caption { font-size: 0.6rem; }
 
         /* speed bar fill (gradient shifts with velocity: green -> amber -> red) */
         .speed-bar-fill {
@@ -115,7 +115,6 @@
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
         
         :root {
-            --panel: rgba(9, 15, 24, 0.82);
             --line: rgba(148, 163, 184, 0.16);
             --line-strong: rgba(148, 163, 184, 0.26);
             --green: #00ff88;
@@ -125,10 +124,10 @@
             margin: 0;
             font-family: 'JetBrains Mono', monospace; 
             background:
-                linear-gradient(rgba(255,255,255,0.024) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px),
-                linear-gradient(180deg, #070707 0%, #030406 48%, #07090d 100%);
-            background-size: 100% 28px, 28px 100%, 100% 100%;
+                radial-gradient(1100px 700px at 50% -12%, rgba(0,255,136,0.055), transparent 62%),
+                radial-gradient(900px 650px at 88% 112%, rgba(0,191,255,0.06), transparent 60%),
+                radial-gradient(700px 500px at 6% 100%, rgba(187,134,252,0.05), transparent 60%),
+                linear-gradient(180deg, #08090c 0%, #030406 50%, #07090d 100%);
             color: #ffffff; 
             overscroll-behavior: none; 
             user-select: none; 
@@ -154,16 +153,32 @@
         .neon-orange { text-shadow: 0 0 10px rgba(251,146,60,0.5); }
         
         .metric-card { 
-            min-height: 3.85rem;
-            background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(7, 11, 18, 0.86));
-            padding: 0.55rem 0.65rem; 
-            border-radius: 0.5rem; 
+            position: relative;
+            min-height: 3.9rem;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(7, 11, 18, 0.88));
+            padding: 0.6rem 0.7rem 0.55rem; 
+            border-radius: 0.6rem; 
             border: 1px solid var(--line);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 22px rgba(0,0,0,0.22);
             display: flex; 
             flex-direction: column; 
             justify-content: center; 
+            overflow: hidden;
         }
+
+        /* per-category accent hairline on metric cards */
+        .metric-card::before {
+            content: "";
+            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: rgba(148,163,184,0.25);
+        }
+        .metric-card:nth-child(1)::before { background: #fb923c; }
+        .metric-card:nth-child(2)::before { background: #00bfff; }
+        .metric-card:nth-child(3)::before { background: #bb86fc; }
+        .metric-card:nth-child(4)::before { background: #facc15; }
+        .metric-card:nth-child(5)::before { background: #f87171; }
+        .metric-card:nth-child(6)::before { background: #00ff88; }
+        .metric-card:nth-child(7)::before { background: #9ca3af; }
         
         .spd-green { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
         .spd-yellow { color: #ffaa00; text-shadow: 0 0 10px rgba(255,170,0,0.5); }
@@ -182,49 +197,58 @@
         }
 
         .hud-header {
+            position: relative;
             display: grid;
             grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
             align-items: start;
             gap: 1rem;
-            padding: 0.75rem 0.85rem;
+            padding: 0.85rem 1rem;
             border: 1px solid var(--line);
-            border-radius: 0.5rem;
-            background: rgba(5, 8, 13, 0.62);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 20px 44px rgba(0,0,0,0.2);
+            border-radius: 0.65rem;
+            background: linear-gradient(180deg, rgba(9,14,22,0.82), rgba(5,8,13,0.66));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 44px rgba(0,0,0,0.24);
+        }
+
+        .hud-header::before {
+            content: "";
+            position: absolute; top: 0; left: 1.5rem; right: 1.5rem; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,255,136,0.35), transparent);
         }
 
         .brand-block {
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
             align-items: center;
-            gap: 0.35rem;
+            gap: 0.5rem;
             justify-content: center;
             min-width: 24rem;
             border-left: 1px solid var(--line);
             border-right: 1px solid var(--line);
-            padding: 0.25rem 1.15rem;
+            padding: 0.35rem 1.15rem;
         }
 
         .brand-row {
             display: flex;
             align-items: center;
-            gap: 0.55rem;
+            gap: 0.6rem;
             color: var(--green);
-            font-size: 0.86rem;
+            font-size: 0.95rem;
             font-weight: 800;
             text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
 
         .brand-mark {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 1.8rem;
-            height: 1.8rem;
-            border: 1px solid rgba(0,255,136,0.38);
-            border-radius: 0.45rem;
-            background: rgba(0,255,136,0.09);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 16px rgba(0,255,136,0.14);
+            width: 2rem;
+            height: 2rem;
+            border: 1px solid rgba(0,255,136,0.4);
+            border-radius: 0.55rem;
+            background: rgba(0,255,136,0.1);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 0 18px rgba(0,255,136,0.2);
+            font-size: 0.7rem;
         }
 
         .brand-subtitle {
@@ -232,35 +256,38 @@
             font-size: 0.58rem;
             font-weight: 800;
             text-transform: uppercase;
+            letter-spacing: 0.18em;
         }
 
-        .status-stack {
+        .status-stack, .system-stack {
             display: flex;
             flex-direction: column;
-            gap: 0.24rem;
+            gap: 0.42rem;
             min-width: 0;
         }
 
-        /* live LED dot on the status line: pulses while acquiring, steady on fix */
-        #status-indicator { display: inline-flex; align-items: center; gap: 0.45rem; }
-        #status-indicator::before {
+        .system-stack { align-items: flex-end; }
+
+        /* every status line carries an LED dot that follows its text colour */
+        .status-stack span, .system-stack span {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            line-height: 1.5;
+        }
+        .status-stack span::before, .system-stack span::before {
             content: "";
-            width: 0.45rem; height: 0.45rem;
+            width: 0.4rem; height: 0.4rem;
             border-radius: 9999px;
             background: currentColor;
-            box-shadow: 0 0 8px currentColor;
+            box-shadow: 0 0 7px currentColor;
             flex: none;
         }
-        #status-indicator:not(.text-green-500)::before { animation: vlab-pulse 1.4s ease-in-out infinite; }
-        @keyframes vlab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        .system-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 0.24rem;
-            min-width: 0;
-        }
+        /* acquiring / error states pulse; a live fix burns steady */
+        #status-indicator::before { animation: vlab-pulse 1.4s ease-in-out infinite; }
+        #status-indicator.text-green-500::before { animation: none; }
+        @keyframes vlab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
         .action-rail {
             display: flex;
@@ -273,7 +300,7 @@
 
         .action-rail button {
             min-height: 2rem;
-            border-radius: 0.45rem;
+            border-radius: 999px;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(0,0,0,0.24);
         }
 
@@ -288,73 +315,119 @@
             padding: 0.65rem 0 0.75rem;
         }
 
-        .speed-readout {
+        /* ── circular speedometer gauge ──────────────────────────────── */
+        /* --gauge (1em = gauge diameter) lives on .speed-stage so both the
+           gauge and the track below it scale from the same root; the whole
+           cluster shrinks gracefully on short viewports */
+        .speed-stage {
+            --gauge: clamp(8rem, min(72vw, 20rem, calc(100svh - 34rem)), 20rem);
+        }
+
+        .speed-gauge {
+            width: var(--gauge);
+            font-size: var(--gauge);
+            aspect-ratio: 1;
+            position: relative;
             display: flex;
-            align-items: baseline;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* swept ring: JS sets --deg (0..360) each frame; colour = live green */
+        #speed-ring {
+            position: absolute; inset: 0;
+            border-radius: 50%;
+            background: conic-gradient(from -90deg, var(--green) calc(var(--deg, 0deg)), rgba(148,163,184,0.08) 0deg);
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
+            filter: drop-shadow(0 0 0.022em rgba(0,255,136,0.4));
+        }
+
+        .gauge-core {
+            position: absolute;
+            inset: 0.0375em;
+            border-radius: 50%;
+            border: 1px solid rgba(148,163,184,0.14);
+            background: radial-gradient(circle at 50% 28%, rgba(17,25,38,0.96), rgba(5,8,13,0.98) 72%);
+            box-shadow: inset 0 0 0.14em rgba(0,0,0,0.85), 0 20px 50px rgba(0,0,0,0.4);
+        }
+
+        .speed-readout {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
             width: 100%;
             line-height: 1;
         }
 
         #speed-display {
-            font-size: 7rem;
+            font-size: 0.25em;
             line-height: 0.92;
+            letter-spacing: 0.02em;
+            text-shadow: 0 0 0.0375em currentColor, 0 0 0.106em currentColor;
         }
 
         .speed-unit {
-            margin-left: 0.45rem;
-            margin-bottom: 1rem;
-            color: rgba(209,213,219,0.8);
-            font-size: 1.75rem;
+            margin: 0.0275em 0 0;
+            color: rgba(209,213,219,0.7);
+            font-size: 0.0525em;
             font-weight: 800;
+            letter-spacing: 0.35em;
+            text-indent: 0.35em;
+            text-transform: uppercase;
         }
 
         .speed-track {
-            width: min(100%, 28rem);
-            height: 0.55rem;
-            margin-top: 1.5rem;
+            width: min(100%, calc(var(--gauge) * 1.3));
+            height: 0.5rem;
+            margin-top: calc(var(--gauge) * 0.0575);
             overflow: hidden;
             position: relative;
             border: 1px solid rgba(148,163,184,0.12);
             border-radius: 999px;
             background:
-                repeating-linear-gradient(90deg, rgba(148,163,184,0.14) 0 1px, transparent 1px 25%),
+                repeating-linear-gradient(90deg, rgba(148,163,184,0.13) 0 1px, transparent 1px 25%),
                 rgba(15,23,42,0.82);
             box-shadow: inset 0 1px 4px rgba(0,0,0,0.65);
         }
 
         .g-meter-card {
-            margin-top: 1.35rem;
+            margin-top: 1.15rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 1.35rem;
-            padding: 0.8rem 1rem;
+            gap: 1.4rem;
+            padding: 0.85rem 1.1rem;
             border: 1px solid var(--line-strong);
-            border-radius: 0.5rem;
-            background: var(--panel);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 34px rgba(0,0,0,0.2);
+            border-radius: 0.65rem;
+            background: linear-gradient(180deg, rgba(9,15,24,0.85), rgba(5,8,13,0.75));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 34px rgba(0,0,0,0.24);
         }
 
         .g-meter-dial {
             position: relative;
-            width: 4.9rem;
-            height: 4.9rem;
+            width: 5.2rem;
+            height: 5.2rem;
             border-radius: 999px;
             border: 2px solid rgba(148,163,184,0.34);
-            background: #000;
+            background:
+                repeating-conic-gradient(from 0deg, rgba(148,163,184,0.16) 0deg 1deg, transparent 1deg 15deg),
+                radial-gradient(circle at 50% 42%, rgba(0,191,255,0.09), #000 68%);
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            box-shadow: inset 0 0 22px rgba(0,191,255,0.08);
+            box-shadow: inset 0 0 22px rgba(0,191,255,0.1), 0 10px 26px rgba(0,0,0,0.35);
         }
 
         .g-meter-dial::after {
             content: "";
             position: absolute;
-            width: 3.35rem;
-            height: 3.35rem;
+            width: 3.6rem;
+            height: 3.6rem;
             border-radius: 9999px;
             border: 1px solid rgba(0,191,255,0.16);
             pointer-events: none;
@@ -363,10 +436,10 @@
         .g-meter-readings {
             display: flex;
             flex-direction: column;
-            gap: 0.55rem;
-            min-width: 6.4rem;
-            color: rgba(148,163,184,0.72);
-            font-size: 0.65rem;
+            gap: 0.5rem;
+            min-width: 6.6rem;
+            color: rgba(148,163,184,0.75);
+            font-size: 0.68rem;
             font-weight: 800;
             text-transform: uppercase;
         }
@@ -375,28 +448,38 @@
             display: flex;
             justify-content: space-between;
             gap: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px dashed rgba(148,163,184,0.14);
         }
 
+        .g-meter-readings div:last-child { border-bottom: none; padding-bottom: 0; }
+
         .score-panel {
-            width: min(100%, 28rem);
+            width: min(100%, 30rem);
             margin: 0 auto 0.65rem;
-            padding: 0.55rem 0.65rem;
+            padding: 0.65rem 0.75rem;
             border: 1px solid var(--line-strong);
-            border-radius: 0.5rem;
-            background: var(--panel);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 34px rgba(0,0,0,0.18);
+            border-radius: 0.65rem;
+            background: linear-gradient(180deg, rgba(9,15,24,0.85), rgba(5,8,13,0.78));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 34px rgba(0,0,0,0.22);
         }
 
         .score-tile {
-            min-height: 2.35rem;
-            border: 1px solid rgba(148,163,184,0.1);
-            border-radius: 0.4rem;
-            background: rgba(3,7,13,0.62);
+            min-height: 2.5rem;
+            border: 1px solid rgba(148,163,184,0.12);
+            border-top-width: 2px;
+            border-radius: 0.45rem;
+            background: rgba(3,7,13,0.66);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
         }
+
+        .score-tile.tile-spd { border-top-color: #00ff88; }
+        .score-tile.tile-acc { border-top-color: #00bfff; }
+        .score-tile.tile-brk { border-top-color: #f87171; }
+        .score-tile.tile-hdl { border-top-color: #bb86fc; }
 
         .metric-grid {
             width: 100%;
@@ -416,7 +499,7 @@
 
         @media (prefers-reduced-transparency) {
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
-            .spd-green, .spd-yellow { text-shadow: none !important; }
+            .spd-green, .spd-yellow, #speed-display { text-shadow: none !important; }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -426,11 +509,7 @@
         }
 
         @media (min-width: 640px) {
-            #speed-display { font-size: 12rem; }
-            .speed-unit {
-                margin-bottom: 2rem;
-                font-size: 2.25rem;
-            }
+            .speed-stage { --gauge: clamp(8rem, min(44vw, 24rem, calc(100svh - 34rem)), 24rem); }
         }
 
         @media (max-width: 520px) {
@@ -440,31 +519,16 @@
                 gap: 0.5rem;
                 padding: 0.55rem;
             }
-            .brand-block {
-                min-width: 0;
-                border: none;
-                padding: 0;
-            }
-            #status-indicator { gap: 0.35rem; }
-            #status-indicator::before { width: 0.36rem; height: 0.36rem; }
-            .brand-row {
-                font-size: 0.58rem;
-                gap: 0.3rem;
-            }
-            .brand-mark {
-                width: 1.45rem;
-                height: 1.45rem;
-                border-radius: 0.35rem;
-            }
+            .brand-block { min-width: 0; border: none; padding: 0; }
+            .brand-row { font-size: 0.6rem; gap: 0.3rem; }
+            .brand-mark { width: 1.5rem; height: 1.5rem; border-radius: 0.4rem; font-size: 0.55rem; }
             .brand-subtitle { display: none; }
-            .status-stack, .system-stack {
-                font-size: 0.63rem;
-                line-height: 1.45;
-            }
+            .status-stack, .system-stack { font-size: 0.62rem; line-height: 1.4; }
+            .status-stack span::before, .system-stack span::before { width: 0.32rem; height: 0.32rem; }
             .action-rail { gap: 0.35rem; }
             .action-rail button {
-                min-height: 1.75rem;
-                padding: 0.25rem 0.55rem;
+                min-height: 1.8rem;
+                padding: 0.3rem 0.6rem;
                 font-size: 0.55rem;
             }
             #export-group {
@@ -472,33 +536,29 @@
                 justify-content: center;
                 max-width: 10.5rem;
             }
-            #speed-display { font-size: 6.25rem; }
-            .speed-unit {
-                margin-left: 0.3rem;
-                margin-bottom: 0.55rem;
-                font-size: 1.45rem;
-            }
-            .speed-track { margin-top: 1.15rem; }
+            .speed-stage { --gauge: clamp(6.5rem, min(60vw, 13.5rem, calc(100svh - 33rem)), 13.5rem); }
+            .speed-track { margin-top: calc(var(--gauge) * 0.045); }
             .g-meter-card {
-                width: min(100%, 15rem);
-                margin-top: 1.65rem;
-                gap: 0.8rem;
-                padding: 0.7rem 0.85rem;
+                width: min(100%, 16rem);
+                margin-top: 1.35rem;
+                gap: 0.85rem;
+                padding: 0.7rem 0.9rem;
             }
-            .g-meter-dial {
-                width: 4.75rem;
-                height: 4.75rem;
-            }
-            .g-meter-readings {
-                min-width: 5.5rem;
-                font-size: 0.58rem;
-            }
+            .g-meter-dial { width: 4.9rem; height: 4.9rem; }
+            .g-meter-readings { min-width: 5.7rem; font-size: 0.6rem; }
             .score-panel { margin-bottom: 0.55rem; }
             .metric-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 0.45rem;
             }
             .metric-card { min-height: 3.7rem; }
+        }
+
+        /* short viewports (landscape phones / embedded HUDs): compact the gauge */
+        @media (max-height: 620px) {
+            .speed-stage { --gauge: clamp(5.5rem, min(42vw, 10rem, calc(100svh - 30rem)), 10rem); }
+            .speed-track { margin-top: calc(var(--gauge) * 0.06); }
+            .g-meter-card { margin-top: 0.85rem; padding: 0.6rem 0.9rem; }
         }
     </style>
 </head>
@@ -564,9 +624,13 @@
     </header>
 
     <main class="speed-stage" aria-label="Dashboard">
-        <div class="speed-readout">
-            <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
-            <span class="speed-unit">km/h</span>
+        <div class="speed-gauge">
+            <div id="speed-ring" aria-hidden="true"></div>
+            <div class="gauge-core" aria-hidden="true"></div>
+            <div class="speed-readout">
+                <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
+                <span class="speed-unit">km/h</span>
+            </div>
         </div>
         <div class="speed-track">
             <div id="speed-bar" class="speed-bar-fill"></div>
@@ -594,19 +658,19 @@
             <span id="v-score-total" class="score-total clr-green neon-accent lcd-text">0</span>
         </div>
         <div class="grid grid-cols-4 gap-1 text-center">
-            <div class="score-tile">
+            <div class="score-tile tile-spd">
                 <div class="tile-lbl text-gray-500 uppercase tracking-wider">SPD <span class="text-gray-700">/20</span></div>
                 <div id="v-score-spd" class="score-rdout text-white lcd-text">0</div>
             </div>
-            <div class="score-tile">
+            <div class="score-tile tile-acc">
                 <div class="tile-lbl text-gray-500 uppercase tracking-wider">ACC <span class="text-gray-700">/30</span></div>
                 <div id="v-score-acc" class="score-rdout clr-blue lcd-text">0</div>
             </div>
-            <div class="score-tile">
+            <div class="score-tile tile-brk">
                 <div class="tile-lbl text-gray-500 uppercase tracking-wider">BRK <span class="text-gray-700">/25</span></div>
                 <div id="v-score-brk" class="score-rdout text-red-400 lcd-text">0</div>
             </div>
-            <div class="score-tile">
+            <div class="score-tile tile-hdl">
                 <div class="tile-lbl text-gray-500 uppercase tracking-wider">HDL <span class="text-gray-700">/25</span></div>
                 <div id="v-score-hdl" class="score-rdout clr-purple lcd-text">0</div>
             </div>
@@ -719,6 +783,7 @@
         // ─── DOM CACHE ────────────────────────────────────────────────────────────
         const dom = {
             speed:        document.getElementById('speed-display'),
+            ring:         document.getElementById('speed-ring'),
             accuracy:     document.getElementById('accuracy-display'),
             fusionStatus: document.getElementById('fusion-display'),
             status:       document.getElementById('status-indicator'),
@@ -759,7 +824,7 @@
         };
 
         const prev = {
-            speed: null, speedBar: null,
+            speed: null, speedBar: null, ringDeg: null,
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, logCount: 0, maxSpeed: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
@@ -1246,6 +1311,13 @@
             const barPct = Math.max(0, Math.min(1, displaySpeedKmph / BAR_MAX_SPEED)) * 100;
             const barW   = barPct.toFixed(2) + "%";
             if (prev.speedBar !== barW) { dom.speedBar.style.width = barW; prev.speedBar = barW; }
+
+            // Sweep the speedometer ring (0..100% of 200 km/h -> 0..360 deg)
+            const ringDeg = (barPct * 3.6).toFixed(1);
+            if (prev.ringDeg !== ringDeg) {
+                if (dom.ring) dom.ring.style.setProperty('--deg', ringDeg + 'deg');
+                prev.ringDeg = ringDeg;
+            }
 
             const latStr = fmt2.format(uiLatG);
             const lonStr = fmt2.format(uiLongG);
