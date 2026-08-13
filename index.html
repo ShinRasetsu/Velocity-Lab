@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#050505">
 
     <style>
-        /* ─── Tailwind-replacement utility layer ─────────────────────────────── */
+        /* ─── Tailwind-replacement utility layer (used in markup) ───────────── */
         .flex { display: flex; }
         .flex-col { flex-direction: column; }
         .grid { display: grid; }
@@ -20,37 +20,27 @@
         .text-center { text-align: center; }
         .uppercase { text-transform: uppercase; }
         .overflow-hidden { overflow: hidden; }
-        .relative { position: relative; }
-        .absolute { position: absolute; }
-        .top-0 { top: 0; }
-        .left-0 { left: 0; }
-        .h-full { height: 100%; }
-        .w-full { width: 100%; }
-        .w-0 { width: 0; }
         .gap-1 { gap: 0.25rem; }
         .gap-1\.5 { gap: 0.375rem; }
         .gap-2 { gap: 0.5rem; }
+        .gap-6 { gap: 1.5rem; }
         .mb-1 { margin-bottom: 0.25rem; }
-        .px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
         .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
-        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
-        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
-        .rounded { border-radius: 0.25rem; }
-        .rounded-full { border-radius: 9999px; }
-        .border { border-width: 1px; border-style: solid; }
+        .px-8 { padding-left: 2rem; padding-right: 2rem; }
+        .leading-relaxed { line-height: 1.625; }
         .font-bold { font-weight: 700; }
         .font-extrabold { font-weight: 800; }
         .text-xs { font-size: 0.75rem; }
         .text-sm { font-size: 0.875rem; }
-        .text-lg { font-size: 1.125rem; }
         .text-2xl { font-size: 1.5rem; }
         .tracking-wider { letter-spacing: 0.05em; }
         .tracking-widest { letter-spacing: 0.1em; }
-        .transition-all, .transition-transform { transition-property: background-color, border-color, color, transform, width; transition-duration: 100ms; transition-timing-function: linear; }
 
         /* buttons (utility class combos used in markup) */
         button { cursor: pointer; background: transparent; border-style: solid; color: inherit; }
-        .action-btn { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 0.25rem; border-width: 1px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; transition: background-color 100ms linear; }
+        .action-btn { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 0.25rem; border-width: 1px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; transition: background-color 100ms linear, transform 60ms linear; }
+        .action-btn:active { transform: translateY(1px); }
+        .action-btn:focus-visible { outline: 1px solid var(--green); outline-offset: 2px; }
 
         /* neon / colour utilities */
         .text-gray-400 { color: #9ca3af; }
@@ -67,8 +57,6 @@
         .clr-green  { color: #00ff88; }
         .clr-blue   { color: #00bfff; }
         .clr-purple { color: #bb86fc; }
-        .clr-orange { color: #fb923c; }
-        .clr-gray   { color: #9ca3af; }
 
         /* semantic action buttons (paired with .action-btn from above) */
         .btn-tare { color: #00bfff; border-color: rgba(0,191,255,0.5); background: rgba(0,191,255,0.10); }
@@ -97,10 +85,12 @@
         .score-rdout { font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
         .metric-caption { font-size: 0.55rem; }
 
-        /* speed bar fill (replaces #speed-bar markup) */
+        /* speed bar fill (gradient shifts with velocity: green -> amber -> red) */
         .speed-bar-fill {
             position: absolute; top: 0; left: 0; height: 100%;
-            background: #00ff88; width: 0;
+            background: linear-gradient(90deg, #00ff88 0%, #ffaa00 55%, #ff3366 100%);
+            box-shadow: 0 0 10px rgba(0,255,136,0.35);
+            width: 0;
             transition: width 75ms linear;
             will-change: width;
         }
@@ -114,7 +104,7 @@
         }
         .g-dot {
             position: absolute; width: 0.75rem; height: 0.75rem; border-radius: 9999px;
-            background: #00bfff; box-shadow: 0 0 8px #00bfff;
+            background: #00bfff; box-shadow: 0 0 8px #00bfff, 0 0 22px rgba(0,191,255,0.35);
             will-change: transform; transition: transform 75ms linear;
         }
 
@@ -132,6 +122,7 @@
         }
 
         body { 
+            margin: 0;
             font-family: 'JetBrains Mono', monospace; 
             background:
                 linear-gradient(rgba(255,255,255,0.024) 1px, transparent 1px),
@@ -176,7 +167,7 @@
         
         .spd-green { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
         .spd-yellow { color: #ffaa00; text-shadow: 0 0 10px rgba(255,170,0,0.5); }
-        .spd-red { color: #ff3366; text-shadow: 0 0 10px rgba(255,51,102,0.5); }
+        .spd-green, .spd-yellow { transition: color 120ms linear; }
         
         .dashboard-shell {
             width: min(100%, 78rem);
@@ -209,6 +200,9 @@
             gap: 0.35rem;
             justify-content: center;
             min-width: 24rem;
+            border-left: 1px solid var(--line);
+            border-right: 1px solid var(--line);
+            padding: 0.25rem 1.15rem;
         }
 
         .brand-row {
@@ -246,6 +240,19 @@
             gap: 0.24rem;
             min-width: 0;
         }
+
+        /* live LED dot on the status line: pulses while acquiring, steady on fix */
+        #status-indicator { display: inline-flex; align-items: center; gap: 0.45rem; }
+        #status-indicator::before {
+            content: "";
+            width: 0.45rem; height: 0.45rem;
+            border-radius: 9999px;
+            background: currentColor;
+            box-shadow: 0 0 8px currentColor;
+            flex: none;
+        }
+        #status-indicator:not(.text-green-500)::before { animation: vlab-pulse 1.4s ease-in-out infinite; }
+        @keyframes vlab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
         .system-stack {
             display: flex;
@@ -310,7 +317,9 @@
             position: relative;
             border: 1px solid rgba(148,163,184,0.12);
             border-radius: 999px;
-            background: rgba(15,23,42,0.82);
+            background:
+                repeating-linear-gradient(90deg, rgba(148,163,184,0.14) 0 1px, transparent 1px 25%),
+                rgba(15,23,42,0.82);
             box-shadow: inset 0 1px 4px rgba(0,0,0,0.65);
         }
 
@@ -339,6 +348,16 @@
             justify-content: center;
             overflow: hidden;
             box-shadow: inset 0 0 22px rgba(0,191,255,0.08);
+        }
+
+        .g-meter-dial::after {
+            content: "";
+            position: absolute;
+            width: 3.35rem;
+            height: 3.35rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(0,191,255,0.16);
+            pointer-events: none;
         }
 
         .g-meter-readings {
@@ -392,11 +411,18 @@
         #ios-gate { 
             position: fixed; inset: 0; background: #050505; 
             z-index: 9999; display: flex; flex-direction: column; 
+            padding: 1.5rem;
         }
 
         @media (prefers-reduced-transparency) {
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
-            .spd-green, .spd-yellow, .spd-red { text-shadow: none !important; }
+            .spd-green, .spd-yellow { text-shadow: none !important; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #status-indicator:not(.text-green-500)::before { animation: none; }
+            .action-btn { transition: none; }
+            .action-btn:active { transform: none; }
         }
 
         @media (min-width: 640px) {
@@ -414,7 +440,13 @@
                 gap: 0.5rem;
                 padding: 0.55rem;
             }
-            .brand-block { min-width: 0; }
+            .brand-block {
+                min-width: 0;
+                border: none;
+                padding: 0;
+            }
+            #status-indicator { gap: 0.35rem; }
+            #status-indicator::before { width: 0.36rem; height: 0.36rem; }
             .brand-row {
                 font-size: 0.58rem;
                 gap: 0.3rem;
@@ -476,7 +508,7 @@
     <!-- iOS SENSOR GATE -->
     <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true" class="items-center justify-center gap-6">
         <span class="clr-green font-bold text-2xl neon-accent tracking-widest">VELOCITY-LAB</span>
-        <span class="text-gray-400 text-xs text-center px-8 leading-relaxed">Motion sensor access required for IMU fallback telemetry.</span>
+        <span class="text-gray-400 text-xs text-center px-8 leading-relaxed" style="max-width:26rem;">Motion sensor access required for IMU fallback telemetry.</span>
         <button id="ios-grant-btn" aria-label="Grant Motion Access" class="action-btn btn-ios-grant neon-accent">
             ⚡ GRANT MOTION ACCESS
         </button>
@@ -497,30 +529,30 @@
             </div>
             <span class="brand-subtitle">Active Telemetry HUD</span>
             <div class="action-rail">
-            <button id="calibrate-btn" aria-label="Tare Device Mount"
-                class="action-btn gap-1.5 neon-blue btn-tare">
-                ⌖ TARE MOUNT
-            </button>
-            <button id="reset-run-btn" aria-label="Reset Telemetry Run"
-                class="action-btn gap-1.5 neon-warning btn-reset">
-                ↺ RESET RUN
-            </button>
-            
-            <div id="export-group" class="flex gap-1">
-                <button id="export-csv-btn" aria-label="Export Telemetry to CSV"
-                    class="action-btn gap-1.5 neon-purple btn-csv">
-                    💾 CSV (<span id="log-count">0</span>)
+                <button id="calibrate-btn" aria-label="Tare Device Mount"
+                    class="action-btn gap-1.5 neon-blue btn-tare">
+                    ⌖ TARE MOUNT
                 </button>
-                <button id="clear-logs-btn" aria-label="Clear Telemetry Logs"
-                    class="action-btn gap-1 btn-clear">
-                    ✕
+                <button id="reset-run-btn" aria-label="Reset Telemetry Run"
+                    class="action-btn gap-1.5 neon-warning btn-reset">
+                    ↺ RESET RUN
                 </button>
-            </div>
-            
-            <button id="pwa-install-btn" style="display:none;" aria-label="Install App"
-                class="action-btn gap-1.5 neon-accent btn-install">
-                ⬇ INSTALL
-            </button>
+
+                <div id="export-group" class="flex gap-1" style="display:none;">
+                    <button id="export-csv-btn" aria-label="Export Telemetry to CSV"
+                        class="action-btn gap-1.5 neon-purple btn-csv">
+                        💾 CSV (<span id="log-count">0</span>)
+                    </button>
+                    <button id="clear-logs-btn" aria-label="Clear Telemetry Logs"
+                        class="action-btn gap-1 btn-clear">
+                        ✕
+                    </button>
+                </div>
+
+                <button id="pwa-install-btn" style="display:none;" aria-label="Install App"
+                    class="action-btn gap-1.5 neon-accent btn-install">
+                    ⬇ INSTALL
+                </button>
             </div>
         </div>
 
@@ -619,9 +651,8 @@
         const FUSION_GPS_WEIGHT      = 0.12;
         const IMU_BIAS_CLAMP         = 2.0;
         const PHYSICAL_G_CLAMP_LONG  = 3.5;
-        const PHYSICAL_G_CLAMP_LAT   = 3.0;
 
-        const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2, T_BRAKING = 3;
+        const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2;
 
         const fmt3 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
         const fmt2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -638,11 +669,11 @@
         
         let lastGpsTime     = -1;
         let prevGpsSpeedMs  = 0.0;
-        let prevDistance    = 0.0;
         
         let lastRenderTime  = performance.now();
         let maxSpeedKmph    = 0.0;
         let exportBtnShown  = false;
+        let gpsHzSmooth     = 0.0;
 
         // UI Interpolation State (drives the live G-meter dot + readings)
         let uiLongG = 0.0;
@@ -662,7 +693,6 @@
         let imuLatGBias       = 0.0;    
         let fusedLongG        = 0.0;    
         let fusedLatG         = 0.0;    
-        let lastGpsConfidence = 0.0;    
         let gpsGlitchCount    = 0;      
         let confidenceSum     = 0.0;    
         let confidenceSamples = 0;      
@@ -681,7 +711,6 @@
 
         let telemetrySession = [];
         let telemetryDirty   = false;   
-        let loadedTelemetryAtStartup = false;
         let lastSaveTime     = 0;   
 
         // PWA Install State
@@ -732,7 +761,7 @@
         const prev = {
             speed: null, speedBar: null,
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
-            brakeScore: null, logCount: 0, maxSpeed: null,
+            brakeScore: null, logCount: 0, maxSpeed: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
             liveLatG: null, liveLonG: null, gDot: null, accuracy: null
         };
@@ -798,10 +827,8 @@
                         prev.logCount = telemetrySession.length;
                     }
                     if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
-                    loadedTelemetryAtStartup = true;
                     // Surface the carry-over in the header so a refresh isn't a surprise.
-                    dom.status.textContent = `SESSION RESTORED · ${telemetrySession.length} SAMPLES`;
-                    dom.status.className   = "clr-blue neon-blue";
+                    setDOM(dom.status, 'status', `SESSION RESTORED · ${telemetrySession.length} SAMPLES`, "clr-blue neon-blue");
                 }
             } catch (e) { /* fire-and-forget */ }
         }
@@ -867,7 +894,6 @@
         // ─── UI CONTROLS ──────────────────────────────────────────────────────────
         function resetRun() {
             distanceMeters  = 0.0;
-            prevDistance    = 0.0;
             maxSpeedKmph    = 0.0;
             bestGpsBrakingG = 0.0;
             maxGpsAccelG    = 0.0;
@@ -1039,9 +1065,11 @@
             if (imuFusionActive) {
                 dom.fusionStatus.textContent = "FUSION: GPS+IMU";
                 dom.fusionStatus.className   = "clr-green neon-accent";
+                dom.scorePanelLabel.textContent = "Performance Index (GPS+IMU)";
             } else {
                 dom.fusionStatus.textContent = "FUSION: GPS ONLY";
                 dom.fusionStatus.className   = "text-gray-600";
+                dom.scorePanelLabel.textContent = "Performance Index (GPS)";
             }
         }
 
@@ -1143,11 +1171,14 @@
             const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
             const conf = gpsConfidence(acc);   // 0..1 GPS quality
-            lastGpsConfidence = conf;
             confidenceSum     += conf;
             confidenceSamples  += 1;
 
             if (gpsDt > 0) {
+                // Live GPS update rate, exponentially smoothed (survives 1 Hz
+                // phone GPS jitter while still reacting to real changes).
+                gpsHzSmooth += ((1.0 / gpsDt) - gpsHzSmooth) * 0.25;
+                setDOM(dom.updateRate, 'updateRate', "GPS: " + fmt1.format(gpsHzSmooth) + " HZ", "clr-blue neon-blue");
                 // Distances are integrated only above 0.5 m/s; this deliberately
                 // drops sub-walking creep (parking-lot shuffle, traffic-idle roll)
                 // which would otherwise inflate 1/4-mile splits and braking stops.
@@ -1164,8 +1195,10 @@
             // Accuracy guard: only high-quality GPS samples drive timers, peaks and the CSV log
             // so a 25 m fix on a parking ramp can't write a bogus 0-100 time or inflate max G.
             if (conf >= GPS_QUALITY_MIN) {
+                setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
                 updateTimers(gpsSpeedKmph, distanceMeters, now);
 
+                if (gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; setDOM(dom.maxSpeed, 'maxSpeed', "MAX: " + fmt2.format(maxSpeedKmph)); stateDirty = true; }
                 if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
                 if (Math.abs(fusedLatG) > maxGpsLatG) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; }
                 if (fusedLongG < -0.3) {
@@ -1178,6 +1211,7 @@
                     // Fusion column: 1 = GPS+IMU fused, 0 = GPS-only fallback
                     const fusionFlag = imuFusionActive ? 1 : 0;
                     telemetrySession.push(`${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},,${fmt1.format(acc)},${fusionFlag}`);
+                    telemetryDirty = true;
                     if (telemetrySession.length > MAX_LOG_SAMPLES) {
                         telemetrySession.splice(0, telemetrySession.length - MAX_LOG_SAMPLES);
                     }
@@ -1192,12 +1226,15 @@
             if (prev.accuracy !== accStr) { dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
         }
 
-        function onPositionError() { dom.status.textContent = "ERR: NO SIGNAL"; dom.status.className = "text-red-500 neon-danger"; }
+        function onPositionError() { setDOM(dom.status, 'status', "ERR: NO SIGNAL", "text-red-500 neon-danger"); }
 
         function renderLoop() {
             const now = performance.now();
             const dt  = now - lastRenderTime;
-            if ((now - lastGpsTime) > GPS_STALE_MS) { currentSpeedMs = 0.0; }
+            if ((now - lastGpsTime) > GPS_STALE_MS) {
+                currentSpeedMs = 0.0;
+                setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+            }
             const alpha = 1 - Math.exp(-dt * 0.008); 
             displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
             uiLongG        += (fusedLongG  - uiLongG) * alpha;
