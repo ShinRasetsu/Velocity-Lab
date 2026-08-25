@@ -2,11 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
-    
+
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#050505">
+
+    <!-- standalone home-screen app: Android + iOS -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VelocityLab">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 
     <style>
         /* ─── Tailwind-replacement utility layer (used in markup) ───────────── */
@@ -191,7 +199,7 @@
             width: min(100%, 78rem);
             min-height: 100svh;
             margin: 0 auto;
-            padding: 0.75rem 1rem;
+            padding: calc(0.75rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -508,10 +516,10 @@
             text-align: center;
         }
         
-        #ios-gate { 
-            position: fixed; inset: 0; background: #050505; 
-            z-index: 9999; display: flex; flex-direction: column; 
-            padding: 1.5rem;
+        #ios-gate {
+            position: fixed; inset: 0; background: #050505;
+            z-index: 9999; display: flex; flex-direction: column;
+            padding: calc(1.5rem + env(safe-area-inset-top)) calc(1.5rem + env(safe-area-inset-right)) calc(1.5rem + env(safe-area-inset-bottom)) calc(1.5rem + env(safe-area-inset-left));
         }
 
         @media (prefers-reduced-transparency) {
@@ -530,7 +538,7 @@
         }
 
         @media (max-width: 520px) {
-            .dashboard-shell { padding: 0.75rem; }
+            .dashboard-shell { padding: calc(0.75rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left)); }
             .hud-header {
                 grid-template-columns: 1fr auto 1fr;
                 gap: 0.5rem;
