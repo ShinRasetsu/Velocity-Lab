@@ -39,6 +39,7 @@
         /* buttons (utility class combos used in markup) */
         button { cursor: pointer; background: transparent; border-style: solid; color: inherit; }
         .action-btn { display: inline-flex; align-items: center; padding: 0.3rem 0.9rem; border-radius: 999px; border-width: 1px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; transition: background-color 100ms linear, border-color 100ms linear, transform 60ms linear; }
+        .action-btn svg { width: 0.85rem; height: 0.85rem; flex: none; }
         .action-btn:active { transform: translateY(1px); }
         .action-btn:focus-visible { outline: 1px solid var(--green); outline-offset: 2px; }
 
@@ -66,7 +67,8 @@
         .btn-reset:hover  { background: rgba(250,204,21,0.20); }
         .btn-reset:active { background: rgba(250,204,21,0.40); }
         .btn-install { color: #00ff88; border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); }
-        .btn-install:hover { background: rgba(0,255,136,0.20); }
+        .btn-install:hover  { background: rgba(0,255,136,0.20); }
+        .btn-install:active { background: rgba(0,255,136,0.40); }
         .btn-csv { color: #bb86fc; border-color: rgba(187,134,252,0.5); background: rgba(187,134,252,0.10); }
         .btn-csv:hover  { background: rgba(187,134,252,0.20); }
         .btn-csv:active { background: rgba(187,134,252,0.40); }
@@ -166,19 +168,20 @@
             overflow: hidden;
         }
 
-        /* per-category accent hairline on metric cards */
+        /* per-category accent hairline on metric cards (explicit classes so
+           card order in the markup never silently re-colours the dashboard) */
         .metric-card::before {
             content: "";
             position: absolute; top: 0; left: 0; right: 0; height: 2px;
             background: rgba(148,163,184,0.25);
         }
-        .metric-card:nth-child(1)::before { background: #fb923c; }
-        .metric-card:nth-child(2)::before { background: #00bfff; }
-        .metric-card:nth-child(3)::before { background: #bb86fc; }
-        .metric-card:nth-child(4)::before { background: #facc15; }
-        .metric-card:nth-child(5)::before { background: #f87171; }
-        .metric-card:nth-child(6)::before { background: #00ff88; }
-        .metric-card:nth-child(7)::before { background: #9ca3af; }
+        .accent-orange::before { background: #fb923c; }
+        .accent-blue::before   { background: #00bfff; }
+        .accent-purple::before { background: #bb86fc; }
+        .accent-yellow::before { background: #facc15; }
+        .accent-red::before    { background: #f87171; }
+        .accent-green::before  { background: #00ff88; }
+        .accent-gray::before   { background: #9ca3af; }
         
         .spd-green { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
         .spd-yellow { color: #ffaa00; text-shadow: 0 0 10px rgba(255,170,0,0.5); }
@@ -304,7 +307,12 @@
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(0,0,0,0.24);
         }
 
+        /* ── circular speedometer gauge ──────────────────────────────── */
+        /* --gauge (1em = gauge diameter) lives on .speed-stage so both the
+           gauge and the track below it scale from the same root; the whole
+           cluster shrinks gracefully on short viewports */
         .speed-stage {
+            --gauge: clamp(8rem, min(72vw, 20rem, calc(100svh - 34rem)), 20rem);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -313,14 +321,6 @@
             width: 100%;
             min-height: 0;
             padding: 0.65rem 0 0.75rem;
-        }
-
-        /* ── circular speedometer gauge ──────────────────────────────── */
-        /* --gauge (1em = gauge diameter) lives on .speed-stage so both the
-           gauge and the track below it scale from the same root; the whole
-           cluster shrinks gracefully on short viewports */
-        .speed-stage {
-            --gauge: clamp(8rem, min(72vw, 20rem, calc(100svh - 34rem)), 20rem);
         }
 
         .speed-gauge {
@@ -481,13 +481,30 @@
         .score-tile.tile-brk { border-top-color: #f87171; }
         .score-tile.tile-hdl { border-top-color: #bb86fc; }
 
+        /* footer: two labelled groups (sprints / braking+peaks) of metric grids */
+        .metric-footer {
+            width: 100%;
+            padding-top: 0.55rem;
+            border-top: 1px solid var(--line);
+        }
+
+        .metric-group + .metric-group { margin-top: 0.55rem; }
+
+        .metric-group-label {
+            display: block;
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: rgba(148,163,184,0.55);
+            margin-bottom: 0.35rem;
+        }
+
         .metric-grid {
             width: 100%;
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 0.45rem;
-            padding-top: 0.55rem;
-            border-top: 1px solid var(--line);
             text-align: center;
         }
         
@@ -570,7 +587,8 @@
         <span class="clr-green font-bold text-2xl neon-accent tracking-widest">VELOCITY-LAB</span>
         <span class="text-gray-400 text-xs text-center px-8 leading-relaxed" style="max-width:26rem;">Motion sensor access required for IMU fallback telemetry.</span>
         <button id="ios-grant-btn" aria-label="Grant Motion Access" class="action-btn btn-ios-grant neon-accent">
-            ⚡ GRANT MOTION ACCESS
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+            GRANT MOTION ACCESS
         </button>
     </div>
 
@@ -591,27 +609,32 @@
             <div class="action-rail">
                 <button id="calibrate-btn" aria-label="Tare Device Mount"
                     class="action-btn gap-1.5 neon-blue btn-tare">
-                    ⌖ TARE MOUNT
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+                    <span id="calibrate-btn-label">TARE MOUNT</span>
                 </button>
                 <button id="reset-run-btn" aria-label="Reset Telemetry Run"
                     class="action-btn gap-1.5 neon-warning btn-reset">
-                    ↺ RESET RUN
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg>
+                    RESET RUN
                 </button>
 
                 <div id="export-group" class="flex gap-1" style="display:none;">
                     <button id="export-csv-btn" aria-label="Export Telemetry to CSV"
                         class="action-btn gap-1.5 neon-purple btn-csv">
-                        💾 CSV (<span id="log-count">0</span>)
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>
+                        <span id="export-btn-idle">CSV (<span id="log-count">0</span>)</span>
+                        <span id="export-btn-busy" hidden>EXPORTING...</span>
                     </button>
                     <button id="clear-logs-btn" aria-label="Clear Telemetry Logs"
                         class="action-btn gap-1 btn-clear">
-                        ✕
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
                 </div>
 
                 <button id="pwa-install-btn" style="display:none;" aria-label="Install App"
                     class="action-btn gap-1.5 neon-accent btn-install">
-                    ⬇ INSTALL
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+                    INSTALL
                 </button>
             </div>
         </div>
@@ -677,15 +700,25 @@
         </div>
     </section>
 
-    <footer class="metric-grid" aria-label="Telemetry Metrics">
-        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 mph</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
-        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 km/h</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
-        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 km/h</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
-        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 Mile</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
-        
-        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max Braking</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
-        <div class="metric-card"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max ACC</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
-        <div class="metric-card col-span-2 sm:col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0m Dist</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
+    <footer class="metric-footer" aria-label="Telemetry Metrics">
+        <section class="metric-group" aria-label="Sprint Timers">
+            <span class="metric-group-label">Sprint Timers</span>
+            <div class="metric-grid">
+                <div class="metric-card accent-orange"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 mph</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 km/h</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 km/h</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 Mile</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
+            </div>
+        </section>
+
+        <section class="metric-group" aria-label="Braking and Peak Performance">
+            <span class="metric-group-label">Braking &amp; Peaks</span>
+            <div class="metric-grid">
+                <div class="metric-card accent-red"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max Braking</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-green"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max ACC</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-gray col-span-2 sm:col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0m Dist</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
+            </div>
+        </section>
     </footer>
 </div>
 
@@ -808,9 +841,12 @@
             tQuarter:     document.getElementById('timer-quarter'),
             installBtn:   document.getElementById('pwa-install-btn'),
             calibrateBtn: document.getElementById('calibrate-btn'),
+            calibrateLabel: document.getElementById('calibrate-btn-label'),
             resetRunBtn:  document.getElementById('reset-run-btn'),
             exportGroup:  document.getElementById('export-group'),
             exportBtn:    document.getElementById('export-csv-btn'),
+            exportIdle:   document.getElementById('export-btn-idle'),
+            exportBusy:   document.getElementById('export-btn-busy'),
             clearLogsBtn: document.getElementById('clear-logs-btn'),
             logCount:     document.getElementById('log-count'),
             
@@ -949,7 +985,7 @@
                 if (data.t0_60)  { timer0_60.result = data.t0_60; setDOM(dom.t0_60, 't0_60', fmt3.format(data.t0_60 / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange"); }
                 if (data.t0_100) { timer0_100.result = data.t0_100; setDOM(dom.t0_100, 't0_100', fmt3.format(data.t0_100 / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue"); }
                 if (data.t100_200) { timer100_200.result = data.t100_200; setDOM(dom.t100_200, 't100_200', fmt3.format(data.t100_200 / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple"); }
-                if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(data.tQuarter / 1000)}s`, CLS_TIMER_BASE, "text-yellow-400 neon-warning"); }
+                if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', fmt3.format(data.tQuarter / 1000) + " s", CLS_TIMER_BASE, "text-yellow-400 neon-warning"); }
                 if (data.t100_0) { timer100_0.result = data.t100_0; setDOM(dom.t100_0, 't100_0', fmt1.format(data.t100_0) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger"); }
                 
                 evaluateAndRenderScore();
@@ -1008,10 +1044,10 @@
             imuLongGBias     = 0.0;
             imuLatGBias      = 0.0;
 
-            dom.calibrateBtn.textContent = "✔ TARE OK";
+            dom.calibrateLabel.textContent = "✔ TARE OK";
             dom.calibrateBtn.className = CLS_BTN_BASE + "btn-install neon-accent";
             setTimeout(() => {
-                dom.calibrateBtn.textContent = "⌖ TARE MOUNT";
+                dom.calibrateLabel.textContent = "TARE MOUNT";
                 dom.calibrateBtn.className   = CLS_BTN_BASE + "btn-tare neon-blue";
             }, 2000);
         });
@@ -1027,30 +1063,34 @@
 
         dom.exportBtn.addEventListener('click', () => {
             if (!telemetrySession.length) return;
-            const originalContent = dom.exportBtn.innerHTML;
-            dom.exportBtn.textContent = "⏳ EXPORTING...";
-            
+            // Toggle label spans instead of rewriting button content so the
+            // icon and the live log-count node survive the state swaps.
+            dom.exportIdle.hidden = true;
+            dom.exportBusy.textContent = "EXPORTING...";
+            dom.exportBusy.hidden = false;
+
             setTimeout(() => {
                 const vs = calculateVehicleScore();
                 const avgConfPct = confidenceSamples > 0 ? Math.round((confidenceSum / confidenceSamples) * 100) : 0;
                 const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(2)} km/h | MAX ACC: ${maxGpsAccelG.toFixed(2)} G | MAX BRAKING: ${bestGpsBrakingG.toFixed(2)} G | MAX LAT: ${maxGpsLatG.toFixed(2)} G | FUSION: ${imuFusionActive ? "IMU+GPS" : "GPS ONLY"} | AVG CONF: ${avgConfPct}% | GLITCHES FILTERED: ${gpsGlitchCount}\n`;
                 const header = "Timestamp(ms),Speed(kmh),Distance(m),LatG,LongG,Heading(deg),GPSAcc(m),Fusion\n";
                 const csv = metadata + header + telemetrySession.join("\n");
-                
+
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
-                
+
                 const a = document.createElement("a");
                 a.href     = url;
                 a.download = `VelocityLab_${Date.now()}.csv`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                
-                dom.exportBtn.textContent = "✔ COMPLETE";
+
+                dom.exportBusy.textContent = "✔ COMPLETE";
                 setTimeout(() => {
                     URL.revokeObjectURL(url);
-                    dom.exportBtn.innerHTML = originalContent;
+                    dom.exportBusy.hidden = true;
+                    dom.exportIdle.hidden = false;
                 }, 2000);
             }, 50);
         });
@@ -1155,6 +1195,36 @@
             setDOM(dom.vScoreHdl, 'vHdl', score.hdl);
         }
 
+        // ─── SUB-SAMPLE INTERPOLATION ─────────────────────────────────────────────
+        // Phone GNSS delivers fixes at 1-10 Hz, but sprint results quantised to
+        // whole fix intervals carry up to ±half-interval error (~±0.5 s at 1 Hz).
+        // Linear interpolation of the exact threshold-crossing instant between
+        // consecutive fixes recovers millisecond-class resolution — the same
+        // trick commercial drag-timing boxes use on top of modest hardware.
+        let lastTimerSpeedKmh = NaN;
+        let lastTimerDistM    = NaN;
+        let lastTimerTimeMs   = NaN;
+
+        // Fraction (0..1) of the way from the previous sample to the current one
+        // at which `value` crossed `threshold`; null when no clean crossing.
+        function crossFraction(prevVal, curVal, threshold) {
+            const dv = curVal - prevVal;
+            if (!isFinite(prevVal) || dv === 0) return null;
+            const f = (threshold - prevVal) / dv;
+            return (f > 0 && f < 1) ? f : null;
+        }
+
+        function lerp(a, b, f) { return a + (b - a) * f; }
+
+        // Launch moment: rewind from the first moving fix to where speed crossed
+        // the zero-snap threshold upward. Falls back to the fix timestamp when
+        // the previous sample wasn't a valid stopped observation.
+        function interpolatedLaunchMs(nowMs, speedKmh) {
+            if (!(speedKmh > SPEED_ZERO_SNAP_KMPH)) return nowMs;
+            const f = crossFraction(lastTimerSpeedKmh, speedKmh, SPEED_ZERO_SNAP_KMPH);
+            return f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f);
+        }
+
         function updateTimers(speedKmh, distanceM, nowMs) {
             const stopped = speedKmh <= SPEED_ZERO_SNAP_KMPH;
 
@@ -1166,10 +1236,12 @@
             if (stopped) {
                 if (timer0_60.state === T_RUNNING) timer0_60.state = T_IDLE;
             } else if (timer0_60.state === T_IDLE) {
-                timer0_60.state = T_RUNNING; timer0_60.start = nowMs;
+                timer0_60.state = T_RUNNING; timer0_60.start = interpolatedLaunchMs(nowMs, speedKmh);
                 setDOM(dom.t0_60, 't0_60', "--.--- s", CLS_TIMER_BASE, "text-orange-400");
             } else if (timer0_60.state === T_RUNNING && speedKmh >= MPH_60_IN_KMPH) {
-                timer0_60.result = nowMs - timer0_60.start; timer0_60.state = T_DONE;
+                const f = crossFraction(lastTimerSpeedKmh, speedKmh, MPH_60_IN_KMPH);
+                timer0_60.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timer0_60.start);
+                timer0_60.state = T_DONE;
                 setDOM(dom.t0_60, 't0_60', fmt3.format(timer0_60.result / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange");
                 stateDirty = true;
             }
@@ -1178,20 +1250,26 @@
             if (stopped) {
                 if (timer0_100.state === T_RUNNING) timer0_100.state = T_IDLE;
             } else if (timer0_100.state === T_IDLE) {
-                timer0_100.state = T_RUNNING; timer0_100.start = nowMs;
+                timer0_100.state = T_RUNNING; timer0_100.start = interpolatedLaunchMs(nowMs, speedKmh);
                 setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "clr-blue");
             } else if (timer0_100.state === T_RUNNING && speedKmh >= 100.0) {
-                timer0_100.result = nowMs - timer0_100.start; timer0_100.state = T_DONE;
+                const f = crossFraction(lastTimerSpeedKmh, speedKmh, 100.0);
+                timer0_100.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timer0_100.start);
+                timer0_100.state = T_DONE;
                 setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue");
                 stateDirty = true;
             }
 
             // ── 100-200 km/h (arms once vehicle reaches 100, finishes at 200) ──
             if (timer100_200.state === T_IDLE && speedKmh >= 100.0) {
-                timer100_200.state = T_RUNNING; timer100_200.start = nowMs;
+                timer100_200.state = T_RUNNING;
+                const f = crossFraction(lastTimerSpeedKmh, speedKmh, 100.0);
+                timer100_200.start = f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f);
                 setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "clr-purple");
             } else if (timer100_200.state === T_RUNNING && speedKmh >= 200.0) {
-                timer100_200.result = nowMs - timer100_200.start; timer100_200.state = T_DONE;
+                const f = crossFraction(lastTimerSpeedKmh, speedKmh, 200.0);
+                timer100_200.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timer100_200.start);
+                timer100_200.state = T_DONE;
                 setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple");
                 stateDirty = true;
             } else if (timer100_200.state === T_DONE && stopped) {
@@ -1203,13 +1281,14 @@
                 if (timerQuarter.state === T_RUNNING) timerQuarter.state = T_IDLE;
             } else if (timerQuarter.state === T_IDLE) {
                 timerQuarter.state = T_RUNNING;
-                timerQuarter.start = nowMs;
+                timerQuarter.start = interpolatedLaunchMs(nowMs, speedKmh);
                 timerQuarter.startDist = distanceM;
                 setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
             } else if (timerQuarter.state === T_RUNNING && (distanceM - timerQuarter.startDist) >= QUARTER_MILE_METERS) {
-                timerQuarter.result = Math.max(1, nowMs - timerQuarter.start);
+                const f = crossFraction(lastTimerDistM, distanceM, timerQuarter.startDist + QUARTER_MILE_METERS);
+                timerQuarter.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timerQuarter.start);
                 timerQuarter.state = T_DONE;
-                setDOM(dom.tQuarter, 'tQuarter', `${fmt3.format(timerQuarter.result / 1000)}s`, CLS_TIMER_BASE, "text-yellow-400 neon-warning");
+                setDOM(dom.tQuarter, 'tQuarter', fmt3.format(timerQuarter.result / 1000) + " s", CLS_TIMER_BASE, "text-yellow-400 neon-warning");
                 stateDirty = true;
             }
 
@@ -1218,12 +1297,21 @@
                 timer100_0.state = T_RUNNING; timer100_0.startDist = distanceM; timer100_0.start = nowMs;
                 setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
             } else if (timer100_0.state === T_RUNNING && stopped) {
-                timer100_0.result = distanceM - timer100_0.startDist; timer100_0.state = T_DONE;
+                // Rewind to the speed-snap crossing, then walk distance back to
+                // that instant along the segment between the last two fixes.
+                const f = crossFraction(lastTimerSpeedKmh, speedKmh, SPEED_ZERO_SNAP_KMPH);
+                const stopDistM = f === null ? distanceM : lerp(lastTimerDistM, distanceM, f);
+                timer100_0.result = Math.max(0, stopDistM - timer100_0.startDist);
+                timer100_0.state = T_DONE;
                 setDOM(dom.t100_0, 't100_0', fmt1.format(Math.max(0, timer100_0.result)) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger");
                 stateDirty = true;
             } else if (timer100_0.state === T_DONE && speedKmh >= 100.0) {
                 timer100_0.state = T_IDLE;
             }
+
+            lastTimerSpeedKmh = speedKmh;
+            lastTimerDistM    = distanceM;
+            lastTimerTimeMs   = nowMs;
         }
 
         function onPositionSuccess(position) {
@@ -1359,7 +1447,8 @@
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
             loadSession();
             const motionOk = await requestIOSMotion(); 
-            if ("geolocation" in navigator) navigator.geolocation.watchPosition(onPositionSuccess, onPositionError, { enableHighAccuracy: true });
+            if ("geolocation" in navigator) navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
             if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
             requestWakeLock();
             requestAnimationFrame(renderLoop);

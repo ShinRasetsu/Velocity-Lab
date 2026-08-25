@@ -178,6 +178,8 @@ function __resetTimers() {
     timer100_200.state = T_IDLE; timer100_200.start = 0; timer100_200.result = 0;
     timerQuarter.state = T_IDLE; timerQuarter.start = 0; timerQuarter.result = 0; timerQuarter.startDist = 0;
     timer100_0.state   = T_IDLE; timer100_0.start   = 0; timer100_0.startDist = 0; timer100_0.result   = 0;
+    // sub-sample interpolation state: cleared so scenarios are order-independent
+    lastTimerSpeedKmh  = NaN; lastTimerDistM = NaN; lastTimerTimeMs = NaN;
     stateDirty = false;
 }
 
@@ -187,14 +189,22 @@ updateTimers(0, 0, 1000);
 __ok('t0_100: stopped keeps IDLE',
     timer0_100.state === T_IDLE && timer0_100.result === 0,
     'state=' + timer0_100.state);
+
+// Launch is back-interpolated: speed crossed the zero-snap threshold (1.5)
+// 30% of the way between the stopped fix @1000ms and the 5 km/h fix @2000ms
+// => start = 1000 + 0.3*1000 = 1300 ms, not the raw fix timestamp 2000.
 updateTimers(5, 2, 2000);
-__ok('t0_100: launch arms RUNNING with start timestamp',
-    timer0_100.state === T_RUNNING && timer0_100.start === 2000,
+__ok('t0_100: launch arms RUNNING with interpolated start timestamp',
+    timer0_100.state === T_RUNNING && nearly(timer0_100.start, 1300, 1e-6),
     'state=' + timer0_100.state + ' start=' + timer0_100.start);
+
+// Finish likewise lands between fixes: 100 km/h crossed 95/99 of the way
+// from (5 @ 2000) to (104 @ 14500) => finish ~= 13994.949 ms.
+var __expFinish = 2000 + (14500 - 2000) * (100 - 5) / (104 - 5);
 updateTimers(104, 100, 14500);
-__ok('t0_100: cross threshold -> DONE with elapsed result',
-    timer0_100.state === T_DONE && timer0_100.result === 12500,
-    'state=' + timer0_100.state + ' result=' + timer0_100.result);
+__ok('t0_100: cross threshold -> DONE with interpolated elapsed',
+    timer0_100.state === T_DONE && nearly(timer0_100.result, __expFinish - 1300, 1e-6),
+    'state=' + timer0_100.state + ' result=' + timer0_100.result + ' expected=' + (__expFinish - 1300));
 
 // 0-100 abort: launch, stop mid-run -> IDLE without overwriting result
 __resetTimers();
@@ -207,11 +217,11 @@ __ok('t0_100: abort on stop returns IDLE without writing result',
 // 0-100: once DONE, stopping must NOT clear the result. (Documented behaviour:
 // a completed sprint keeps its value until RESET RUN clears it manually.)
 __resetTimers();
-updateTimers(5, 1, 1000);
-updateTimers(105, 80, 7000);
+updateTimers(5, 1, 1000);      // arms from rest (no prior sample) -> start = 1000
+updateTimers(105, 80, 7000);   // 100 crossed 95% of (5@1000 -> 105@7000): result ~= 5700
 updateTimers(0, 82, 15000);
 __ok('t0_100: completed result is preserved across a subsequent stop (DONE retained)',
-    timer0_100.state === T_DONE && timer0_100.result === 6000,
+    timer0_100.state === T_DONE && nearly(timer0_100.result, 5700, 1e-6),
     'state=' + timer0_100.state + ' result=' + timer0_100.result);
 
 // Note: as written, the 0-60/0-100 state machine does NOT auto-re-arm after a
@@ -234,24 +244,28 @@ __ok('t100_200: arms at >= 100 -> RUNNING, stays RUNNING at 150',
     timer100_200.state === T_RUNNING && timer100_200.start === 2000,
     'state=' + timer100_200.state);
 updateTimers(205, 200, 6000);
-__ok('t100_200: cross 200 -> DONE with elapsed',
-    timer100_200.state === T_DONE && timer100_200.result === 4000,
+// 200 crossed 50/55 of the way from (150 @ 3000) to (205 @ 6000)
+__ok('t100_200: cross 200 -> DONE with interpolated elapsed',
+    timer100_200.state === T_DONE && nearly(timer100_200.result, 3000 + 3000 * 50 / 55 - 2000, 1e-6),
     'state=' + timer100_200.state + ' result=' + timer100_200.result);
 
 // 1/4 mile: arms on launch, completes only when distance delta >= 402.336 m
 __resetTimers();
 updateTimers(5, 0, 1000);
 __ok('tQuarter: arm from rest sets start AND startDist',
-    timerQuarter.state === T_RUNNING && timerQuarter.start === 1000 && timerQuarter.startDist === 0,
-    'state=' + timerQuarter.state);
+    timerQuarter.state === T_RUNNING && nearly(timerQuarter.start, 1000, 1e-6) && timerQuarter.startDist === 0,
+    'state=' + timerQuarter.state + ' start=' + timerQuarter.start + ' startDist=' + timerQuarter.startDist);
 updateTimers(50, 300, 4000);
 __ok('tQuarter: distance < quarter mile -> still RUNNING',
     timerQuarter.state === T_RUNNING,
     'state=' + timerQuarter.state);
+// 402.336 m crossed 102.336/200 of the way from (300 m @ 4000) to (500 m @ 11000)
+// finish ~= 7581.76 ms minus the interpolated launch at 1000 ms
+var __expQ = (4000 + 7000 * (402.336 - 300) / 200) - 1000;
 updateTimers(120, 500, 11000);
-__ok('tQuarter: once distance delta >= 402.336 m -> DONE with elapsed',
-    timerQuarter.state === T_DONE && timerQuarter.result === 10000,
-    'state=' + timerQuarter.state + ' result=' + timerQuarter.result + ' delta=' + (500 - timerQuarter.startDist));
+__ok('tQuarter: once distance delta >= 402.336 m -> DONE with interpolated elapsed',
+    timerQuarter.state === T_DONE && nearly(timerQuarter.result, __expQ, 1e-6),
+    'state=' + timerQuarter.state + ' result=' + timerQuarter.result + ' expected=' + __expQ);
 
 // 100-0 braking: only arms at cruise >= 100, records distance traveled to stop
 __resetTimers();
@@ -263,10 +277,23 @@ updateTimers(110, 50, 2000);
 __ok('t100_0: cruise >= 100 arms RUNNING with startDist',
     timer100_0.state === T_RUNNING && timer100_0.startDist === 50 && timer100_0.start === 2000,
     'state=' + timer100_0.state + ' startDist=' + timer100_0.startDist);
+// Stop point rewinds to the speed-snap crossing (108.5/110 between fixes) and
+// walks distance back along the segment: ~414.95 m => braking dist ~= 364.95 m
+var __expBrake = (50 + 370 * (110 - SPEED_ZERO_SNAP_KMPH) / 110) - 50;
 updateTimers(0, 420, 30000);
-__ok('t100_0: stop -> DONE with positive braking distance',
-    timer100_0.state === T_DONE && timer100_0.result === 370,
-    'state=' + timer100_0.state + ' result=' + timer100_0.result);
+__ok('t100_0: stop -> DONE with interpolated positive braking distance',
+    timer100_0.state === T_DONE && nearly(timer100_0.result, __expBrake, 1e-6),
+    'state=' + timer100_0.state + ' result=' + timer100_0.result + ' expected=' + __expBrake);
+
+// Sub-sample precision sanity check: a launch+finish straddling three fixes
+// must land strictly between fix timestamps (old quantised code gave 2000 ms).
+__resetTimers();
+updateTimers(1, 0, 5000);     // stopped sample
+updateTimers(51, 5, 7000);    // launch rewound to t=5020; still running
+updateTimers(101, 40, 9000);  // finish rewound to t=8960
+__ok('interpolation: threshold crossings land between fixes (3940ms, not 2000ms)',
+    timer0_100.state === T_DONE && nearly(timer0_100.result, 3940, 1e-6),
+    'result=' + timer0_100.result);
 """
 
 
