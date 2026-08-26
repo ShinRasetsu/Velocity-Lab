@@ -572,7 +572,7 @@
         }
 
         @media (max-width: 760px) {
-            .tactical { grid-template-columns: 1fr 1fr; }
+            .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .score-card { grid-column: span 2; }
         }
 
@@ -647,21 +647,25 @@
             .side-lbl { font-size: 0.45rem; margin-bottom: 0.12rem; letter-spacing: 0.1em; }
             .g-bar { height: 0.26rem; margin-top: 0.25rem; }
 
-            /* tactical row: 3 cards equal height, 2-col grid */
-            .tactical { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 0.45rem; align-items: stretch; }
+            /* tactical row: shrinkable columns (plain 1fr = minmax(auto,1fr)
+               which lets wide card content push the shell past the screen) */
+            .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.45rem; align-items: stretch; }
             .t-card { 
                 padding: 0.5rem 0.55rem; gap: 0.35rem; 
                 display: flex; flex-direction: column; 
                 height: 100%; 
                 justify-content: center;
+                min-width: 0;
             }
             .g-card { 
                 flex: 1; display: flex; flex-direction: column; 
                 justify-content: center; align-items: center;
+                flex-wrap: wrap;
             }
-            .g-meter-dial { width: 4.2rem; height: 4.2rem; margin: 0 auto; flex-shrink: 0; }
-            .g-meter-dial::after { width: 2.9rem; height: 2.9rem; }
-            .g-nums { font-size: 0.55rem; gap: 0.2rem; margin-top: auto; text-align: center; }
+            .g-meter-dial { width: 3.8rem; height: 3.8rem; margin: 0 auto; flex-shrink: 0; }
+            .g-meter-dial::after { width: 2.6rem; height: 2.6rem; }
+            .g-nums { font-size: 0.52rem; gap: 0.2rem; margin-top: auto; text-align: center; min-width: 0; width: 100%; }
+            .g-nums div { gap: 0.5rem; }
             .run-card { 
                 display: flex; flex-direction: column; 
                 justify-content: center; align-items: center; text-align: center; 
@@ -675,7 +679,7 @@
 
 /* metric footer */
             .metric-group + .metric-group { margin-top: 0.45rem; }
-            .metric-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 1fr; gap: 0.35rem; }
+            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.35rem; }
             .metric-card { 
                 min-height: 3rem; 
                 padding: 0.4rem 0.5rem; 
