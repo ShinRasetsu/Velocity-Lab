@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Velocity-Lab Telemetry</title>
 
     <link rel="manifest" href="manifest.json">
@@ -580,7 +580,7 @@
         @media (max-width: 480px) {
             .stage {
                 grid-template-columns: 1fr;
-                --gauge: clamp(12rem, min(85vw, 18rem, calc(100svh - 40rem)), 18rem);
+                --gauge: clamp(12rem, min(80vw, 16rem, calc(100vh - 30rem)), 16rem);
             }
             .gauge-wrap { grid-column: span 1; }
             .side-col { order: 2; }
