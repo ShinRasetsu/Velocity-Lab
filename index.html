@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
 
     <link rel="manifest" href="manifest.json">
@@ -558,48 +558,68 @@
             .score-card { grid-column: span 2; }
         }
 
+        /* ── mobile portrait: compact stack, scrollable, touch-friendly ──── */
+        /* The HUD is denser than a phone viewport, so the shell scrolls.
+           body ships with overflow:hidden + touch-action:none (anti-bounce
+           for desktop); both are relaxed here or nothing below the gauge
+           would ever be reachable. */
         @media (max-width: 640px) {
+            body.overflow-hidden {
+                overflow-y: auto;
+                overflow-x: hidden;
+                touch-action: pan-y;
+                -webkit-overflow-scrolling: touch;
+            }
+            .scanlines { opacity: 0.3; }
+            .dashboard-shell { gap: 0.5rem; }
+
+            /* command bar: centred single column, one-row action rail */
+            .cmd-bar { grid-template-columns: 1fr; gap: 0.45rem; padding: 0.5rem 0.6rem; }
+            .cmd-brand { align-items: center; }
+            .brand-row { justify-content: center; font-size: 0.7rem; gap: 0.4rem; }
+            .brand-mark { width: 1.4rem; height: 1.4rem; font-size: 0.55rem; }
+            .brand-subtitle { display: none; }
+            .action-rail { justify-content: center; margin-top: 0.3rem; gap: 0.35rem; }
+            .action-rail button { min-height: 2rem; padding: 0.32rem 0.7rem; font-size: 0.55rem; }
+            #export-group { max-width: none; }
+            .cmd-status { align-items: center; }
+            #status-indicator { font-size: 0.8rem; white-space: normal; }
+            .cmd-status-sub { justify-content: center; font-size: 0.55rem; gap: 0.7rem; }
+            .cmd-sys { flex-direction: row; justify-content: center; align-items: center; gap: 1.1rem; font-size: 0.55rem; }
+
+            /* stage: gauge full-width, side data as two compact cell grids */
             .stage {
                 grid-template-columns: 1fr 1fr;
-                --gauge: clamp(9rem, min(62vw, 15rem, calc(100svh - 36rem)), 15rem);
+                gap: 0.55rem;
+                --gauge: clamp(10rem, min(58vw, 13.5rem), 13.5rem);
+                flex: none;
             }
             .gauge-wrap { grid-column: span 2; }
-            .cmd-bar { grid-template-columns: 1fr auto; gap: 0.5rem; padding: 0.5rem 0.6rem; }
-            .cmd-sys { grid-column: span 2; flex-direction: row; justify-content: center; gap: 1rem; }
-            .brand-subtitle { display: none; }
-            .brand-row { font-size: 0.62rem; }
-            .brand-mark { width: 1.3rem; height: 1.3rem; font-size: 0.5rem; }
-            #status-indicator { font-size: 0.72rem; }
-            .cmd-status-sub { font-size: 0.52rem; gap: 0.5rem; }
-            .cmd-sys { font-size: 0.52rem; }
-            .action-rail { gap: 0.35rem; }
-            .action-rail button { min-height: 1.8rem; padding: 0.3rem 0.6rem; font-size: 0.52rem; }
-            #export-group { flex-wrap: wrap; justify-content: center; max-width: 10.5rem; }
-            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.metric-card { min-height: 3.4rem; }
-        @media (max-width: 480px) {
-            .stage {
-                grid-template-columns: 1fr;
-                --gauge: clamp(12rem, min(80vw, 16rem, calc(100vh - 30rem)), 16rem);
-            }
-            .gauge-wrap { grid-column: span 1; }
-            .side-col { order: 2; }
-            .tactical { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
-            .t-card { grid-column: span 1; grid-row: auto; }
-            .score-card { grid-column: span 1; }
-            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .metric-card { min-height: 3rem; }
-            .cmd-bar { grid-template-columns: 1fr; gap: 0.3rem; padding: 0.3rem; }
-            .cmd-brand { flex-direction: column; align-items: center; text-align: center; }
-            .cmd-status, .cmd-sys { flex-direction: column; align-items: center; gap: 0.3rem; }
-            .cmd-sys span { flex-direction: column; gap: 0.2rem; }
-            .action-rail { flex-direction: column; align-items: center; gap: 0.2rem; }
-            .action-rail button { min-height: 1.6rem; padding: 0.2rem 0.4rem; font-size: 0.45rem; }
-            #export-group { flex-wrap: wrap; justify-content: center; max-width: none; }
-            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .metric-card { min-height: 3rem; }
-            .hazard-strip { flex-direction: column; gap: 0.5rem; padding: 0.2rem 0; }
-            .hazard-right { display: block; margin-top: 0.2rem; }
+            .speed-track { width: 100%; margin-top: 0.55rem; }
+            .side-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+            .side-cell { padding: 0.32rem 0.45rem; }
+            .side-val { font-size: 0.85rem; }
+            .side-lbl { font-size: 0.48rem; margin-bottom: 0.1rem; }
+            .g-bar { height: 0.26rem; margin-top: 0.22rem; }
+
+            /* tactical row: dial + live run side by side, score full width */
+            .tactical { grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+            .t-card { padding: 0.5rem 0.55rem; gap: 0.35rem; }
+            .g-meter-dial { width: 4.2rem; height: 4.2rem; }
+            .g-meter-dial::after { width: 2.9rem; height: 2.9rem; }
+            .g-nums { font-size: 0.55rem; gap: 0.2rem; }
+            .run-time { font-size: 1.35rem; }
+            .run-name { font-size: 0.7rem; }
+            .run-hint { display: none; }
+            .score-card { grid-column: span 2; }
+            .score-total { font-size: 1.4rem; }
+
+            /* metric footer */
+            .metric-group + .metric-group { margin-top: 0.45rem; }
+            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+            .metric-card { min-height: 3rem; padding: 0.4rem 0.5rem; }
+            .timer-lbl { font-size: 0.95rem; }
+            .hazard-strip { font-size: 0.48rem; letter-spacing: 0.12em; }
         }
 
         @media (max-height: 620px) {
@@ -1580,7 +1600,7 @@
             window.alert("Data purged. Dashboard reset to initial state.");
         }
 
-        function updateLiveSprint(el, key, t, now) {
+        function renderLoop() {
             const now = performance.now();
             const dt  = now - lastRenderTime;
             const gnssStale = (now - lastGpsTime) > GPS_STALE_MS;
