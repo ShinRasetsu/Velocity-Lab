@@ -589,7 +589,18 @@
                 -webkit-overflow-scrolling: touch;
             }
             .scanlines { opacity: 0.3; }
-            .dashboard-shell { gap: 0.5rem; }
+            /* Some Android devices report an inflated LEFT safe-area inset in
+               portrait (camera-cutout quirk) which shoves the whole HUD right.
+               Horizontal insets are meaningless in portrait — pin them; the
+               vertical insets (notch/home-bar) from the base rule stay. */
+            .dashboard-shell,
+            #ios-gate {
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+            /* belt & braces: nothing may extend past the screen */
+            html, body { max-width: 100%; }
+            .dashboard-shell { gap: 0.5rem; overflow-x: clip; }
 
             /* command bar: centred single column, one-row action rail */
             .cmd-bar { grid-template-columns: 1fr; gap: 0.45rem; padding: 0.5rem 0.6rem; }
