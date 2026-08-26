@@ -629,7 +629,16 @@
                 grid-template-columns: repeat(3, minmax(0, 1fr));
                 gap: 0.45rem;
             }
-            .side-cell { padding: 0.38rem 0.4rem; text-align: center; }
+            .side-cell {
+                padding: 0.38rem 0.4rem;
+                text-align: center;
+                /* symmetric card on mobile: top accent instead of left,
+                   no one-sided corner cut — everything reads centred */
+                border-left: 1px solid var(--line);
+                border-top: 2px solid rgba(0,255,136,0.45);
+                clip-path: none;
+            }
+            .side-col:last-of-type .side-cell { border-top-color: rgba(0,191,255,0.45); }
             .side-val { font-size: 0.88rem; }
             .side-lbl { font-size: 0.45rem; margin-bottom: 0.12rem; letter-spacing: 0.1em; }
             .g-bar { height: 0.26rem; margin-top: 0.25rem; }
