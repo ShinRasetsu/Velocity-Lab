@@ -601,20 +601,26 @@
             .cmd-status-sub { justify-content: center; font-size: 0.55rem; gap: 0.7rem; }
             .cmd-sys { flex-direction: row; justify-content: center; align-items: center; gap: 1.1rem; font-size: 0.55rem; }
 
-            /* stage: gauge full-width, side data as two compact cell grids */
+            /* stage: gauge hero first, then ONE balanced 2-col data grid.
+               Both .side-col wrappers dissolve (display:contents) so all
+               seven cells flow into a single even 2-column grid — no
+               ragged widths, no orphaned cell: LATERAL closes the final
+               row across the full width. */
             .stage {
-                grid-template-columns: 1fr 1fr;
-                gap: 0.55rem;
-                --gauge: clamp(10rem, min(58vw, 13.5rem), 13.5rem);
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.45rem;
+                --gauge: clamp(11rem, min(72vw, 15rem), 15rem);
                 flex: none;
             }
-            .gauge-wrap { grid-column: span 2; }
+            .gauge-wrap { order: -1; grid-column: 1 / -1; }
             .speed-track { width: 100%; margin-top: 0.55rem; }
-            .side-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
-            .side-cell { padding: 0.32rem 0.45rem; }
-            .side-val { font-size: 0.85rem; }
-            .side-lbl { font-size: 0.48rem; margin-bottom: 0.1rem; }
-            .g-bar { height: 0.26rem; margin-top: 0.22rem; }
+            .side-col { display: contents; }
+            .side-cell { padding: 0.38rem 0.5rem; text-align: center; }
+            .side-val { font-size: 0.9rem; }
+            .side-lbl { font-size: 0.48rem; margin-bottom: 0.12rem; }
+            .g-bar { height: 0.26rem; margin-top: 0.25rem; }
+            /* LATERAL (last cell of the G-load column) spans the full row */
+            .side-col:last-of-type .side-cell:last-child { grid-column: 1 / -1; }
 
             /* tactical row: 3 cards equal height, 2-col grid */
             .tactical { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 0.45rem; align-items: stretch; }
