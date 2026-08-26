@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'velocity-lab-v1.4.0';
+const CACHE_VERSION = 'velocity-lab-v1.4.1';
 
 const APP_SHELL_CACHE = `shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE   = `runtime-${CACHE_VERSION}`;
@@ -73,16 +73,20 @@ self.addEventListener('fetch', event => {
 // ─────────────────────────────────────────────
 
 async function appShellStrategy(req) {
-    const cached = await caches.match(req);
-    const networkPromise = fetch(req).then(res => {
+    // NETWORK-FIRST: always prefer fresh shell so deploys apply on the next
+    // load; the cache is only a fallback for offline use.
+    try {
+        const res = await fetch(req);
         if (res && res.status === 200) {
             const copy = res.clone();
             caches.open(APP_SHELL_CACHE).then(c => c.put(req, copy));
         }
         return res;
-    }).catch(() => null);
-
-    return cached || networkPromise;
+    } catch {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        return new Response('Offline', { status: 503, statusText: 'Offline' });
+    }
 }
 
 async function cacheFirst(req) {
