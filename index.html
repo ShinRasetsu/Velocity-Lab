@@ -519,6 +519,18 @@
             clip-path: polygon(0 0, calc(100% - 0.55rem) 0, 100% 0.55rem, 100% 100%, 0.55rem 100%, 0 calc(100% - 0.55rem));
             align-items: center; /* center content horizontally */
             text-align: center;
+            /* ensure inner content centers perfectly */
+            box-sizing: border-box;
+        }
+        .metric-card > span {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .metric-caption {
+            width: 100%;
+            text-align: center;
         }
         .metric-card::before { content: none; }
         .accent-orange { border-top-color: #fb923c; }
@@ -605,23 +617,34 @@
             .g-bar { height: 0.26rem; margin-top: 0.22rem; }
 
             /* tactical row: 3 cards equal height, 2-col grid */
-            .tactical { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 0.45rem; }
-            .t-card { padding: 0.5rem 0.55rem; gap: 0.35rem; display: flex; flex-direction: column; }
-            .g-card { flex: 1; display: flex; flex-direction: column; }
+            .tactical { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 0.45rem; align-items: stretch; }
+            .t-card { 
+                padding: 0.5rem 0.55rem; gap: 0.35rem; 
+                display: flex; flex-direction: column; 
+                height: 100%; 
+                justify-content: center;
+            }
+            .g-card { 
+                flex: 1; display: flex; flex-direction: column; 
+                justify-content: center; align-items: center;
+            }
             .g-meter-dial { width: 4.2rem; height: 4.2rem; margin: 0 auto; flex-shrink: 0; }
             .g-meter-dial::after { width: 2.9rem; height: 2.9rem; }
-            .g-nums { font-size: 0.55rem; gap: 0.2rem; margin-top: auto; }
-            .run-card { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+            .g-nums { font-size: 0.55rem; gap: 0.2rem; margin-top: auto; text-align: center; }
+            .run-card { 
+                display: flex; flex-direction: column; 
+                justify-content: center; align-items: center; text-align: center; 
+            }
             .run-time { font-size: 1.35rem; }
             .run-name { font-size: 0.7rem; }
             .run-hint { display: none; }
-            .score-card { grid-column: span 2; display: flex; flex-direction: column; }
+            .score-card { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; }
             .score-total { font-size: 1.4rem; }
             .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; justify-content: center; }
 
-            /* metric footer */
+/* metric footer */
             .metric-group + .metric-group { margin-top: 0.45rem; }
-            .metric-grid { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+            .metric-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 1fr; gap: 0.35rem; }
             .metric-card { 
                 min-height: 3rem; 
                 padding: 0.4rem 0.5rem; 
@@ -630,7 +653,10 @@
                 justify-content: center; 
                 align-items: center;
                 gap: 0.15rem;
+                box-sizing: border-box;
             }
+            .metric-card > * { width: 100%; display: flex; justify-content: center; align-items: center; }
+            .metric-caption { text-align: center; }
             .timer-lbl { font-size: 0.95rem; }
             .hazard-strip { font-size: 0.48rem; letter-spacing: 0.12em; }
         }
