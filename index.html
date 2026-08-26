@@ -1539,8 +1539,13 @@
         }
 
         function purgeData() {
-            // Reset all sprint timers
-            __resetTimers();
+            // Reset all sprint timers manually (no __resetTimers in runtime)
+            [timer0_60, timer0_100, timer100_200, timerQuarter, timer100_0].forEach(t => {
+                t.state = T_IDLE;
+                t.start = 0;
+                t.result = 0;
+                t.startDist = 0;
+            });
             // Clear all telemetry
             telemetrySession = [];
             prev.logCount = 0;
