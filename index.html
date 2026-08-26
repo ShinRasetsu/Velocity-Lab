@@ -577,6 +577,30 @@
             #export-group { flex-wrap: wrap; justify-content: center; max-width: 10.5rem; }
             .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .metric-card { min-height: 3.4rem; }
+        @media (max-width: 480px) {
+            .stage {
+                grid-template-columns: 1fr;
+                --gauge: clamp(12rem, min(85vw, 18rem, calc(100svh - 40rem)), 18rem);
+            }
+            .gauge-wrap { grid-column: span 1; }
+            .side-col { order: 2; }
+            .tactical { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+            .t-card { grid-column: span 1; grid-row: auto; }
+            .score-card { grid-column: span 1; }
+            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .metric-card { min-height: 3rem; }
+            .cmd-bar { grid-template-columns: 1fr; gap: 0.3rem; padding: 0.3rem; }
+            .cmd-brand { flex-direction: column; align-items: center; text-align: center; }
+            .cmd-status, .cmd-sys { flex-direction: column; align-items: center; gap: 0.3rem; }
+            .cmd-sys span { flex-direction: column; gap: 0.2rem; }
+            .action-rail { flex-direction: column; align-items: center; gap: 0.2rem; }
+            .action-rail button { min-height: 1.6rem; padding: 0.2rem 0.4rem; font-size: 0.45rem; }
+            #export-group { flex-wrap: wrap; justify-content: center; max-width: none; }
+            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .metric-card { min-height: 3rem; }
+            .hazard-strip { flex-direction: column; gap: 0.5rem; padding: 0.2rem 0; }
+            .hazard-right { display: block; margin-top: 0.2rem; }
+        }
         }
 
         @media (max-height: 620px) {
@@ -652,9 +676,10 @@
             </span>
         </div>
 
-        <div class="cmd-sys" aria-live="polite">
+<div class="cmd-sys" aria-live="polite">
             <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
+            <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
         </div>
     </header>
 
@@ -1513,7 +1538,45 @@
             }
         }
 
-        function renderLoop() {
+        function purgeData() {
+            // Reset all sprint timers
+            __resetTimers();
+            // Clear all telemetry
+            telemetrySession = [];
+            prev.logCount = 0;
+            dom.logCount.textContent = "0";
+            exportBtnShown = false;
+            dom.exportGroup.style.display = 'none';
+            // Reset G-meter peaks
+            maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
+            // Reset session clock
+            sessionStartMs = -1;
+            if (dom.sessionTime) dom.sessionTime.textContent = "00:00";
+            // Reset distance
+            distanceMeters = 0;
+            if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
+            // Reset sample counter
+            if (dom.sampleCount) dom.sampleCount.textContent = "0";
+            // Reset G bars
+            if (dom.accelFill) dom.accelFill.style.width = "0%";
+            if (dom.brakeFill) dom.brakeFill.style.width = "0%";
+            if (dom.latFill) dom.latFill.style.width = "0%";
+            // Reset live sprint texts
+            updateLiveSprint(dom.t0_60, 'live0_60', timer0_60, performance.now());
+            updateLiveSprint(dom.t0_100, 'live0_100', timer0_100, performance.now());
+            updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, performance.now());
+            updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, performance.now());
+            updateLiveBrake();
+            // Reset live-run card
+            if (dom.liveRunName) dom.liveRunName.textContent = "STANDBY";
+            if (dom.liveRunTime) dom.liveRunTime.textContent = "--.---";
+            // Reset V-score
+            evaluateAndRenderScore();
+            // Visual feedback
+            window.alert("Data purged. Dashboard reset to initial state.");
+        }
+
+        function updateLiveSprint(el, key, t, now) {
             const now = performance.now();
             const dt  = now - lastRenderTime;
             const gnssStale = (now - lastGpsTime) > GPS_STALE_MS;
