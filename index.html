@@ -17,41 +17,40 @@
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 
     <style>
-        /* ─── Tailwind-replacement utility layer (used in markup) ───────────── */
+        /* ═══ VELOCITY-LAB GUNDAM HUD DESIGN SYSTEM ══════════════════════════ */
+
+        /* ── utility layer (markup + JS-applied classes) ─────────────────── */
         .flex { display: flex; }
-        .flex-col { flex-direction: column; }
         .grid { display: grid; }
-        .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .items-center { align-items: center; }
-        .justify-center { justify-content: center; }
         .justify-between { justify-content: space-between; }
-        .text-center { text-align: center; }
         .uppercase { text-transform: uppercase; }
         .overflow-hidden { overflow: hidden; }
         .gap-1 { gap: 0.25rem; }
         .gap-1\.5 { gap: 0.375rem; }
-        .gap-2 { gap: 0.5rem; }
-        .gap-6 { gap: 1.5rem; }
         .mb-1 { margin-bottom: 0.25rem; }
-        .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
-        .px-8 { padding-left: 2rem; padding-right: 2rem; }
-        .leading-relaxed { line-height: 1.625; }
         .font-bold { font-weight: 700; }
         .font-extrabold { font-weight: 800; }
-        .text-xs { font-size: 0.75rem; }
         .text-sm { font-size: 0.875rem; }
-        .text-2xl { font-size: 1.5rem; }
         .tracking-wider { letter-spacing: 0.05em; }
         .tracking-widest { letter-spacing: 0.1em; }
+        .col-span-2 { grid-column: span 2 / span 2; }
+        .text-center { text-align: center; }
 
-        /* buttons (utility class combos used in markup) */
         button { cursor: pointer; background: transparent; border-style: solid; color: inherit; }
-        .action-btn { display: inline-flex; align-items: center; padding: 0.3rem 0.9rem; border-radius: 999px; border-width: 1px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; transition: background-color 100ms linear, border-color 100ms linear, transform 60ms linear; }
+        .action-btn {
+            display: inline-flex; align-items: center;
+            padding: 0.32rem 0.85rem;
+            border-width: 1px; border-radius: 0;
+            font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+            clip-path: polygon(0 0, calc(100% - 0.5rem) 0, 100% 50%, calc(100% - 0.5rem) 100%, 0 100%, 0.5rem 50%);
+            transition: background-color 100ms linear, color 100ms linear, transform 60ms linear;
+        }
         .action-btn svg { width: 0.85rem; height: 0.85rem; flex: none; }
         .action-btn:active { transform: translateY(1px); }
         .action-btn:focus-visible { outline: 1px solid var(--green); outline-offset: 2px; }
 
-        /* neon / colour utilities */
+        /* colour utilities (JS applies these at runtime — keep names stable) */
         .text-gray-400 { color: #9ca3af; }
         .text-gray-500 { color: #6b7280; }
         .text-gray-600 { color: #4b5563; }
@@ -63,39 +62,333 @@
         .text-yellow-400 { color: #facc15; }
         .text-yellow-500 { color: #eab308; }
         .text-green-500 { color: #22c55e; }
-        .clr-green  { color: #00ff88; }
-        .clr-blue   { color: #00bfff; }
-        .clr-purple { color: #bb86fc; }
+        .clr-green  { color: var(--green); }
+        .clr-blue   { color: var(--cyan); }
+        .clr-purple { color: var(--purple); }
 
-        /* semantic action buttons (paired with .action-btn from above) */
-        .btn-tare { color: #00bfff; border-color: rgba(0,191,255,0.5); background: rgba(0,191,255,0.10); }
+        /* semantic buttons */
+        .btn-tare { color: var(--cyan); border-color: rgba(0,191,255,0.5); background: rgba(0,191,255,0.10); }
         .btn-tare:hover  { background: rgba(0,191,255,0.20); }
         .btn-tare:active { background: rgba(0,191,255,0.40); }
         .btn-reset { color: #facc15; border-color: rgba(250,204,21,0.5); background: rgba(250,204,21,0.10); }
         .btn-reset:hover  { background: rgba(250,204,21,0.20); }
         .btn-reset:active { background: rgba(250,204,21,0.40); }
-        .btn-install { color: #00ff88; border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); }
+        .btn-install { color: var(--green); border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); }
         .btn-install:hover  { background: rgba(0,255,136,0.20); }
         .btn-install:active { background: rgba(0,255,136,0.40); }
-        .btn-csv { color: #bb86fc; border-color: rgba(187,134,252,0.5); background: rgba(187,134,252,0.10); }
+        .btn-csv { color: var(--purple); border-color: rgba(187,134,252,0.5); background: rgba(187,134,252,0.10); }
         .btn-csv:hover  { background: rgba(187,134,252,0.20); }
         .btn-csv:active { background: rgba(187,134,252,0.40); }
         .btn-clear { color: #f87171; border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.10); padding: 0.25rem 0.5rem; }
         .btn-clear:hover  { background: rgba(239,68,68,0.20); }
         .btn-clear:active { background: rgba(239,68,68,0.40); }
-        .btn-ios-grant { color: #00ff88; border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); padding: 0.75rem 1.5rem; font-size: 0.875rem; }
+        .btn-ios-grant { color: var(--green); border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); padding: 0.75rem 1.5rem; font-size: 0.8rem; }
         .btn-ios-grant:hover { background: rgba(0,255,136,0.20); }
 
-        /* timer/score base classes (used by JS via CLS_TIMER_BASE) */
-        .timer-lbl { font-size: 1.125rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+        /* text roles driven from JS */
+        .lcd-text { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+        .timer-lbl { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; }
         .timer-mini { font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
         .tile-lbl { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        .tile-lbl-clr { font-size: 0.65rem; }
-        .score-total { font-size: 1.6rem; font-weight: 800; }
-        .score-rdout { font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .metric-caption { font-size: 0.6rem; }
+        .score-total { font-size: 1.7rem; font-weight: 800; line-height: 1; }
+        .score-rdout { font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .metric-caption { font-size: 0.58rem; }
 
-        /* speed bar fill (gradient shifts with velocity: green -> amber -> red) */
+        .neon-accent { text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .neon-warning { text-shadow: 0 0 10px rgba(255,170,0,0.5); }
+        .neon-danger { text-shadow: 0 0 10px rgba(255,51,102,0.5); }
+        .neon-blue { text-shadow: 0 0 10px rgba(0,191,255,0.5); }
+        .neon-purple { text-shadow: 0 0 10px rgba(187,134,252,0.5); }
+        .neon-orange { text-shadow: 0 0 10px rgba(251,146,60,0.5); }
+
+        .spd-green { color: var(--green); text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .spd-yellow { color: var(--amber); text-shadow: 0 0 10px rgba(255,170,0,0.5); }
+        .spd-green, .spd-yellow { transition: color 120ms linear; }
+
+        /* ── base / atmosphere ───────────────────────────────────────────── */
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+
+        :root {
+            --line: rgba(148,163,184,0.16);
+            --line-strong: rgba(148,163,184,0.30);
+            --green: #00ff88;
+            --amber: #ffaa00;
+            --red: #ff3366;
+            --cyan: #00bfff;
+            --purple: #bb86fc;
+            --panel: linear-gradient(180deg, rgba(10,15,24,0.88), rgba(4,7,12,0.92));
+        }
+
+        body {
+            margin: 0;
+            font-family: 'JetBrains Mono', monospace;
+            background:
+                radial-gradient(1100px 700px at 50% -12%, rgba(0,255,136,0.05), transparent 62%),
+                radial-gradient(900px 650px at 88% 112%, rgba(0,191,255,0.055), transparent 60%),
+                radial-gradient(700px 500px at 6% 100%, rgba(187,134,252,0.045), transparent 60%),
+                linear-gradient(180deg, #08090c 0%, #030406 50%, #07090d 100%);
+            color: #ffffff;
+            overscroll-behavior: none;
+            user-select: none;
+            touch-action: none;
+        }
+
+        /* CRT scanlines over the whole cockpit */
+        .scanlines {
+            position: fixed; inset: 0; z-index: 9990;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg, rgba(255,255,255,0.028) 0 1px, transparent 1px 3px);
+            opacity: 0.5;
+        }
+
+        /* mecha panel: hairline border + glowing corner brackets */
+        .panel { position: relative; background: var(--panel); border: 1px solid var(--line); }
+        .panel::before, .panel::after {
+            content: "";
+            position: absolute; width: 0.7rem; height: 0.7rem;
+            border-color: rgba(0,255,136,0.6); border-style: solid;
+            pointer-events: none;
+        }
+        .panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .panel::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+        /* amber section tag, e.g. "計測中 // LIVE RUN" */
+        .t-lbl {
+            display: flex; align-items: center; gap: 0.4rem;
+            font-size: 0.55rem; font-weight: 800; letter-spacing: 0.18em;
+            text-transform: uppercase; color: var(--amber);
+        }
+        .t-lbl::before {
+            content: "";
+            width: 0.55rem; height: 0.55rem; flex: none;
+            background: var(--amber);
+            clip-path: polygon(0 0, 100% 50%, 0 100%);
+        }
+
+        /* ── shell ───────────────────────────────────────────────────────── */
+        .dashboard-shell {
+            width: min(100%, 78rem);
+            min-height: 100svh;
+            margin: 0 auto;
+            padding: calc(0.6rem + env(safe-area-inset-top)) calc(0.9rem + env(safe-area-inset-right)) calc(0.6rem + env(safe-area-inset-bottom)) calc(0.9rem + env(safe-area-inset-left));
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── iOS gate ────────────────────────────────────────────────────── */
+        #ios-gate {
+            position: fixed; inset: 0; background: #050505;
+            z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 1.5rem;
+            padding: calc(1.5rem + env(safe-area-inset-top)) calc(1.5rem + env(safe-area-inset-right)) calc(1.5rem + env(safe-area-inset-bottom)) calc(1.5rem + env(safe-area-inset-left));
+            text-align: center;
+        }
+        .gate-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.25em; }
+        .gate-sub { color: #9ca3af; font-size: 0.75rem; max-width: 26rem; line-height: 1.625; }
+
+        /* ── command bar ─────────────────────────────────────────────────── */
+        .cmd-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            align-items: center;
+            gap: 1rem;
+            padding: 0.55rem 0.9rem;
+        }
+        .cmd-bar::after { display: none; } /* single bracket pair is enough here */
+
+        .brand-row {
+            display: flex; align-items: center; gap: 0.5rem;
+            color: var(--green); font-size: 0.85rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.08em;
+        }
+        .brand-mark {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.7rem; height: 1.7rem;
+            border: 1px solid rgba(0,255,136,0.45);
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.35rem), calc(100% - 0.35rem) 100%, 0 100%);
+            background: rgba(0,255,136,0.1);
+            font-size: 0.62rem;
+        }
+        .brand-subtitle {
+            display: block; margin-top: 0.15rem;
+            color: rgba(148,163,184,0.6); font-size: 0.52rem; font-weight: 700;
+            letter-spacing: 0.2em; text-transform: uppercase;
+        }
+
+        .action-rail {
+            display: flex; flex-direction: row; flex-wrap: wrap;
+            align-items: center; gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+        .action-rail button {
+            min-height: 1.9rem;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 14px rgba(0,0,0,0.3);
+        }
+
+        .cmd-status { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 0; }
+        #status-indicator {
+            font-size: 0.95rem; font-weight: 800; letter-spacing: 0.12em;
+            white-space: nowrap;
+        }
+        .cmd-status-sub { display: flex; gap: 0.9rem; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; color: #6b7280; text-transform: uppercase; }
+
+        .cmd-sys { display: flex; flex-direction: column; align-items: flex-end; gap: 0.2rem; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+        .cmd-sys span { display: inline-flex; align-items: center; gap: 0.45rem; }
+        .cmd-sys span::before {
+            content: ""; width: 0.38rem; height: 0.38rem; border-radius: 999px;
+            background: currentColor; box-shadow: 0 0 7px currentColor; flex: none;
+        }
+
+        /* ── GNSS loss banner ────────────────────────────────────────────── */
+        .gnss-alert {
+            display: none;
+            align-items: center; justify-content: center; gap: 0.6rem;
+            padding: 0.3rem 0.75rem;
+            border: 1px solid rgba(255,51,102,0.55);
+            background: repeating-linear-gradient(45deg, rgba(255,51,102,0.16) 0 10px, rgba(10,4,8,0.6) 10px 20px);
+            color: #ff6699; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+        }
+        .gnss-alert.active { display: flex; animation: alert-blink 0.9s steps(2, jump-none) infinite; }
+        @keyframes alert-blink { 50% { filter: brightness(1.6); } }
+
+        /* ── main stage: side columns flanking the gauge ─────────────────── */
+        .stage {
+            display: grid;
+            grid-template-columns: minmax(7.5rem, 1fr) auto minmax(7.5rem, 1fr);
+            align-items: center;
+            gap: 0.8rem;
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            --gauge: clamp(8rem, min(46vw, 21rem, calc(100svh - 33rem)), 21rem);
+        }
+
+        .side-col {
+            display: flex; flex-direction: column; gap: 0.45rem;
+            min-width: 0;
+        }
+        .side-cell {
+            padding: 0.4rem 0.55rem;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-left: 2px solid rgba(0,255,136,0.35);
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.45rem), calc(100% - 0.45rem) 100%, 0 100%);
+        }
+        .side-lbl {
+            display: block; font-size: 0.5rem; font-weight: 800;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;
+            margin-bottom: 0.15rem;
+        }
+        .side-val { display: block; font-size: 0.95rem; font-weight: 800; }
+
+        /* live G bars (accel / brake / lateral) */
+        .g-bar {
+            margin-top: 0.3rem; height: 0.32rem;
+            background: rgba(148,163,184,0.12);
+            border: 1px solid rgba(148,163,184,0.15);
+            overflow: hidden;
+        }
+        .g-bar-fill { height: 100%; width: 0; will-change: width; }
+        .g-bar-fill.accel { background: linear-gradient(90deg, #00ff88, #a3ffc9); box-shadow: 0 0 8px rgba(0,255,136,0.5); }
+        .g-bar-fill.brake { background: linear-gradient(90deg, #ff3366, #ff8aa8); box-shadow: 0 0 8px rgba(255,51,102,0.5); }
+        .g-bar-fill.lat   { background: linear-gradient(90deg, #00bfff, #8adfff); box-shadow: 0 0 8px rgba(0,191,255,0.5); }
+
+        /* ── circular gauge cluster ──────────────────────────────────────── */
+        .gauge-wrap { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+
+        .speed-gauge {
+            width: var(--gauge);
+            font-size: var(--gauge);
+            aspect-ratio: 1;
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* tick ring: fine marks every 6deg, heavy marks every 30deg */
+        .gauge-ticks {
+            position: absolute; inset: 0; border-radius: 50%;
+            background:
+                repeating-conic-gradient(from -90deg, rgba(148,163,184,0.4) 0deg 0.4deg, transparent 0.4deg 6deg),
+                repeating-conic-gradient(from -90deg, rgba(148,163,184,0.65) 0deg 0.8deg, transparent 0.8deg 30deg);
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.075em), #000 calc(100% - 0.068em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.075em), #000 calc(100% - 0.068em));
+        }
+
+        /* swept value ring: JS sets --deg (0..360) */
+        #speed-ring {
+            position: absolute; inset: 0; border-radius: 50%;
+            background: conic-gradient(from -90deg, var(--green) calc(var(--deg, 0deg)), rgba(148,163,184,0.08) 0deg);
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
+            filter: drop-shadow(0 0 0.022em rgba(0,255,136,0.4));
+        }
+
+        /* redline arc: top 15% of the scale */
+        .gauge-redline {
+            position: absolute; inset: 0; border-radius: 50%;
+            background: conic-gradient(from -90deg, transparent calc(306deg), rgba(255,51,102,0.75) 0deg);
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.055em), #000 calc(100% - 0.048em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.055em), #000 calc(100% - 0.048em));
+            filter: drop-shadow(0 0 0.02em rgba(255,51,102,0.45));
+        }
+
+        /* peak-hold marker: amber tick rotated to session max (JS sets transform) */
+        .peak-marker { position: absolute; inset: 0; pointer-events: none; }
+        .peak-marker::before {
+            content: "";
+            position: absolute; top: 0.028em; left: 50%;
+            width: 0.018em; height: 0.05em; margin-left: -0.009em;
+            background: var(--amber);
+            box-shadow: 0 0 0.015em rgba(255,170,0,0.8);
+        }
+
+        .gauge-core {
+            position: absolute; inset: 0.062em;
+            border-radius: 50%;
+            border: 1px solid rgba(148,163,184,0.14);
+            background: radial-gradient(circle at 50% 28%, rgba(17,25,38,0.96), rgba(5,8,13,0.98) 72%);
+            box-shadow: inset 0 0 0.14em rgba(0,0,0,0.85), 0 20px 50px rgba(0,0,0,0.4);
+        }
+
+        .speed-readout {
+            position: relative; z-index: 1;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; line-height: 1;
+        }
+        #speed-display {
+            font-size: 0.25em; line-height: 0.92; letter-spacing: 0.02em;
+            text-shadow: 0 0 0.0375em currentColor, 0 0 0.106em currentColor;
+        }
+        .speed-unit {
+            margin: 0.0275em 0 0;
+            color: rgba(209,213,219,0.7);
+            font-size: 0.0525em; font-weight: 800;
+            letter-spacing: 0.35em; text-indent: 0.35em; text-transform: uppercase;
+        }
+        .gauge-caption {
+            margin-top: 0.022em;
+            color: rgba(255,170,0,0.55);
+            font-size: 0.026em; font-weight: 700;
+            letter-spacing: 0.3em; text-indent: 0.3em; text-transform: uppercase;
+        }
+
+        /* linear speed track with threshold zone marks (60mph / 100kmh) */
+        .speed-track {
+            width: min(100%, calc(var(--gauge) * 1.3));
+            height: 0.5rem;
+            margin-top: calc(var(--gauge) * 0.05);
+            overflow: hidden;
+            position: relative;
+            border: 1px solid rgba(148,163,184,0.12);
+            border-radius: 999px;
+            background:
+                repeating-linear-gradient(90deg, rgba(148,163,184,0.13) 0 1px, transparent 1px 25%),
+                rgba(15,23,42,0.82);
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.65);
+        }
         .speed-bar-fill {
             position: absolute; top: 0; left: 0; height: 100%;
             background: linear-gradient(90deg, #00ff88 0%, #ffaa00 55%, #ff3366 100%);
@@ -104,8 +397,46 @@
             transition: width 75ms linear;
             will-change: width;
         }
+        .track-zone {
+            position: absolute; top: 0; bottom: 0; width: 2px;
+            background: rgba(255,255,255,0.45);
+            z-index: 1;
+        }
+        .zone-60 { left: 30%; }   /* 60 mph of 200 km/h scale */
+        .zone-100 { left: 50%; }  /* 100 km/h */
 
-        /* g-meter dial internals */
+        /* ── tactical row: G-meter / live run / v-score ──────────────────── */
+        .tactical {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr);
+            gap: 0.55rem;
+            align-items: stretch;
+        }
+        .t-card {
+            padding: 0.55rem 0.7rem;
+            display: flex; flex-direction: column; gap: 0.45rem;
+            min-width: 0;
+        }
+
+        /* G-meter dial */
+        .g-meter-dial {
+            position: relative;
+            width: 4.9rem; height: 4.9rem;
+            border-radius: 999px;
+            border: 2px solid rgba(148,163,184,0.34);
+            background:
+                repeating-conic-gradient(from 0deg, rgba(148,163,184,0.16) 0deg 1deg, transparent 1deg 15deg),
+                radial-gradient(circle at 50% 42%, rgba(0,191,255,0.09), #000 68%);
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            box-shadow: inset 0 0 22px rgba(0,191,255,0.1), 0 10px 26px rgba(0,0,0,0.35);
+        }
+        .g-meter-dial::after {
+            content: "";
+            position: absolute; width: 3.4rem; height: 3.4rem;
+            border-radius: 9999px; border: 1px solid rgba(0,191,255,0.16);
+            pointer-events: none;
+        }
         .dial-cross-h { position: absolute; width: 100%; height: 1px; background: rgba(31,41,55,0.80); }
         .dial-cross-v { position: absolute; height: 100%; width: 1px; background: rgba(31,41,55,0.80); }
         .dial-ring {
@@ -118,394 +449,54 @@
             will-change: transform; transition: transform 75ms linear;
         }
 
-        .col-span-2 { grid-column: span 2 / span 2; }
-        @media (max-width: 520px) { .sm\:col-span-2 { grid-column: span 2 / span 2; } }
+        .g-card { flex-direction: row !important; align-items: center; gap: 0.8rem !important; }
+        .g-nums { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; color: #6b7280; text-transform: uppercase; }
+        .g-nums div { display: flex; justify-content: space-between; gap: 0.8rem; }
+        .g-nums .lcd-text { color: #e5e7eb; }
 
-        /* ─── Original app CSS (unchanged, below) ──────────────────────────── */
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
-        
-        :root {
-            --line: rgba(148, 163, 184, 0.16);
-            --line-strong: rgba(148, 163, 184, 0.26);
-            --green: #00ff88;
+        /* live run card */
+        .run-card { justify-content: center; }
+        .run-name {
+            font-size: 0.8rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+            color: #e5e7eb;
         }
-
-        body { 
-            margin: 0;
-            font-family: 'JetBrains Mono', monospace; 
-            background:
-                radial-gradient(1100px 700px at 50% -12%, rgba(0,255,136,0.055), transparent 62%),
-                radial-gradient(900px 650px at 88% 112%, rgba(0,191,255,0.06), transparent 60%),
-                radial-gradient(700px 500px at 6% 100%, rgba(187,134,252,0.05), transparent 60%),
-                linear-gradient(180deg, #08090c 0%, #030406 50%, #07090d 100%);
-            color: #ffffff; 
-            overscroll-behavior: none; 
-            user-select: none; 
-            touch-action: none; 
+        .run-name.armed { color: var(--amber); animation: alert-blink 0.8s steps(2, jump-none) infinite; }
+        .run-time {
+            font-size: 1.7rem; font-weight: 800; line-height: 1;
+            color: var(--green); text-shadow: 0 0 12px rgba(0,255,136,0.45);
         }
+        .run-hint { font-size: 0.52rem; letter-spacing: 0.12em; text-transform: uppercase; color: #4b5563; }
 
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 18%, transparent 82%, rgba(255,255,255,0.03));
-            opacity: 0.45;
+        /* v-score card with progress bars */
+        .score-top { display: flex; align-items: baseline; gap: 0.3rem; }
+        .score-denom { font-size: 0.7rem; font-weight: 800; color: #4b5563; }
+        .score-src { color: #6b7280; letter-spacing: 0.08em; }
+        .v-rows { display: flex; flex-direction: column; gap: 0.28rem; }
+        .v-row {
+            display: grid; grid-template-columns: 2.4rem 1fr 2.2rem;
+            align-items: center; gap: 0.5rem;
+            font-size: 0.55rem; font-weight: 800; letter-spacing: 0.1em; color: #6b7280;
         }
-        
-        .lcd-text { font-variant-numeric: tabular-nums; letter-spacing: 0; }
-        
-        .neon-accent { text-shadow: 0 0 10px rgba(0,255,136,0.5); }
-        .neon-warning { text-shadow: 0 0 10px rgba(255,170,0,0.5); }
-        .neon-danger { text-shadow: 0 0 10px rgba(255,51,102,0.5); }
-        .neon-blue { text-shadow: 0 0 10px rgba(0,191,255,0.5); }
-        .neon-purple { text-shadow: 0 0 10px rgba(187,134,252,0.5); }
-        .neon-orange { text-shadow: 0 0 10px rgba(251,146,60,0.5); }
-        
-        .metric-card { 
-            position: relative;
-            min-height: 3.9rem;
-            background: linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(7, 11, 18, 0.88));
-            padding: 0.6rem 0.7rem 0.55rem; 
-            border-radius: 0.6rem; 
-            border: 1px solid var(--line);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 22px rgba(0,0,0,0.22);
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            overflow: hidden;
-        }
+        .v-row .score-rdout { text-align: right; font-size: 0.7rem; }
+        .v-bar { height: 0.3rem; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.15); overflow: hidden; }
+        .v-bar-fill { height: 100%; width: 0; transition: width 300ms ease-out; }
+        .v-spd { background: var(--green); box-shadow: 0 0 6px rgba(0,255,136,0.5); }
+        .v-acc { background: var(--cyan); box-shadow: 0 0 6px rgba(0,191,255,0.5); }
+        .v-brk { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.5); }
+        .v-hdl { background: var(--purple); box-shadow: 0 0 6px rgba(187,134,252,0.5); }
 
-        /* per-category accent hairline on metric cards (explicit classes so
-           card order in the markup never silently re-colours the dashboard) */
-        .metric-card::before {
-            content: "";
-            position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: rgba(148,163,184,0.25);
-        }
-        .accent-orange::before { background: #fb923c; }
-        .accent-blue::before   { background: #00bfff; }
-        .accent-purple::before { background: #bb86fc; }
-        .accent-yellow::before { background: #facc15; }
-        .accent-red::before    { background: #f87171; }
-        .accent-green::before  { background: #00ff88; }
-        .accent-gray::before   { background: #9ca3af; }
-        
-        .spd-green { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
-        .spd-yellow { color: #ffaa00; text-shadow: 0 0 10px rgba(255,170,0,0.5); }
-        .spd-green, .spd-yellow { transition: color 120ms linear; }
-        
-        .dashboard-shell {
-            width: min(100%, 78rem);
-            min-height: 100svh;
-            margin: 0 auto;
-            padding: calc(0.75rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hud-header {
-            position: relative;
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-            align-items: start;
-            gap: 1rem;
-            padding: 0.85rem 1rem;
-            border: 1px solid var(--line);
-            border-radius: 0.65rem;
-            background: linear-gradient(180deg, rgba(9,14,22,0.82), rgba(5,8,13,0.66));
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 44px rgba(0,0,0,0.24);
-        }
-
-        .hud-header::before {
-            content: "";
-            position: absolute; top: 0; left: 1.5rem; right: 1.5rem; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(0,255,136,0.35), transparent);
-        }
-
-        .brand-block {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.5rem;
-            justify-content: center;
-            min-width: 24rem;
-            border-left: 1px solid var(--line);
-            border-right: 1px solid var(--line);
-            padding: 0.35rem 1.15rem;
-        }
-
-        .brand-row {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            color: var(--green);
-            font-size: 0.95rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .brand-mark {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 2rem;
-            height: 2rem;
-            border: 1px solid rgba(0,255,136,0.4);
-            border-radius: 0.55rem;
-            background: rgba(0,255,136,0.1);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 0 18px rgba(0,255,136,0.2);
-            font-size: 0.7rem;
-        }
-
-        .brand-subtitle {
-            color: rgba(148,163,184,0.72);
-            font-size: 0.58rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.18em;
-        }
-
-        .status-stack, .system-stack {
-            display: flex;
-            flex-direction: column;
-            gap: 0.42rem;
-            min-width: 0;
-        }
-
-        .system-stack { align-items: flex-end; }
-
-        /* every status line carries an LED dot that follows its text colour */
-        .status-stack span, .system-stack span {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            line-height: 1.5;
-        }
-        .status-stack span::before, .system-stack span::before {
-            content: "";
-            width: 0.4rem; height: 0.4rem;
-            border-radius: 9999px;
-            background: currentColor;
-            box-shadow: 0 0 7px currentColor;
-            flex: none;
-        }
-
-        /* acquiring / error states pulse; a live fix burns steady */
-        #status-indicator::before { animation: vlab-pulse 1.4s ease-in-out infinite; }
-        #status-indicator.text-green-500::before { animation: none; }
-        @keyframes vlab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-        .action-rail {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.45rem;
-            justify-content: center;
-        }
-
-        .action-rail button {
-            min-height: 2rem;
-            border-radius: 999px;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(0,0,0,0.24);
-        }
-
-        /* ── circular speedometer gauge ──────────────────────────────── */
-        /* --gauge (1em = gauge diameter) lives on .speed-stage so both the
-           gauge and the track below it scale from the same root; the whole
-           cluster shrinks gracefully on short viewports */
-        .speed-stage {
-            --gauge: clamp(8rem, min(72vw, 20rem, calc(100svh - 34rem)), 20rem);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            flex: 1;
-            width: 100%;
-            min-height: 0;
-            padding: 0.65rem 0 0.75rem;
-        }
-
-        .speed-gauge {
-            width: var(--gauge);
-            font-size: var(--gauge);
-            aspect-ratio: 1;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* swept ring: JS sets --deg (0..360) each frame; colour = live green */
-        #speed-ring {
-            position: absolute; inset: 0;
-            border-radius: 50%;
-            background: conic-gradient(from -90deg, var(--green) calc(var(--deg, 0deg)), rgba(148,163,184,0.08) 0deg);
-            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
-            mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
-            filter: drop-shadow(0 0 0.022em rgba(0,255,136,0.4));
-        }
-
-        .gauge-core {
-            position: absolute;
-            inset: 0.0375em;
-            border-radius: 50%;
-            border: 1px solid rgba(148,163,184,0.14);
-            background: radial-gradient(circle at 50% 28%, rgba(17,25,38,0.96), rgba(5,8,13,0.98) 72%);
-            box-shadow: inset 0 0 0.14em rgba(0,0,0,0.85), 0 20px 50px rgba(0,0,0,0.4);
-        }
-
-        .speed-readout {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            line-height: 1;
-        }
-
-        #speed-display {
-            font-size: 0.25em;
-            line-height: 0.92;
-            letter-spacing: 0.02em;
-            text-shadow: 0 0 0.0375em currentColor, 0 0 0.106em currentColor;
-        }
-
-        .speed-unit {
-            margin: 0.0275em 0 0;
-            color: rgba(209,213,219,0.7);
-            font-size: 0.0525em;
-            font-weight: 800;
-            letter-spacing: 0.35em;
-            text-indent: 0.35em;
-            text-transform: uppercase;
-        }
-
-        .speed-track {
-            width: min(100%, calc(var(--gauge) * 1.3));
-            height: 0.5rem;
-            margin-top: calc(var(--gauge) * 0.0575);
-            overflow: hidden;
-            position: relative;
-            border: 1px solid rgba(148,163,184,0.12);
-            border-radius: 999px;
-            background:
-                repeating-linear-gradient(90deg, rgba(148,163,184,0.13) 0 1px, transparent 1px 25%),
-                rgba(15,23,42,0.82);
-            box-shadow: inset 0 1px 4px rgba(0,0,0,0.65);
-        }
-
-        .g-meter-card {
-            margin-top: 1.15rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 1.4rem;
-            padding: 0.85rem 1.1rem;
-            border: 1px solid var(--line-strong);
-            border-radius: 0.65rem;
-            background: linear-gradient(180deg, rgba(9,15,24,0.85), rgba(5,8,13,0.75));
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 34px rgba(0,0,0,0.24);
-        }
-
-        .g-meter-dial {
-            position: relative;
-            width: 5.2rem;
-            height: 5.2rem;
-            border-radius: 999px;
-            border: 2px solid rgba(148,163,184,0.34);
-            background:
-                repeating-conic-gradient(from 0deg, rgba(148,163,184,0.16) 0deg 1deg, transparent 1deg 15deg),
-                radial-gradient(circle at 50% 42%, rgba(0,191,255,0.09), #000 68%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            box-shadow: inset 0 0 22px rgba(0,191,255,0.1), 0 10px 26px rgba(0,0,0,0.35);
-        }
-
-        .g-meter-dial::after {
-            content: "";
-            position: absolute;
-            width: 3.6rem;
-            height: 3.6rem;
-            border-radius: 9999px;
-            border: 1px solid rgba(0,191,255,0.16);
-            pointer-events: none;
-        }
-
-        .g-meter-readings {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            min-width: 6.6rem;
-            color: rgba(148,163,184,0.75);
-            font-size: 0.68rem;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
-
-        .g-meter-readings div {
-            display: flex;
-            justify-content: space-between;
-            gap: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px dashed rgba(148,163,184,0.14);
-        }
-
-        .g-meter-readings div:last-child { border-bottom: none; padding-bottom: 0; }
-
-        .score-panel {
-            width: min(100%, 30rem);
-            margin: 0 auto 0.65rem;
-            padding: 0.65rem 0.75rem;
-            border: 1px solid var(--line-strong);
-            border-radius: 0.65rem;
-            background: linear-gradient(180deg, rgba(9,15,24,0.85), rgba(5,8,13,0.78));
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 34px rgba(0,0,0,0.22);
-        }
-
-        .score-tile {
-            min-height: 2.5rem;
-            border: 1px solid rgba(148,163,184,0.12);
-            border-top-width: 2px;
-            border-radius: 0.45rem;
-            background: rgba(3,7,13,0.66);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .score-tile.tile-spd { border-top-color: #00ff88; }
-        .score-tile.tile-acc { border-top-color: #00bfff; }
-        .score-tile.tile-brk { border-top-color: #f87171; }
-        .score-tile.tile-hdl { border-top-color: #bb86fc; }
-
-        /* footer: two labelled groups (sprints / braking+peaks) of metric grids */
-        .metric-footer {
-            width: 100%;
-            padding-top: 0.55rem;
-            border-top: 1px solid var(--line);
-        }
-
-        .metric-group + .metric-group { margin-top: 0.55rem; }
-
+        /* ── metric footer: labelled groups ──────────────────────────────── */
+        .metric-footer { width: 100%; }
+        .metric-group + .metric-group { margin-top: 0.5rem; }
         .metric-group-label {
-            display: block;
-            font-size: 0.55rem;
-            font-weight: 800;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: rgba(148,163,184,0.55);
+            display: flex; align-items: center; gap: 0.5rem;
+            font-size: 0.55rem; font-weight: 800; letter-spacing: 0.18em;
+            text-transform: uppercase; color: rgba(148,163,184,0.55);
             margin-bottom: 0.35rem;
+        }
+        .metric-group-label::after {
+            content: ""; flex: 1; height: 3px;
+            background: repeating-linear-gradient(45deg, rgba(250,204,21,0.35) 0 6px, transparent 6px 12px);
         }
 
         .metric-grid {
@@ -515,11 +506,83 @@
             gap: 0.45rem;
             text-align: center;
         }
-        
-        #ios-gate {
-            position: fixed; inset: 0; background: #050505;
-            z-index: 9999; display: flex; flex-direction: column;
-            padding: calc(1.5rem + env(safe-area-inset-top)) calc(1.5rem + env(safe-area-inset-right)) calc(1.5rem + env(safe-area-inset-bottom)) calc(1.5rem + env(safe-area-inset-left));
+        .metric-card {
+            position: relative;
+            min-height: 3.6rem;
+            background: var(--panel);
+            padding: 0.5rem 0.6rem 0.5rem;
+            border: 1px solid var(--line);
+            border-top-width: 2px;
+            display: flex; flex-direction: column;
+            justify-content: center;
+            overflow: hidden;
+            clip-path: polygon(0 0, calc(100% - 0.55rem) 0, 100% 0.55rem, 100% 100%, 0.55rem 100%, 0 calc(100% - 0.55rem));
+        }
+        .metric-card::before { content: none; }
+        .accent-orange { border-top-color: #fb923c; }
+        .accent-blue { border-top-color: #00bfff; }
+        .accent-purple { border-top-color: #bb86fc; }
+        .accent-yellow { border-top-color: #facc15; }
+        .accent-red { border-top-color: #f87171; }
+        .accent-green { border-top-color: #00ff88; }
+        .accent-gray { border-top-color: #9ca3af; }
+
+        /* LIVE tag on running sprint values (class toggled from JS) */
+        .timer-lbl.live::after, .timer-mini.live::after {
+            content: "LIVE";
+            margin-left: 0.35rem;
+            font-size: 0.45rem; font-weight: 800; letter-spacing: 0.15em;
+            color: var(--amber);
+            vertical-align: middle;
+            animation: alert-blink 0.8s steps(2, jump-none) infinite;
+        }
+
+        /* ── hazard footer strip ─────────────────────────────────────────── */
+        .hazard-strip {
+            display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+            padding-top: 0.35rem;
+            border-top: 3px solid transparent;
+            border-image: repeating-linear-gradient(45deg, rgba(250,204,21,0.5) 0 8px, rgba(10,10,10,0.9) 8px 16px) 3;
+            font-size: 0.5rem; font-weight: 700; letter-spacing: 0.18em;
+            text-transform: uppercase; color: rgba(148,163,184,0.5);
+        }
+        .hazard-right { color: rgba(255,170,0,0.7); }
+
+        /* ── responsive ──────────────────────────────────────────────────── */
+        @media (min-width: 640px) {
+            .stage { --gauge: clamp(8rem, min(40vw, 23rem, calc(100svh - 32rem)), 23rem); }
+        }
+
+        @media (max-width: 760px) {
+            .tactical { grid-template-columns: 1fr 1fr; }
+            .score-card { grid-column: span 2; }
+        }
+
+        @media (max-width: 640px) {
+            .stage {
+                grid-template-columns: 1fr 1fr;
+                --gauge: clamp(9rem, min(62vw, 15rem, calc(100svh - 36rem)), 15rem);
+            }
+            .gauge-wrap { grid-column: span 2; }
+            .cmd-bar { grid-template-columns: 1fr auto; gap: 0.5rem; padding: 0.5rem 0.6rem; }
+            .cmd-sys { grid-column: span 2; flex-direction: row; justify-content: center; gap: 1rem; }
+            .brand-subtitle { display: none; }
+            .brand-row { font-size: 0.62rem; }
+            .brand-mark { width: 1.3rem; height: 1.3rem; font-size: 0.5rem; }
+            #status-indicator { font-size: 0.72rem; }
+            .cmd-status-sub { font-size: 0.52rem; gap: 0.5rem; }
+            .cmd-sys { font-size: 0.52rem; }
+            .action-rail { gap: 0.35rem; }
+            .action-rail button { min-height: 1.8rem; padding: 0.3rem 0.6rem; font-size: 0.52rem; }
+            #export-group { flex-wrap: wrap; justify-content: center; max-width: 10.5rem; }
+            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .metric-card { min-height: 3.4rem; }
+        }
+
+        @media (max-height: 620px) {
+            .stage { --gauge: clamp(5.5rem, min(42vw, 10rem, calc(100svh - 30rem)), 10rem); }
+            .speed-track { margin-top: calc(var(--gauge) * 0.06); }
+            .side-val { font-size: 0.8rem; }
         }
 
         @media (prefers-reduced-transparency) {
@@ -528,205 +591,202 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-            #status-indicator:not(.text-green-500)::before { animation: none; }
+            #status-indicator::before { animation: none !important; }
+            .gnss-alert.active, .timer-lbl.live::after, .timer-mini.live::after, .run-name.armed { animation: none; }
             .action-btn { transition: none; }
             .action-btn:active { transform: none; }
-        }
-
-        @media (min-width: 640px) {
-            .speed-stage { --gauge: clamp(8rem, min(44vw, 24rem, calc(100svh - 34rem)), 24rem); }
-        }
-
-        @media (max-width: 520px) {
-            .dashboard-shell { padding: calc(0.75rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left)); }
-            .hud-header {
-                grid-template-columns: 1fr auto 1fr;
-                gap: 0.5rem;
-                padding: 0.55rem;
-            }
-            .brand-block { min-width: 0; border: none; padding: 0; }
-            .brand-row { font-size: 0.6rem; gap: 0.3rem; }
-            .brand-mark { width: 1.5rem; height: 1.5rem; border-radius: 0.4rem; font-size: 0.55rem; }
-            .brand-subtitle { display: none; }
-            .status-stack, .system-stack { font-size: 0.62rem; line-height: 1.4; }
-            .status-stack span::before, .system-stack span::before { width: 0.32rem; height: 0.32rem; }
-            .action-rail { gap: 0.35rem; }
-            .action-rail button {
-                min-height: 1.8rem;
-                padding: 0.3rem 0.6rem;
-                font-size: 0.55rem;
-            }
-            #export-group {
-                flex-wrap: wrap;
-                justify-content: center;
-                max-width: 10.5rem;
-            }
-            .speed-stage { --gauge: clamp(6.5rem, min(60vw, 13.5rem, calc(100svh - 33rem)), 13.5rem); }
-            .speed-track { margin-top: calc(var(--gauge) * 0.045); }
-            .g-meter-card {
-                width: min(100%, 16rem);
-                margin-top: 1.35rem;
-                gap: 0.85rem;
-                padding: 0.7rem 0.9rem;
-            }
-            .g-meter-dial { width: 4.9rem; height: 4.9rem; }
-            .g-meter-readings { min-width: 5.7rem; font-size: 0.6rem; }
-            .score-panel { margin-bottom: 0.55rem; }
-            .metric-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 0.45rem;
-            }
-            .metric-card { min-height: 3.7rem; }
-        }
-
-        /* short viewports (landscape phones / embedded HUDs): compact the gauge */
-        @media (max-height: 620px) {
-            .speed-stage { --gauge: clamp(5.5rem, min(42vw, 10rem, calc(100svh - 30rem)), 10rem); }
-            .speed-track { margin-top: calc(var(--gauge) * 0.06); }
-            .g-meter-card { margin-top: 0.85rem; padding: 0.6rem 0.9rem; }
+            .v-bar-fill { transition: none; }
         }
     </style>
 </head>
 <body class="overflow-hidden">
+<div class="scanlines" aria-hidden="true"></div>
 <div class="dashboard-shell">
-    
+
     <!-- iOS SENSOR GATE -->
-    <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true" class="items-center justify-center gap-6">
-        <span class="clr-green font-bold text-2xl neon-accent tracking-widest">VELOCITY-LAB</span>
-        <span class="text-gray-400 text-xs text-center px-8 leading-relaxed" style="max-width:26rem;">Motion sensor access required for IMU fallback telemetry.</span>
+    <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true">
+        <span class="gate-title clr-green neon-accent">VELOCITY-LAB</span>
+        <span class="gate-sub">モーションセンサー起動必須 // MOTION SENSOR ACCESS REQUIRED FOR IMU FUSION TELEMETRY.</span>
         <button id="ios-grant-btn" aria-label="Grant Motion Access" class="action-btn btn-ios-grant neon-accent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
             GRANT MOTION ACCESS
         </button>
     </div>
 
-    <!-- MAIN DASHBOARD -->
-    <header class="hud-header text-xs text-gray-500 uppercase font-bold tracking-widest">
-        <div class="status-stack" aria-live="polite">
-            <span id="status-indicator" class="text-yellow-500 neon-warning">ACQUIRING GNSS...</span>
-            <span id="accuracy-display">ACC: -- m</span>
-            <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
-        </div>
-
-        <div class="brand-block">
-            <div class="brand-row neon-accent">
-                <span class="brand-mark">VL</span>
-                <span>Velocity-Lab</span>
-            </div>
-            <span class="brand-subtitle">Active Telemetry HUD</span>
+    <!-- COMMAND BAR -->
+    <header class="cmd-bar panel">
+        <div class="cmd-brand">
+            <div class="brand-row neon-accent"><span class="brand-mark">VL</span><span>VELOCITY-LAB</span></div>
+            <span class="brand-subtitle">計測システム // TELEMETRY HUD</span>
             <div class="action-rail">
-                <button id="calibrate-btn" aria-label="Tare Device Mount"
-                    class="action-btn gap-1.5 neon-blue btn-tare">
+                <button id="calibrate-btn" aria-label="Tare Device Mount" class="action-btn gap-1.5 neon-blue btn-tare">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
                     <span id="calibrate-btn-label">TARE MOUNT</span>
                 </button>
-                <button id="reset-run-btn" aria-label="Reset Telemetry Run"
-                    class="action-btn gap-1.5 neon-warning btn-reset">
+                <button id="reset-run-btn" aria-label="Reset Telemetry Run" class="action-btn gap-1.5 neon-warning btn-reset">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg>
                     RESET RUN
                 </button>
-
                 <div id="export-group" class="flex gap-1" style="display:none;">
-                    <button id="export-csv-btn" aria-label="Export Telemetry to CSV"
-                        class="action-btn gap-1.5 neon-purple btn-csv">
+                    <button id="export-csv-btn" aria-label="Export Telemetry to CSV" class="action-btn gap-1.5 neon-purple btn-csv">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>
                         <span id="export-btn-idle">CSV (<span id="log-count">0</span>)</span>
                         <span id="export-btn-busy" hidden>EXPORTING...</span>
                     </button>
-                    <button id="clear-logs-btn" aria-label="Clear Telemetry Logs"
-                        class="action-btn gap-1 btn-clear">
+                    <button id="clear-logs-btn" aria-label="Clear Telemetry Logs" class="action-btn gap-1 btn-clear">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
                 </div>
-
-                <button id="pwa-install-btn" style="display:none;" aria-label="Install App"
-                    class="action-btn gap-1.5 neon-accent btn-install">
+                <button id="pwa-install-btn" style="display:none;" aria-label="Install App" class="action-btn gap-1.5 neon-accent btn-install">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
                     INSTALL
                 </button>
             </div>
         </div>
 
-        <div class="system-stack" aria-live="polite">
-            <span id="update-rate" class="clr-blue neon-blue">GPS: 0.0 HZ</span>
-            <span id="wake-lock-status" class="text-red-500 neon-danger">WAKELOCK: OFF</span>
-            <span id="max-speed-display" class="text-gray-500">MAX: 0.00</span>
+        <div class="cmd-status" aria-live="polite">
+            <span id="status-indicator" class="text-yellow-500 neon-warning">[ ACQUIRING GNSS ]</span>
+            <span class="cmd-status-sub">
+                <span id="accuracy-display">ACC -- M</span>
+                <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
+            </span>
+        </div>
+
+        <div class="cmd-sys" aria-live="polite">
+            <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
+            <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
         </div>
     </header>
 
-    <main class="speed-stage" aria-label="Dashboard">
-        <div class="speed-gauge">
-            <div id="speed-ring" aria-hidden="true"></div>
-            <div class="gauge-core" aria-hidden="true"></div>
-            <div class="speed-readout">
-                <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
-                <span class="speed-unit">km/h</span>
+    <!-- GNSS LOSS ALERT -->
+    <div id="gnss-alert" class="gnss-alert" role="alert">⚠ GNSS SIGNAL LOST — 再取得中 // REACQUIRING</div>
+
+    <!-- MAIN STAGE -->
+    <main class="stage" aria-label="Dashboard">
+        <aside class="side-col" aria-label="Session data">
+            <div class="side-cell">
+                <span class="side-lbl">走行距離 // DIST</span>
+                <span id="dist-display" class="side-val lcd-text text-white">0.00 KM</span>
+            </div>
+            <div class="side-cell">
+                <span class="side-lbl">計測時間 // SESSION</span>
+                <span id="session-time" class="side-val lcd-text text-white">00:00</span>
+            </div>
+            <div class="side-cell">
+                <span class="side-lbl">サンプル // SAMPLES</span>
+                <span id="sample-count" class="side-val lcd-text text-white">0</span>
+            </div>
+            <div class="side-cell">
+                <span class="side-lbl">最高速度 // MAX</span>
+                <span id="max-speed-display" class="side-val lcd-text spd-green">0.0</span>
+            </div>
+        </aside>
+
+        <div class="gauge-wrap">
+            <div class="speed-gauge">
+                <div class="gauge-ticks" aria-hidden="true"></div>
+                <div id="speed-ring" aria-hidden="true"></div>
+                <div class="gauge-redline" aria-hidden="true"></div>
+                <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
+                <div class="gauge-core" aria-hidden="true"></div>
+                <div class="speed-readout">
+                    <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
+                    <span class="speed-unit">KM/H</span>
+                    <span class="gauge-caption">車両速度 // VELOCITY</span>
+                </div>
+            </div>
+            <div class="speed-track" aria-hidden="true">
+                <div id="speed-bar" class="speed-bar-fill"></div>
+                <div class="track-zone zone-60"></div>
+                <div class="track-zone zone-100"></div>
             </div>
         </div>
-        <div class="speed-track">
-            <div id="speed-bar" class="speed-bar-fill"></div>
-        </div>
 
-        <!-- LIVE G-METER WIDGET -->
-        <div class="g-meter-card">
+        <aside class="side-col" aria-label="Live G loads">
+            <div class="side-cell">
+                <span class="side-lbl">加速 // ACCEL G</span>
+                <span id="live-lon-g" class="side-val lcd-text spd-green" aria-live="polite" aria-atomic="true">+0.00</span>
+                <div class="g-bar"><div id="accel-fill" class="g-bar-fill accel"></div></div>
+            </div>
+            <div class="side-cell">
+                <span class="side-lbl">制動 // BRAKE G</span>
+                <span id="brake-live" class="side-val lcd-text text-red-400" aria-live="polite" aria-atomic="true">0.00</span>
+                <div class="g-bar"><div id="brake-fill" class="g-bar-fill brake"></div></div>
+            </div>
+            <div class="side-cell">
+                <span class="side-lbl">横G // LATERAL</span>
+                <span id="live-lat-g" class="side-val lcd-text clr-blue" aria-live="polite" aria-atomic="true">0.00</span>
+                <div class="g-bar"><div id="lat-fill" class="g-bar-fill lat"></div></div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- TACTICAL ROW -->
+    <section class="tactical" aria-label="Tactical readouts">
+        <div class="t-card panel g-card">
             <div class="g-meter-dial" role="img" aria-label="Lateral and longitudinal G meter">
                 <div class="dial-cross-h"></div>
                 <div class="dial-cross-v"></div>
                 <div class="dial-ring"></div>
                 <div id="g-dot" class="g-dot"></div>
             </div>
-            <div class="g-meter-readings tracking-widest">
-                <div><span>LAT G:</span> <span id="live-lat-g" class="text-white lcd-text" aria-live="polite" aria-atomic="true">0.00</span></div>
-                <div><span>LON G:</span> <span id="live-lon-g" class="text-white lcd-text" aria-live="polite" aria-atomic="true">0.00</span></div>
+            <div>
+                <span class="t-lbl">Gセンサー // G-LOAD</span>
+                <div class="g-nums">
+                    <div><span>PK.LAT</span><span id="peak-lat-g" class="lcd-text">0.00</span></div>
+                    <div><span>PK.LON</span><span id="peak-lon-g" class="lcd-text">0.00</span></div>
+                </div>
             </div>
         </div>
-    </main>
 
-    <!-- VEHICLE PERFORMANCE INDEX (V-SCORE) -->
-    <section class="score-panel flex flex-col gap-2" aria-label="Vehicle Performance Score">
-        <div class="flex justify-between items-center px-2">
-            <span id="score-panel-label" class="tile-lbl-clr text-gray-400 uppercase font-bold tracking-widest">Performance Index (GPS)</span>
-            <span id="v-score-total" class="score-total clr-green neon-accent lcd-text">0</span>
+        <div class="t-card panel run-card">
+            <span class="t-lbl">現在計測 // LIVE RUN</span>
+            <span id="live-run-name" class="run-name">STANDBY</span>
+            <span id="live-run-time" class="run-time lcd-text">--.---</span>
+            <span class="run-hint">SPRINTS ARM AUTOMATICALLY ON LAUNCH</span>
         </div>
-        <div class="grid grid-cols-4 gap-1 text-center">
-            <div class="score-tile tile-spd">
-                <div class="tile-lbl text-gray-500 uppercase tracking-wider">SPD <span class="text-gray-700">/20</span></div>
-                <div id="v-score-spd" class="score-rdout text-white lcd-text">0</div>
+
+        <div class="t-card panel score-card">
+            <span class="t-lbl">性能指数 // V-SCORE <span id="score-panel-label" class="score-src">(GPS)</span></span>
+            <div class="score-top">
+                <span id="v-score-total" class="score-total clr-green neon-accent lcd-text">0</span>
+                <span class="score-denom">/70</span>
             </div>
-            <div class="score-tile tile-acc">
-                <div class="tile-lbl text-gray-500 uppercase tracking-wider">ACC <span class="text-gray-700">/30</span></div>
-                <div id="v-score-acc" class="score-rdout clr-blue lcd-text">0</div>
-            </div>
-            <div class="score-tile tile-brk">
-                <div class="tile-lbl text-gray-500 uppercase tracking-wider">BRK <span class="text-gray-700">/25</span></div>
-                <div id="v-score-brk" class="score-rdout text-red-400 lcd-text">0</div>
-            </div>
-            <div class="score-tile tile-hdl">
-                <div class="tile-lbl text-gray-500 uppercase tracking-wider">HDL <span class="text-gray-700">/25</span></div>
-                <div id="v-score-hdl" class="score-rdout clr-purple lcd-text">0</div>
+            <div class="v-rows">
+                <div class="v-row"><span>SPD</span><div class="v-bar"><div id="vbar-spd" class="v-bar-fill v-spd"></div></div><span id="v-score-spd" class="score-rdout lcd-text text-white">0</span></div>
+                <div class="v-row"><span>ACC</span><div class="v-bar"><div id="vbar-acc" class="v-bar-fill v-acc"></div></div><span id="v-score-acc" class="score-rdout lcd-text clr-blue">0</span></div>
+                <div class="v-row"><span>BRK</span><div class="v-bar"><div id="vbar-brk" class="v-bar-fill v-brk"></div></div><span id="v-score-brk" class="score-rdout lcd-text text-red-400">0</span></div>
+                <div class="v-row"><span>HDL</span><div class="v-bar"><div id="vbar-hdl" class="v-bar-fill v-hdl"></div></div><span id="v-score-hdl" class="score-rdout lcd-text clr-purple">0</span></div>
             </div>
         </div>
     </section>
 
-    <footer class="metric-footer" aria-label="Telemetry Metrics">
-        <section class="metric-group" aria-label="Sprint Timers">
-            <span class="metric-group-label">Sprint Timers</span>
+    <!-- METRIC FOOTER -->
+    <section class="metric-footer" aria-label="Telemetry Metrics">
+        <div class="metric-group" aria-label="Sprint Timers">
+            <span class="metric-group-label">スプリント // SPRINT TIMERS</span>
             <div class="metric-grid">
-                <div class="metric-card accent-orange"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 mph</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 km/h</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 km/h</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 Mile</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-orange"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 MPH</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 KM/H</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 KM/H</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 MILE</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
             </div>
-        </section>
+        </div>
 
-        <section class="metric-group" aria-label="Braking and Peak Performance">
-            <span class="metric-group-label">Braking &amp; Peaks</span>
+        <div class="metric-group" aria-label="Braking and Peak Performance">
+            <span class="metric-group-label">制動・峰值 // BRAKING &amp; PEAKS</span>
             <div class="metric-grid">
-                <div class="metric-card accent-red"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max Braking</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
-                <div class="metric-card accent-green"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">Max ACC</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
-                <div class="metric-card accent-gray col-span-2 sm:col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0m Dist</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
+                <div class="metric-card accent-red"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX BRAKING</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-green"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX ACCEL</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-gray col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0M BRAKING DIST</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
             </div>
-        </section>
+        </div>
+    </section>
+
+    <!-- HAZARD STRIP -->
+    <footer class="hazard-strip">
+        <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
+        <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
 </div>
 
@@ -864,7 +924,27 @@
             // Live G-Meter
             gDot:         document.getElementById('g-dot'),
             liveLatG:     document.getElementById('live-lat-g'),
-            liveLonG:     document.getElementById('live-lon-g')
+            liveLonG:     document.getElementById('live-lon-g'),
+
+            // Gundam HUD additions
+            gnssAlert:    document.getElementById('gnss-alert'),
+            distDisplay:  document.getElementById('dist-display'),
+            sessionTime:  document.getElementById('session-time'),
+            sampleCount:  document.getElementById('sample-count'),
+            brakeLive:    document.getElementById('brake-live'),
+            accelFill:    document.getElementById('accel-fill'),
+            brakeFill:    document.getElementById('brake-fill'),
+            latFill:      document.getElementById('lat-fill'),
+            peakMarker:   document.getElementById('peak-marker'),
+            peakLatG:     document.getElementById('peak-lat-g'),
+            peakLonG:     document.getElementById('peak-lon-g'),
+            liveRunName:  document.getElementById('live-run-name'),
+            liveRunTime:  document.getElementById('live-run-time'),
+            glitchCount:  document.getElementById('glitch-count'),
+            vbarSpd:      document.getElementById('vbar-spd'),
+            vbarAcc:      document.getElementById('vbar-acc'),
+            vbarBrk:      document.getElementById('vbar-brk'),
+            vbarHdl:      document.getElementById('vbar-hdl')
         };
 
         const prev = {
@@ -872,8 +952,17 @@
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, logCount: 0, maxSpeed: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
-            liveLatG: null, liveLonG: null, gDot: null, accuracy: null
+            liveLatG: null, liveLonG: null, gDot: null, accuracy: null,
+            // Gundam HUD additions
+            distKm: null, sessClock: null, samples: -1, brakeLive: null,
+            accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
+            peakLatG: null, peakLonG: null, glitchN: -1,
+            live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
+            runName: null, runTime: null, alertOn: null
         };
+
+        // Session clock anchor: set when tracking initialises.
+        let sessionStartMs = -1;
 
         // ─── HELPERS ──────────────────────────────────────────────────────────────
         function setDOM(el, key, val, baseCls = null, dynCls = null) {
@@ -1024,6 +1113,13 @@
             prev.liveLatG  = null;
             prev.liveLonG  = null;
             prev.gDot      = null;
+
+            // invalidate Gundam HUD prev-diffs so counters re-render from zero
+            prev.distKm = null; prev.brakeLive = null;
+            prev.accelBar = null; prev.brakeBar = null; prev.latBar = null; prev.peakDeg = null;
+            prev.peakLatG = null; prev.peakLonG = null; prev.glitchN = -1;
+            prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
+            prev.runName = null; prev.runTime = null;
 
             timer0_60.state = T_IDLE;
             timer0_100.state = T_IDLE;
@@ -1201,6 +1297,9 @@
             setDOM(dom.vScoreAcc, 'vAcc', score.acc);
             setDOM(dom.vScoreBrk, 'vBrk', score.brk);
             setDOM(dom.vScoreHdl, 'vHdl', score.hdl);
+            // category progress bars to their ceilings (SPD 20 / ACC 10 / BRK 15 / HDL 25)
+            const bars = [[dom.vbarSpd, score.spd, 20], [dom.vbarAcc, score.acc, 10], [dom.vbarBrk, score.brk, 15], [dom.vbarHdl, score.hdl, 25]];
+            for (const [el, val, max] of bars) el.style.width = Math.round((val / max) * 100) + "%";
         }
 
         // ─── SUB-SAMPLE INTERPOLATION ─────────────────────────────────────────────
@@ -1389,10 +1488,36 @@
 
         function onPositionError() { setDOM(dom.status, 'status', "ERR: NO SIGNAL", "text-red-500 neon-danger"); }
 
+        // ─── GUNDAM HUD LIVE TELEMETRY ────────────────────────────────────────────
+        // While a sprint machine is T_RUNNING its card ticks with live elapsed and
+        // carries the blinking LIVE tag; setDOM keeps ownership of idle/done text.
+        function updateLiveSprint(el, key, t, now) {
+            const running = t.state === T_RUNNING;
+            const txt = running ? fmt3.format(Math.max(0, now - t.start) / 1000) + " s" : "";
+            const sig = txt + "|" + running;
+            if (prev[key] !== sig) {
+                prev[key] = sig;
+                if (running) el.textContent = txt;
+                el.classList.toggle("live", running);
+            }
+        }
+
+        function updateLiveBrake() {
+            const running = timer100_0.state === T_RUNNING;
+            const txt = running ? fmt1.format(Math.max(0, distanceMeters - timer100_0.startDist)) + " m" : "";
+            const sig = txt + "|" + running;
+            if (prev.live100_0 !== sig) {
+                prev.live100_0 = sig;
+                if (running) dom.t100_0.textContent = txt;
+                dom.t100_0.classList.toggle("live", running);
+            }
+        }
+
         function renderLoop() {
             const now = performance.now();
             const dt  = now - lastRenderTime;
-            if ((now - lastGpsTime) > GPS_STALE_MS) {
+            const gnssStale = (now - lastGpsTime) > GPS_STALE_MS;
+            if (gnssStale) {
                 currentSpeedMs = 0.0;
                 setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
             }
@@ -1425,6 +1550,61 @@
             const tf  = `translate(${pxX.toFixed(1)}px, ${pxY.toFixed(1)}px)`;
             if (prev.gDot !== tf) { dom.gDot.style.transform = tf; prev.gDot = tf; }
 
+            // ── Gundam HUD live telemetry ─────────────────────────────────────
+            // Session clock (mm:ss since tracking init)
+            if (sessionStartMs >= 0) {
+                const sess = Math.max(0, Math.floor((now - sessionStartMs) / 1000));
+                const sessStr = String(Math.floor(sess / 60)).padStart(2, "0") + ":" + String(sess % 60).padStart(2, "0");
+                if (prev.sessClock !== sessStr) { dom.sessionTime.textContent = sessStr; prev.sessClock = sessStr; }
+            }
+
+            // Distance travelled / logged samples / glitch filter counter
+            const distKm = fmt2.format(distanceMeters / 1000) + " KM";
+            if (prev.distKm !== distKm) { dom.distDisplay.textContent = distKm; prev.distKm = distKm; }
+            if (prev.samples !== telemetrySession.length) { dom.sampleCount.textContent = String(telemetrySession.length); prev.samples = telemetrySession.length; }
+            if (prev.glitchN !== gpsGlitchCount) { dom.glitchCount.textContent = String(gpsGlitchCount); prev.glitchN = gpsGlitchCount; }
+
+            // Live accel / brake / lateral G bars (1.0G / 1.2G / 1.5G full-scale)
+            const accPct = Math.round(Math.max(0, Math.min(1, uiLongG)) * 100);
+            const brkPct = Math.round(Math.max(0, Math.min(1, -uiLongG / 1.2)) * 100);
+            const latPct = Math.round(Math.max(0, Math.min(1, Math.abs(uiLatG) / 1.5)) * 100);
+            if (prev.accelBar !== accPct) { dom.accelFill.style.width = accPct + "%"; prev.accelBar = accPct; }
+            if (prev.brakeBar !== brkPct) { dom.brakeFill.style.width = brkPct + "%"; prev.brakeBar = brkPct; }
+            if (prev.latBar !== latPct) { dom.latFill.style.width = latPct + "%"; prev.latBar = latPct; }
+            const brkStr = fmt2.format(Math.max(0, -uiLongG));
+            if (prev.brakeLive !== brkStr) { dom.brakeLive.textContent = brkStr; prev.brakeLive = brkStr; }
+
+            // Peak-hold marker pinned to session max speed on the gauge ring
+            const peakDeg = Math.min(360, (maxSpeedKmph / BAR_MAX_SPEED) * 360).toFixed(1);
+            if (prev.peakDeg !== peakDeg) { dom.peakMarker.style.transform = `rotate(${peakDeg}deg)`; prev.peakDeg = peakDeg; }
+
+            // G peak readouts
+            const pkLat = fmt2.format(maxGpsLatG);
+            const pkLon = fmt2.format(maxGpsAccelG);
+            if (prev.peakLatG !== pkLat) { dom.peakLatG.textContent = pkLat; prev.peakLatG = pkLat; }
+            if (prev.peakLonG !== pkLon) { dom.peakLonG.textContent = pkLon; prev.peakLonG = pkLon; }
+
+            // Per-card live sprint elapsed + LIVE tags
+            updateLiveSprint(dom.t0_60,    'live0_60',    timer0_60,    now);
+            updateLiveSprint(dom.t0_100,   'live0_100',   timer0_100,   now);
+            updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, now);
+            updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, now);
+            updateLiveBrake();
+
+            // Headline live-run card (first active sprint wins)
+            const run = timer0_60.state === T_RUNNING ? ["0-60 MPH", timer0_60]
+                      : timer0_100.state === T_RUNNING ? ["0-100 KM/H", timer0_100]
+                      : timer100_200.state === T_RUNNING ? ["100-200 KM/H", timer100_200]
+                      : timerQuarter.state === T_RUNNING ? ["1/4 MILE", timerQuarter]
+                      : null;
+            const rn = run ? run[0] : "STANDBY";
+            const rt = run ? fmt3.format(Math.max(0, now - run[1].start) / 1000) : "--.---";
+            if (prev.runName !== rn) { dom.liveRunName.textContent = rn; dom.liveRunName.classList.toggle("armed", !!run); prev.runName = rn; }
+            if (prev.runTime !== rt) { dom.liveRunTime.textContent = rt; prev.runTime = rt; }
+
+            // GNSS loss banner
+            if (prev.alertOn !== gnssStale) { dom.gnssAlert.classList.toggle("active", gnssStale); prev.alertOn = gnssStale; }
+
             if (stateDirty) {
                 evaluateAndRenderScore();
                 if (now - lastSaveTime >= 2000) { saveSession(); lastSaveTime = now; }
@@ -1453,6 +1633,7 @@
 
         async function checkPermissionsAndInit() {
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+            sessionStartMs = performance.now();
             loadSession();
             const motionOk = await requestIOSMotion(); 
             if ("geolocation" in navigator) navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
