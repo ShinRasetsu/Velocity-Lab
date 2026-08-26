@@ -155,6 +155,7 @@
         /* amber section tag, e.g. "計測中 // LIVE RUN" */
         .t-lbl {
             display: flex; align-items: center; gap: 0.4rem;
+            flex-wrap: wrap;
             font-size: 0.55rem; font-weight: 800; letter-spacing: 0.18em;
             text-transform: uppercase; color: var(--amber);
         }
@@ -601,8 +602,11 @@
             #export-group { max-width: none; }
             .cmd-status { align-items: center; }
             #status-indicator { font-size: 0.8rem; white-space: normal; }
-            .cmd-status-sub { justify-content: center; font-size: 0.55rem; gap: 0.7rem; }
-            .cmd-sys { flex-direction: row; justify-content: center; align-items: center; gap: 1.1rem; font-size: 0.55rem; }
+            .cmd-status-sub { justify-content: center; font-size: 0.55rem; gap: 0.7rem; flex-wrap: wrap; }
+            .cmd-sys { flex-direction: row; justify-content: center; align-items: center; gap: 0.6rem 1.1rem; font-size: 0.55rem; flex-wrap: wrap; }
+            .hazard-strip { flex-wrap: wrap; justify-content: center; font-size: 0.48rem; letter-spacing: 0.12em; }
+            /* never let a rigid child widen the shell past the screen */
+            .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
 
             /* stage: cells arranged equally AROUND the centred gauge —
                2×2 data block above, gauge hero in the middle, 3-across
