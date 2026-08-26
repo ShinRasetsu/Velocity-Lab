@@ -506,7 +506,7 @@
             gap: 0.45rem;
             text-align: center;
         }
-        .metric-card {
+.metric-card {
             position: relative;
             min-height: 3.6rem;
             background: var(--panel);
@@ -517,6 +517,8 @@
             justify-content: center;
             overflow: hidden;
             clip-path: polygon(0 0, calc(100% - 0.55rem) 0, 100% 0.55rem, 100% 100%, 0.55rem 100%, 0 calc(100% - 0.55rem));
+            align-items: center; /* center content horizontally */
+            text-align: center;
         }
         .metric-card::before { content: none; }
         .accent-orange { border-top-color: #fb923c; }
@@ -602,22 +604,33 @@
             .side-lbl { font-size: 0.48rem; margin-bottom: 0.1rem; }
             .g-bar { height: 0.26rem; margin-top: 0.22rem; }
 
-            /* tactical row: dial + live run side by side, score full width */
-            .tactical { grid-template-columns: 1fr 1fr; gap: 0.45rem; }
-            .t-card { padding: 0.5rem 0.55rem; gap: 0.35rem; }
-            .g-meter-dial { width: 4.2rem; height: 4.2rem; }
+            /* tactical row: 3 cards equal height, 2-col grid */
+            .tactical { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 0.45rem; }
+            .t-card { padding: 0.5rem 0.55rem; gap: 0.35rem; display: flex; flex-direction: column; }
+            .g-card { flex: 1; display: flex; flex-direction: column; }
+            .g-meter-dial { width: 4.2rem; height: 4.2rem; margin: 0 auto; flex-shrink: 0; }
             .g-meter-dial::after { width: 2.9rem; height: 2.9rem; }
-            .g-nums { font-size: 0.55rem; gap: 0.2rem; }
+            .g-nums { font-size: 0.55rem; gap: 0.2rem; margin-top: auto; }
+            .run-card { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
             .run-time { font-size: 1.35rem; }
             .run-name { font-size: 0.7rem; }
             .run-hint { display: none; }
-            .score-card { grid-column: span 2; }
+            .score-card { grid-column: span 2; display: flex; flex-direction: column; }
             .score-total { font-size: 1.4rem; }
+            .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; justify-content: center; }
 
             /* metric footer */
             .metric-group + .metric-group { margin-top: 0.45rem; }
-            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
-            .metric-card { min-height: 3rem; padding: 0.4rem 0.5rem; }
+            .metric-grid { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+            .metric-card { 
+                min-height: 3rem; 
+                padding: 0.4rem 0.5rem; 
+                display: flex; 
+                flex-direction: column; 
+                justify-content: center; 
+                align-items: center;
+                gap: 0.15rem;
+            }
             .timer-lbl { font-size: 0.95rem; }
             .hazard-strip { font-size: 0.48rem; letter-spacing: 0.12em; }
         }
@@ -817,13 +830,16 @@
             </div>
         </div>
 
-        <div class="metric-group" aria-label="Braking and Peak Performance">
-            <span class="metric-group-label">制動・峰值 // BRAKING &amp; PEAKS</span>
+<div class="metric-group" aria-label="Braking and Peak Performance">
+            <span class="metric-group-label">制動・峰値 // BRAKING & PEAKS</span>
             <div class="metric-grid">
                 <div class="metric-card accent-red"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX BRAKING</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
                 <div class="metric-card accent-green"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX ACCEL</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
-                <div class="metric-card accent-gray col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0M BRAKING DIST</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
+                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX LAT G</span><span id="peak-lat-g-metric" class="timer-lbl clr-purple lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX LON G</span><span id="peak-lon-g-metric" class="timer-lbl clr-purple lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-gray"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0M BRAKING DIST</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
             </div>
+        </div>
         </div>
     </section>
 
@@ -982,6 +998,9 @@
             peakMarker:   document.getElementById('peak-marker'),
             peakLatG:     document.getElementById('peak-lat-g'),
             peakLonG:     document.getElementById('peak-lon-g'),
+            peakLatGMetric: document.getElementById('peak-lat-g-metric'),
+            peakLonGMetric: document.getElementById('peak-lon-g-metric'),
+            peakLonGMetric: document.getElementById('peak-lon-g-metric'),
             liveRunName:  document.getElementById('live-run-name'),
             liveRunTime:  document.getElementById('live-run-time'),
             glitchCount:  document.getElementById('glitch-count'),
@@ -1000,7 +1019,7 @@
             // Gundam HUD additions
             distKm: null, sessClock: null, samples: -1, brakeLive: null,
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
-            peakLatG: null, peakLonG: null, glitchN: -1,
+            peakLatG: null, peakLonG: null, peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
             runName: null, runTime: null, alertOn: null
         };
@@ -1161,7 +1180,7 @@
             // invalidate Gundam HUD prev-diffs so counters re-render from zero
             prev.distKm = null; prev.brakeLive = null;
             prev.accelBar = null; prev.brakeBar = null; prev.latBar = null; prev.peakDeg = null;
-            prev.peakLatG = null; prev.peakLonG = null; prev.glitchN = -1;
+            prev.peakLatG = null; prev.peakLonG = null; prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
             prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
             prev.runName = null; prev.runTime = null;
 
@@ -1670,6 +1689,9 @@
             const pkLon = fmt2.format(maxGpsAccelG);
             if (prev.peakLatG !== pkLat) { dom.peakLatG.textContent = pkLat; prev.peakLatG = pkLat; }
             if (prev.peakLonG !== pkLon) { dom.peakLonG.textContent = pkLon; prev.peakLonG = pkLon; }
+            // Metric footer peaks
+            if (dom.peakLatGMetric && prev.peakLatGMetric !== pkLat) { dom.peakLatGMetric.textContent = pkLat; prev.peakLatGMetric = pkLat; }
+            if (dom.peakLonGMetric && prev.peakLonGMetric !== pkLon) { dom.peakLonGMetric.textContent = pkLon; prev.peakLonGMetric = pkLon; }
 
             // Per-card live sprint elapsed + LIVE tags
             updateLiveSprint(dom.t0_60,    'live0_60',    timer0_60,    now);
