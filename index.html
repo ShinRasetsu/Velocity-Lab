@@ -284,12 +284,14 @@ body {
             border-left: 2px solid rgba(0,255,136,0.35);
             clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.45rem), calc(100% - 0.45rem) 100%, 0 100%);
         }
-        .side-lbl {
+.side-lbl {
             display: block; font-size: 0.5rem; font-weight: 800;
             letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;
             margin-bottom: 0.15rem;
         }
         .side-val { display: block; font-size: 0.95rem; font-weight: 800; }
+        .g-readout { display: flex; align-items: baseline; gap: 0; white-space: nowrap; }
+        .g-max-sep { font-size: 0.7rem; font-weight: 600; opacity: 0.5; margin: 0 0.15rem; }
 
         /* live G bars (accel / brake / lateral) */
         .g-bar {
@@ -845,20 +847,32 @@ body {
             </div>
         </div>
 
-        <aside class="side-col" aria-label="Live G loads">
+<aside class="side-col" aria-label="Live G loads">
             <div class="side-cell">
                 <span class="side-lbl">加速 // ACCEL G</span>
-                <span id="live-lon-g" class="side-val lcd-text spd-green" aria-live="polite" aria-atomic="true">+0.00</span>
+                <span class="g-readout">
+                    <span id="live-lon-g" class="side-val lcd-text spd-green" aria-live="polite" aria-atomic="true">+0.00</span>
+                    <span class="g-max-sep" aria-hidden="true"> // </span>
+                    <span id="live-lon-g-max" class="side-val lcd-text spd-green opacity-60" aria-live="polite" aria-atomic="true">0.00</span>
+                </span>
                 <div class="g-bar"><div id="accel-fill" class="g-bar-fill accel"></div></div>
             </div>
             <div class="side-cell">
                 <span class="side-lbl">制動 // BRAKE G</span>
-                <span id="brake-live" class="side-val lcd-text text-red-400" aria-live="polite" aria-atomic="true">0.00</span>
+                <span class="g-readout">
+                    <span id="brake-live" class="side-val lcd-text text-red-400" aria-live="polite" aria-atomic="true">0.00</span>
+                    <span class="g-max-sep" aria-hidden="true"> // </span>
+                    <span id="brake-live-max" class="side-val lcd-text text-red-400 opacity-60" aria-live="polite" aria-atomic="true">0.00</span>
+                </span>
                 <div class="g-bar"><div id="brake-fill" class="g-bar-fill brake"></div></div>
             </div>
             <div class="side-cell">
                 <span class="side-lbl">横G // LATERAL</span>
-                <span id="live-lat-g" class="side-val lcd-text clr-blue" aria-live="polite" aria-atomic="true">0.00</span>
+                <span class="g-readout">
+                    <span id="live-lat-g" class="side-val lcd-text clr-blue" aria-live="polite" aria-atomic="true">0.00</span>
+                    <span class="g-max-sep" aria-hidden="true"> // </span>
+                    <span id="live-lat-g-max" class="side-val lcd-text clr-blue opacity-60" aria-live="polite" aria-atomic="true">0.00</span>
+                </span>
                 <div class="g-bar"><div id="lat-fill" class="g-bar-fill lat"></div></div>
             </div>
         </aside>
@@ -1070,6 +1084,9 @@ body {
             gDot:         document.getElementById('g-dot'),
             liveLatG:     document.getElementById('live-lat-g'),
             liveLonG:     document.getElementById('live-lon-g'),
+            liveLatGMax:  document.getElementById('live-lat-g-max'),
+            liveLonGMax:  document.getElementById('live-lon-g-max'),
+            brakeLiveMax: document.getElementById('brake-live-max'),
 
             // Gundam HUD additions
             gnssAlert:    document.getElementById('gnss-alert'),
@@ -1100,7 +1117,7 @@ body {
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, logCount: 0, maxSpeed: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
-            liveLatG: null, liveLonG: null, gDot: null, accuracy: null,
+            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, accuracy: null,
             // Gundam HUD additions
             distKm: null, sessClock: null, samples: -1, brakeLive: null,
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
@@ -1774,6 +1791,10 @@ body {
             const pkLon = fmt2.format(maxGpsAccelG);
             if (prev.peakLatG !== pkLat) { dom.peakLatG.textContent = pkLat; prev.peakLatG = pkLat; }
             if (prev.peakLonG !== pkLon) { dom.peakLonG.textContent = pkLon; prev.peakLonG = pkLon; }
+            // Live G max readouts (inline with current values)
+            if (dom.liveLatGMax && prev.liveLatGMax !== pkLat) { dom.liveLatGMax.textContent = pkLat; prev.liveLatGMax = pkLat; }
+            if (dom.liveLonGMax && prev.liveLonGMax !== pkLon) { dom.liveLonGMax.textContent = pkLon; prev.liveLonGMax = pkLon; }
+            if (dom.brakeLiveMax && prev.brakeLiveMax !== pkLon) { dom.brakeLiveMax.textContent = pkLon; prev.brakeLiveMax = pkLon; }
             // Metric footer peaks
             if (dom.peakLatGMetric && prev.peakLatGMetric !== pkLat) { dom.peakLatGMetric.textContent = pkLat; prev.peakLatGMetric = pkLat; }
             if (dom.peakLonGMetric && prev.peakLonGMetric !== pkLon) { dom.peakLonGMetric.textContent = pkLon; prev.peakLonGMetric = pkLon; }
