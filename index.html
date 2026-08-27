@@ -201,55 +201,58 @@ body {
 
 /* ── command bar ─────────────────────────────────────────────────── */
         .cmd-bar {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 0.5rem;
-            padding: 0.35rem 0.75rem;
+            padding: 0.25rem 0.6rem;
+            flex-wrap: nowrap;
         }
         .cmd-bar::after { display: none; }
 
-        .cmd-brand { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-start; }
+        .cmd-brand { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 1; min-width: 0; }
         .brand-row {
-            display: flex; align-items: center; gap: 0.35rem;
-            color: var(--green); font-size: 0.7rem; font-weight: 800;
-            text-transform: uppercase; letter-spacing: 0.06em;
+            display: flex; align-items: center; gap: 0.3rem;
+            color: var(--green); font-size: 0.65rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            white-space: nowrap;
         }
         .brand-mark {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 1.3rem; height: 1.3rem;
+            width: 1.15rem; height: 1.15rem;
             border: 1px solid rgba(0,255,136,0.45);
-            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.25rem), calc(100% - 0.25rem) 100%, 0 100%);
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.2rem), calc(100% - 0.2rem) 100%, 0 100%);
             background: rgba(0,255,136,0.1);
-            font-size: 0.5rem;
+            font-size: 0.45rem;
+            flex-shrink: 0;
         }
         .brand-subtitle { display: none; }
 
         .action-rail {
-            display: flex; flex-direction: row; flex-wrap: wrap;
-            align-items: center; gap: 0.25rem;
+            display: flex; flex-direction: row; flex-wrap: nowrap;
+            align-items: center; gap: 0.2rem;
         }
         .action-rail button {
-            min-height: 1.5rem;
-            padding: 0.2rem 0.5rem;
-            font-size: 0.5rem;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 3px 8px rgba(0,0,0,0.3);
+            min-height: 1.35rem;
+            padding: 0.15rem 0.45rem;
+            font-size: 0.48rem;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.3);
         }
 
-        .cmd-status { display: flex; flex-direction: column; align-items: center; gap: 0.05rem; min-width: 0; }
+        .cmd-status { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 1; min-width: 0; }
         #status-indicator {
-            font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em;
+            font-size: 0.65rem; font-weight: 800; letter-spacing: 0.06em;
             white-space: nowrap;
         }
-        .cmd-status-sub { display: flex; gap: 0.5rem; font-size: 0.5rem; font-weight: 700; letter-spacing: 0.06em; color: #6b7280; text-transform: uppercase; }
+        .cmd-status-sub { display: flex; gap: 0.4rem; font-size: 0.45rem; font-weight: 700; letter-spacing: 0.05em; color: #6b7280; text-transform: uppercase; }
 
-        .cmd-sys { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 0.5rem; font-size: 0.5rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; flex-wrap: wrap; }
-        .cmd-sys span { display: inline-flex; align-items: center; gap: 0.3rem; }
+        .cmd-sys { display: flex; flex-direction: row; align-items: center; gap: 0.4rem; font-size: 0.48rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+        .cmd-sys span { display: inline-flex; align-items: center; gap: 0.25rem; }
         .cmd-sys span::before {
-            content: ""; width: 0.28rem; height: 0.28rem; border-radius: 999px;
-            background: currentColor; box-shadow: 0 0 4px currentColor; flex: none;
+            content: ""; width: 0.25rem; height: 0.25rem; border-radius: 999px;
+            background: currentColor; box-shadow: 0 0 3px currentColor; flex: none;
         }
-        .cmd-sys .action-btn { padding: 0.15rem 0.4rem; font-size: 0.45rem; min-height: 1.4rem; }
+        .cmd-sys .action-btn { padding: 0.12rem 0.35rem; font-size: 0.42rem; min-height: 1.3rem; }
 
         /* ── GNSS loss banner ────────────────────────────────────────────── */
         .gnss-alert {
@@ -618,20 +621,19 @@ body {
             .tactical { min-width: 0 !important; }
             .metric-grid { min-width: 0 !important; }
 
-/* command bar: centred single column, one-row action rail */
-            .cmd-bar { grid-template-columns: 1fr; gap: 0.45rem; padding: 0.5rem 0.6rem; }
-            .cmd-brand { align-items: center; }
-            .brand-row { justify-content: center; font-size: 0.7rem; gap: 0.4rem; }
-            .brand-mark { width: 1.4rem; height: 1.4rem; font-size: 0.55rem; }
-            .brand-subtitle { display: none; }
-            .action-rail { justify-content: center; margin-top: 0.3rem; gap: 0.35rem; }
-            .action-rail button { min-height: 2rem; padding: 0.32rem 0.7rem; font-size: 0.55rem; }
-            #export-group { max-width: none; }
-            .cmd-status { align-items: center; }
-            #status-indicator { font-size: 0.8rem; white-space: normal; }
-            .cmd-status-sub { justify-content: center; font-size: 0.55rem; gap: 0.7rem; flex-wrap: wrap; }
-            .cmd-sys { flex-direction: row; justify-content: center; align-items: center; gap: 0.6rem 1.1rem; font-size: 0.55rem; flex-wrap: wrap; }
-            .hazard-strip { flex-wrap: wrap; justify-content: center; font-size: 0.48rem; letter-spacing: 0.12em; }
+/* command bar: compact single row on mobile too */
+            .cmd-bar { gap: 0.35rem; padding: 0.25rem 0.5rem; }
+            .cmd-brand { gap: 0.3rem; }
+            .brand-row { font-size: 0.6rem; gap: 0.25rem; }
+            .brand-mark { width: 1rem; height: 1rem; font-size: 0.4rem; }
+            .action-rail { gap: 0.15rem; }
+            .action-rail button { min-height: 1.25rem; padding: 0.12rem 0.35rem; font-size: 0.42rem; }
+            .cmd-status { gap: 0.35rem; }
+            #status-indicator { font-size: 0.6rem; }
+            .cmd-status-sub { gap: 0.3rem; font-size: 0.4rem; }
+            .cmd-sys { gap: 0.3rem; font-size: 0.42rem; }
+            .cmd-sys span::before { width: 0.22rem; height: 0.22rem; }
+            .cmd-sys .action-btn { padding: 0.1rem 0.3rem; font-size: 0.38rem; min-height: 1.2rem; }
             /* never let a rigid child widen the shell past the screen */
             .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
 
