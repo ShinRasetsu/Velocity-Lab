@@ -609,7 +609,8 @@ body {
             }
             html, body { max-width: 100vw; overflow-x: hidden; }
             .dashboard-shell { overflow-x: hidden; }
-            /* Nuclear: force viewport lock at every level */
+            /* Hide max cards to prevent layout shift */
+            #peak-g, #peak-lat-g-metric, #peak-lon-g-metric { display: none; }
             .stage { width: 100% !important; max-width: 100% !important; }
             .side-col { min-width: 0 !important; }
             .tactical { min-width: 0 !important; }
