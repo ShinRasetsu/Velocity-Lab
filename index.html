@@ -72,16 +72,10 @@
         .btn-tare:active { background: rgba(0,191,255,0.40); }
         .btn-reset { color: #facc15; border-color: rgba(250,204,21,0.5); background: rgba(250,204,21,0.10); }
         .btn-reset:hover  { background: rgba(250,204,21,0.20); }
-        .btn-reset:active { background: rgba(250,204,21,0.40); }
+.btn-reset:active { background: rgba(250,204,21,0.40); }
         .btn-install { color: var(--green); border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); }
         .btn-install:hover  { background: rgba(0,255,136,0.20); }
         .btn-install:active { background: rgba(0,255,136,0.40); }
-        .btn-csv { color: var(--purple); border-color: rgba(187,134,252,0.5); background: rgba(187,134,252,0.10); }
-        .btn-csv:hover  { background: rgba(187,134,252,0.20); }
-        .btn-csv:active { background: rgba(187,134,252,0.40); }
-        .btn-clear { color: #f87171; border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.10); padding: 0.25rem 0.5rem; }
-        .btn-clear:hover  { background: rgba(239,68,68,0.20); }
-        .btn-clear:active { background: rgba(239,68,68,0.40); }
         .btn-ios-grant { color: var(--green); border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.10); padding: 0.75rem 1.5rem; font-size: 0.8rem; }
         .btn-ios-grant:hover { background: rgba(0,255,136,0.20); }
 
@@ -621,19 +615,36 @@ body {
             .tactical { min-width: 0 !important; }
             .metric-grid { min-width: 0 !important; }
 
-/* command bar: ultra-compact for mobile portrait */
-            .cmd-bar { gap: 0.25rem; padding: 0.2rem 0.4rem; }
-            .cmd-brand { gap: 0.2rem; }
-            .brand-row { font-size: 0.5rem; gap: 0.15rem; }
-            .brand-mark { width: 0.85rem; height: 0.85rem; font-size: 0.35rem; }
-            .action-rail { gap: 0.1rem; }
-            .action-rail button { min-height: 1.15rem; padding: 0.1rem 0.3rem; font-size: 0.38rem; }
-            .cmd-status { gap: 0.25rem; }
-            #status-indicator { font-size: 0.5rem; }
-            .cmd-status-sub { gap: 0.2rem; font-size: 0.35rem; }
-            .cmd-sys { gap: 0.2rem; font-size: 0.38rem; }
-            .cmd-sys span::before { width: 0.18rem; height: 0.18rem; }
-            .cmd-sys .action-btn { padding: 0.08rem 0.25rem; font-size: 0.34rem; min-height: 1.1rem; }
+/* command bar: 2-row layout for mobile portrait - readable & compact */
+            .cmd-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.15rem;
+                padding: 0.25rem 0.5rem;
+            }
+            /* Row 1: Brand + Actions */
+            .cmd-brand {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                gap: 0.3rem;
+            }
+            .brand-row { font-size: 0.6rem; gap: 0.25rem; }
+            .brand-mark { width: 1rem; height: 1rem; font-size: 0.4rem; }
+            .action-rail { gap: 0.2rem; }
+            .action-rail button { min-height: 1.3rem; padding: 0.15rem 0.4rem; font-size: 0.45rem; }
+            /* Row 2: Status + System */
+            .cmd-status {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                gap: 0.3rem;
+            }
+            #status-indicator { font-size: 0.6rem; }
+            .cmd-status-sub { gap: 0.35rem; font-size: 0.4rem; }
+            .cmd-sys { gap: 0.3rem; font-size: 0.45rem; }
+            .cmd-sys span::before { width: 0.2rem; height: 0.2rem; }
+            .cmd-sys .action-btn { padding: 0.12rem 0.3rem; font-size: 0.4rem; min-height: 1.2rem; }
             /* never let a rigid child widen the shell past the screen */
             .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
 
@@ -770,16 +781,6 @@ body {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg>
                 RESET RUN
             </button>
-            <div id="export-group" class="flex gap-1" style="display:none;">
-                <button id="export-csv-btn" aria-label="Export Telemetry to CSV" class="action-btn gap-1.5 neon-purple btn-csv">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>
-                    <span id="export-btn-idle">CSV (<span id="log-count">0</span>)</span>
-                    <span id="export-btn-busy" hidden>EXPORTING...</span>
-                </button>
-                <button id="clear-logs-btn" aria-label="Clear Telemetry Logs" class="action-btn gap-1 btn-clear">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-                </button>
-            </div>
             <button id="pwa-install-btn" style="display:none;" aria-label="Install App" class="action-btn gap-1.5 neon-accent btn-install">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
                 INSTALL
@@ -811,13 +812,9 @@ body {
                 <span class="side-lbl">走行距離 // DIST</span>
                 <span id="dist-display" class="side-val lcd-text text-white">0.00 KM</span>
             </div>
-            <div class="side-cell">
+<div class="side-cell">
                 <span class="side-lbl">計測時間 // SESSION</span>
                 <span id="session-time" class="side-val lcd-text text-white">00:00</span>
-            </div>
-            <div class="side-cell">
-                <span class="side-lbl">サンプル // SAMPLES</span>
-                <span id="sample-count" class="side-val lcd-text text-white">0</span>
             </div>
             <div class="side-cell">
                 <span class="side-lbl">最高速度 // MAX</span>
@@ -955,15 +952,11 @@ body {
         const BAR_MAX_SPEED        = 200.0;
         const GRAVITY_MS2          = 9.80665;
         const QUARTER_MILE_METERS  = 402.336;
-        const MAX_LOG_SAMPLES      = 100_000;
         const IMU_ALPHA            = 0.15;
         const SPEED_ZERO_SNAP_KMPH = 1.5;
         const GPS_STALE_MS         = 2500;   
         const GPS_MAX_DT_SEC       = 3.0;    
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
-        const IDB_NAME             = "velocity-lab";
-        const IDB_STORE            = "telemetry";
-        const IDB_KEY              = "session-1";
 
         // -- sensor fusion / accuracy optimization --
         const GPS_ACC_TRUST_MIN_M    = 4.0;
@@ -992,9 +985,8 @@ body {
         let lastGpsTime     = -1;
         let prevGpsSpeedMs  = 0.0;
         
-        let lastRenderTime  = performance.now();
+let lastRenderTime  = performance.now();
         let maxSpeedKmph    = 0.0;
-        let exportBtnShown  = false;
         let gpsHzSmooth     = 0.0;
 
         // UI Interpolation State (drives the live G-meter dot + readings)
@@ -1029,11 +1021,7 @@ body {
         const timer0_100   = { state: T_IDLE, start: 0, result: 0 };
         const timer100_200 = { state: T_IDLE, start: 0, result: 0 };
         const timerQuarter = { state: T_IDLE, start: 0, result: 0 };
-        const timer100_0   = { state: T_IDLE, startDist: 0, result: 0 }; 
-
-        let telemetrySession = [];
-        let telemetryDirty   = false;   
-        let lastSaveTime     = 0;   
+        const timer100_0   = { state: T_IDLE, startDist: 0, result: 0 };
 
         // PWA Install State
         let deferredPrompt;
@@ -1066,12 +1054,6 @@ body {
             tQuarter:     document.getElementById('timer-quarter'),
             installBtn:   document.getElementById('pwa-install-btn'),
             resetRunBtn:  document.getElementById('reset-run-btn'),
-            exportGroup:  document.getElementById('export-group'),
-            exportBtn:    document.getElementById('export-csv-btn'),
-            exportIdle:   document.getElementById('export-btn-idle'),
-            exportBusy:   document.getElementById('export-btn-busy'),
-            clearLogsBtn: document.getElementById('clear-logs-btn'),
-            logCount:     document.getElementById('log-count'),
             
             iosGate:      document.getElementById('ios-gate'),
             iosGrantBtn:  document.getElementById('ios-grant-btn'),
@@ -1088,7 +1070,6 @@ body {
             gnssAlert:    document.getElementById('gnss-alert'),
             distDisplay:  document.getElementById('dist-display'),
             sessionTime:  document.getElementById('session-time'),
-            sampleCount:  document.getElementById('sample-count'),
             brakeLive:    document.getElementById('brake-live'),
             accelFill:    document.getElementById('accel-fill'),
             brakeFill:    document.getElementById('brake-fill'),
@@ -1111,11 +1092,11 @@ body {
         const prev = {
             speed: null, speedBar: null, ringDeg: null,
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
-            brakeScore: null, logCount: 0, maxSpeed: null, updateRate: null, status: null,
+            brakeScore: null, maxSpeed: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
             liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, accuracy: null,
             // Gundam HUD additions
-            distKm: null, sessClock: null, samples: -1, brakeLive: null,
+            distKm: null, sessClock: null, brakeLive: null,
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatG: null, peakLonG: null, peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
@@ -1148,59 +1129,6 @@ body {
 
         // ─── PERSISTENCE LAYER ────────────────────────────────────────────────────
         //  • localStorage: small summary (peaks + timer results) — synchronous, fast.
-        //  • IndexedDB:    full telemetrySession array — survives refresh (too big for localStorage).
-
-        function idbOpen() {
-            return new Promise((resolve, reject) => {
-                if (!('indexedDB' in navigator)) return reject(new Error('no-idb'));
-                const req = indexedDB.open(IDB_NAME, 1);
-                req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
-                req.onsuccess = () => resolve(req.result);
-                req.onerror   = () => reject(req.error);
-            });
-        }
-
-        async function idbSaveTelemetry() {
-            try {
-                const db = await idbOpen();
-                const tx = db.transaction(IDB_STORE, 'readwrite');
-                tx.objectStore(IDB_STORE).put(telemetrySession, IDB_KEY);
-                await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
-                db.close();
-                telemetryDirty = false;
-            } catch (e) { /* fire-and-forget */ }
-        }
-
-        async function idbLoadTelemetry() {
-            try {
-                const db = await idbOpen();
-                const tx = db.transaction(IDB_STORE, 'readonly');
-                const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
-                await new Promise((res, rej) => { req.onsuccess = res; req.onerror = () => rej(req.error); });
-                db.close();
-                const arr = req.result;
-                if (Array.isArray(arr) && arr.length) {
-                    telemetrySession = arr;
-                    if (prev.logCount !== telemetrySession.length) {
-                        dom.logCount.textContent = String(telemetrySession.length);
-                        prev.logCount = telemetrySession.length;
-                    }
-                    if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
-                    // Surface the carry-over in the header so a refresh isn't a surprise.
-                    setDOM(dom.status, 'status', `SESSION RESTORED · ${telemetrySession.length} SAMPLES`, "clr-blue neon-blue");
-                }
-            } catch (e) { /* fire-and-forget */ }
-        }
-
-        async function idbClearTelemetry() {
-            try {
-                const db = await idbOpen();
-                const tx = db.transaction(IDB_STORE, 'readwrite');
-                tx.objectStore(IDB_STORE).delete(IDB_KEY);
-                await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
-                db.close();
-            } catch (e) { /* fire-and-forget */ }
-        }
 
         function saveSession() {
             try {
@@ -1216,8 +1144,6 @@ body {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                 stateDirty = false;
             } catch (e) { console.warn("Storage quota exceeded or disabled."); }
-            // Also flush telemetry if it changed since the last IDB save.
-            if (telemetryDirty) idbSaveTelemetry();
         }
 
         function loadSession() {
@@ -1309,47 +1235,6 @@ body {
         }
 
         dom.resetRunBtn.addEventListener('click', resetRun);
-        dom.clearLogsBtn.addEventListener('click', () => {
-            telemetrySession = [];
-            prev.logCount = 0;
-            dom.logCount.textContent = "0";
-            dom.exportGroup.style.display = 'none';
-            exportBtnShown = false;
-        });
-
-        dom.exportBtn.addEventListener('click', () => {
-            if (!telemetrySession.length) return;
-            // Toggle label spans instead of rewriting button content so the
-            // icon and the live log-count node survive the state swaps.
-            dom.exportIdle.hidden = true;
-            dom.exportBusy.textContent = "EXPORTING...";
-            dom.exportBusy.hidden = false;
-
-            setTimeout(() => {
-                const vs = calculateVehicleScore();
-                const avgConfPct = confidenceSamples > 0 ? Math.round((confidenceSum / confidenceSamples) * 100) : 0;
-                const metadata = `# V-SCORE: ${vs.total} (Spd:${vs.spd} Acc:${vs.acc} Brk:${vs.brk} Hdl:${vs.hdl}) | MAX SPEED: ${maxSpeedKmph.toFixed(2)} km/h | MAX ACC: ${maxGpsAccelG.toFixed(2)} G | MAX BRAKING: ${bestGpsBrakingG.toFixed(2)} G | MAX LAT: ${maxGpsLatG.toFixed(2)} G | FUSION: ${imuFusionActive ? "IMU+GPS" : "GPS ONLY"} | AVG CONF: ${avgConfPct}% | GLITCHES FILTERED: ${gpsGlitchCount}\n`;
-                const header = "Timestamp(ms),Speed(kmh),Distance(m),LatG,LongG,Heading(deg),GPSAcc(m),Fusion\n";
-                const csv = metadata + header + telemetrySession.join("\n");
-
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-
-                const a = document.createElement("a");
-                a.href     = url;
-                a.download = `VelocityLab_${Date.now()}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-
-                dom.exportBusy.textContent = "✔ COMPLETE";
-                setTimeout(() => {
-                    URL.revokeObjectURL(url);
-                    dom.exportBusy.hidden = true;
-                    dom.exportIdle.hidden = false;
-                }, 2000);
-            }, 50);
-        });
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -1619,16 +1504,9 @@ body {
                 }
 
                 if (gpsSpeedKmph > 0) {
-                    if (!exportBtnShown) { dom.exportGroup.style.display = 'flex'; exportBtnShown = true; }
                     // Fusion column: 1 = GPS+IMU fused, 0 = GPS-only fallback
                     const fusionFlag = imuFusionActive ? 1 : 0;
-                    telemetrySession.push(`${Math.floor(now)},${fmt2.format(gpsSpeedKmph)},${fmt2.format(distanceMeters)},${fmt2.format(fusedLatG)},${fmt2.format(fusedLongG)},,${fmt1.format(acc)},${fusionFlag}`);
-                    telemetryDirty = true;
-                    if (telemetrySession.length > MAX_LOG_SAMPLES) {
-                        telemetrySession.splice(0, telemetrySession.length - MAX_LOG_SAMPLES);
-                    }
-                    const logLen = telemetrySession.length;
-                    if (prev.logCount !== logLen) { dom.logCount.textContent = String(logLen); prev.logCount = logLen; }
+                    // telemetry logging removed
                 }
             }
 
@@ -1673,12 +1551,6 @@ body {
                 t.result = 0;
                 t.startDist = 0;
             });
-            // Clear all telemetry
-            telemetrySession = [];
-            prev.logCount = 0;
-            dom.logCount.textContent = "0";
-            exportBtnShown = false;
-            dom.exportGroup.style.display = 'none';
             // Reset G-meter peaks
             maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
             // Reset session clock
@@ -1687,8 +1559,6 @@ body {
             // Reset distance
             distanceMeters = 0;
             if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
-            // Reset sample counter
-            if (dom.sampleCount) dom.sampleCount.textContent = "0";
             // Reset G bars
             if (dom.accelFill) dom.accelFill.style.width = "0%";
             if (dom.brakeFill) dom.brakeFill.style.width = "0%";
@@ -1756,7 +1626,6 @@ body {
             // Distance travelled / logged samples / glitch filter counter
             const distKm = fmt2.format(distanceMeters / 1000) + " KM";
             if (prev.distKm !== distKm) { dom.distDisplay.textContent = distKm; prev.distKm = distKm; }
-            if (prev.samples !== telemetrySession.length) { dom.sampleCount.textContent = String(telemetrySession.length); prev.samples = telemetrySession.length; }
             if (prev.glitchN !== gpsGlitchCount) { dom.glitchCount.textContent = String(gpsGlitchCount); prev.glitchN = gpsGlitchCount; }
 
             // Live accel / brake / lateral G bars (1.0G / 1.2G / 1.5G full-scale)
