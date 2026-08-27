@@ -119,7 +119,7 @@
             --panel: linear-gradient(180deg, rgba(10,15,24,0.88), rgba(4,7,12,0.92));
         }
 
-        body {
+body {
             margin: 0;
             font-family: 'JetBrains Mono', monospace;
             background:
@@ -131,6 +131,9 @@
             overscroll-behavior: none;
             user-select: none;
             touch-action: none;
+            /* viewport lock: prevent any horizontal overflow at the root */
+            max-width: 100vw;
+            overflow-x: hidden;
         }
 
         /* CRT scanlines over the whole cockpit */
@@ -166,9 +169,10 @@
             clip-path: polygon(0 0, 100% 50%, 0 100%);
         }
 
-        /* ── shell ───────────────────────────────────────────────────────── */
+/* ── shell ───────────────────────────────────────────────────────── */
         .dashboard-shell {
             width: min(100%, 78rem);
+            max-width: 100%;
             min-height: 100svh;
             margin: 0 auto;
             padding: calc(0.6rem + env(safe-area-inset-top)) calc(0.9rem + env(safe-area-inset-right)) calc(0.6rem + env(safe-area-inset-bottom)) calc(0.9rem + env(safe-area-inset-left));
@@ -177,6 +181,8 @@
             gap: 0.55rem;
             position: relative;
             z-index: 1;
+            overflow-x: hidden;
+            box-sizing: border-box;
         }
 
         /* ── iOS gate ────────────────────────────────────────────────────── */
@@ -589,20 +595,22 @@
                 -webkit-overflow-scrolling: touch;
             }
             .scanlines { opacity: 0.3; }
-            /* Force horizontal padding on mobile — kills any env() bleed */
+            /* Some Android devices report an inflated LEFT safe-area inset in
+               portrait (camera-cutout quirk) which shoves the whole HUD right.
+               Override the ENTIRE padding shorthand with !important to kill
+               any env() bleed; keep vertical env() for notch/home-bar. */
             .dashboard-shell {
-                padding-left: 0.75rem !important;
-                padding-right: 0.75rem !important;
+                padding: calc(0.6rem + env(safe-area-inset-top)) 0.75rem calc(0.6rem + env(safe-area-inset-bottom)) 0.75rem !important;
                 gap: 0.5rem;
                 overflow-x: clip;
             }
             #ios-gate {
-                padding-left: 0.75rem !important;
-                padding-right: 0.75rem !important;
+                padding: calc(1.5rem + env(safe-area-inset-top)) 0.75rem calc(1.5rem + env(safe-area-inset-bottom)) 0.75rem !important;
             }
-            html, body { max-width: 100%; overflow-x: hidden; }
+            html, body { max-width: 100vw; overflow-x: hidden; }
+            .dashboard-shell { overflow-x: clip; }
 
-            /* command bar: centred single column, one-row action rail */
+/* command bar: centred single column, one-row action rail */
             .cmd-bar { grid-template-columns: 1fr; gap: 0.45rem; padding: 0.5rem 0.6rem; }
             .cmd-brand { align-items: center; }
             .brand-row { justify-content: center; font-size: 0.7rem; gap: 0.4rem; }
