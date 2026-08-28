@@ -821,10 +821,10 @@ html {
         /* never let a rigid child widen the shell past the screen */
         .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
 
-        /* tactical row: shrinkable columns */
-        .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.45rem; align-items: stretch; }
+        /* tactical row: shrinkable columns — compact so bottom fits 100svh */
+        .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.35rem; align-items: stretch; }
         .t-card { 
-            padding: 0.5rem 0.55rem; gap: 0.35rem; 
+            padding: 0.38rem 0.5rem; gap: 0.22rem; 
             display: flex; flex-direction: column; 
             height: 100%; 
             justify-content: center;
@@ -847,8 +847,8 @@ html {
         .run-name { font-size: 0.7rem; }
         .run-hint { display: none; }
         .score-card { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; }
-        .score-total { font-size: 1.4rem; }
-        .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; justify-content: center; }
+        .score-total { font-size: 1.22rem; line-height: 0.95; }
+        .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.18rem; justify-content: center; }
 
         /* metric footer */
         .metric-group + .metric-group { margin-top: 0.45rem; }
