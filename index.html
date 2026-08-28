@@ -423,14 +423,19 @@ html {
    Uses conic-gradient for clean arc segments. */
         .g-force-ring {
             position: absolute;
-            top: 50%; left: 50%;
-            width: calc(var(--gauge) * 1.22);
-            height: calc(var(--gauge) * 1.22);
-            margin: calc(var(--gauge) * -0.61) 0 0 calc(var(--gauge) * -0.61);
+            /* centered on speed-gauge, not gauge-wrap (which includes speed-track) */
+            top: calc(var(--gauge) * 0.5); left: 50%;
+            width: calc(var(--gauge) * 1.18);
+            height: calc(var(--gauge) * 1.18);
+            margin: calc(var(--gauge) * -0.59) 0 0 calc(var(--gauge) * -0.59);
             border-radius: 50%;
             pointer-events: none;
-            z-index: 5;  /* above everything in gauge-wrap */
-            /* Ring track: conic-gradient with 8 segments (45° each) */
+            z-index: 5;  /* above speed-gauge */
+            overflow: visible;
+            /* faint base track visible at 0G so you can find it */
+            border: 1px solid rgba(148,163,184,0.18);
+            box-shadow: 0 0 8px rgba(148,163,184,0.08) inset;
+            /* Ring fill: conic-gradient with 8 segments (45° each) */
             background: conic-gradient(from 0deg,
                 var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
                 transparent calc(var(--fore-pos, 0%) * 45deg / 100), transparent 45deg,
@@ -449,10 +454,11 @@ html {
                 var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
                 transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
             );
-            /* Make it a ring: mask out center 85% */
-            -webkit-mask: radial-gradient(circle, transparent 85%, black 85%);
-            mask: radial-gradient(circle, transparent 85%, black 85%);
+            /* Make it a ring: mask out center 85% — keep border inside mask */
+            -webkit-mask: radial-gradient(circle, transparent 84%, black 84%);
+            mask: radial-gradient(circle, transparent 84%, black 84%);
         }
+        .gauge-wrap { overflow: visible; }
         /* No child bars needed - all in conic-gradient */
         .g-force-bars { display: none; }
 
@@ -470,12 +476,12 @@ html {
         /* ── Startup animations — verifiable boot sequence ── */
         .g-force-ring {
             opacity: 0;
-            transform: scale(0.85);
+            transform: scale(0.88);
         }
         .g-force-ring.boot {
             animation:
-                ring-expand 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards,
-                g-force-boot 2.0s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
+                ring-expand 0.85s cubic-bezier(0.4, 0, 0.2, 1) 0.12s forwards,
+                g-force-boot 2.0s cubic-bezier(0.4, 0, 0.2, 1) 0.18s forwards;
         }
         @keyframes g-force-boot {
             0% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
