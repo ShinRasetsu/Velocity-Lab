@@ -838,11 +838,12 @@ html {
                     <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
                 </span>
             </div>
-            <div class="cmd-sys" aria-live="polite">
-                <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
-                <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
-                <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
-            </div>
+<div class="cmd-sys" aria-live="polite">
+            <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
+            <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
+            <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS">⟳ GPS</button>
+            <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
+        </div>
         </div>
     </header>
 
@@ -1062,6 +1063,7 @@ let lastRenderTime  = performance.now();
             tQuarter:     document.getElementById('timer-quarter'),
             installBtn:   document.getElementById('pwa-install-btn'),
             speedGaugeBtn: document.getElementById('speed-gauge-btn'),
+            gpsRetryBtn:   document.getElementById('gps-retry-btn'),
             
             iosGate:      document.getElementById('ios-gate'),
             iosGrantBtn:  document.getElementById('ios-grant-btn'),
@@ -1598,6 +1600,15 @@ let lastRenderTime  = performance.now();
             window.alert("Data purged. Dashboard reset to initial state.");
         }
 
+        function restartGPS() {
+            setDOM(dom.status, 'status', "RESTARTING GPS...", "text-yellow-500 neon-warning");
+            dom.gpsRetryBtn.style.display = 'none';
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+            }
+        }
+
         function renderLoop() {
             const now = performance.now();
             const dt  = now - lastRenderTime;
@@ -1605,6 +1616,9 @@ let lastRenderTime  = performance.now();
             if (gnssStale) {
                 currentSpeedMs = 0.0;
                 setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
+            } else {
+                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
             }
             const alpha = 1 - Math.exp(-dt * 0.008); 
             displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
