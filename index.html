@@ -431,7 +431,9 @@ html {
             position: absolute; inset: 0; border-radius: 50%;
             pointer-events: none;
         }
-        /* Each bar is a 90° arc segment on the ring */
+        /* Each bar is a 45° wedge growing from the quadrant's center divider.
+   8 bars total: 4 quadrants × 2 directions (pos/neg).
+   Each grows from the divider (0 G) along the arc. */
         .g-force-bar {
             position: absolute;
             top: 50%; left: 50%;
@@ -440,8 +442,8 @@ html {
             border-radius: 50%;
             transform-origin: 50% 50%;
         }
-        /* Ring track thickness = 8% of radius */
-        /* Base track (background) - full 90° arc at ring radius */
+        /* Ring track thickness = inset from edge */
+        /* Base track (background) - 45° wedge */
         .g-force-bar::before {
             content: "";
             position: absolute; inset: 0.08em; border-radius: 50%;
@@ -449,7 +451,7 @@ html {
             opacity: 0.12;
             clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
         }
-        /* Fill - grows from center divider outward */
+        /* Fill - grows from divider (transform-origin at center) along arc */
         .g-force-bar::after {
             content: "";
             position: absolute; inset: 0.08em; border-radius: 50%;
@@ -461,22 +463,36 @@ html {
             transition: transform 60ms linear;
             will-change: transform;
         }
-        /* Fore (0°/360°) - Accel + (Green) / Brake - (Red) */
-        .g-force-bar.fore { transform: rotate(-45deg); }
-        .g-force-bar.fore.pos { color: var(--green); }
-        .g-force-bar.fore.neg { color: var(--red); transform: rotate(-135deg); }
-        /* Right (90°) - Lat Right + (Cyan) / Lat Left - (Cyan) */
-        .g-force-bar.right { transform: rotate(45deg); }
-        .g-force-bar.right.pos { color: var(--cyan); }
-        .g-force-bar.right.neg { color: var(--cyan); transform: rotate(135deg); }
-        /* Aft (180°) - Brake - (Red) / Accel + (Green) - mirrors Fore */
-        .g-force-bar.aft { transform: rotate(135deg); }
-        .g-force-bar.aft.pos { color: var(--green); transform: rotate(45deg); }
-        .g-force-bar.aft.neg { color: var(--red); transform: rotate(-45deg); }
-        /* Left (270°) - Lat Left + (Cyan) / Lat Right - (Cyan) - mirrors Right */
-        .g-force-bar.left { transform: rotate(-135deg); }
-        .g-force-bar.left.pos { color: var(--cyan); transform: rotate(135deg); }
-        .g-force-bar.left.neg { color: var(--cyan); transform: rotate(-45deg); }
+        /* Quadrant center dividers (where 0 G is): Fore=0°, Right=90°, Aft=180°, Left=270° */
+        /* Each bar is a 45° wedge positioned at the divider */
+        /* Fore quadrant (top): divider at 0° (north) */
+        .g-force-bar.fore.pos { transform: rotate(0deg); color: var(--green); }
+        .g-force-bar.fore.neg { transform: rotate(0deg); color: var(--red); }
+        .g-force-bar.fore.pos::before,
+        .g-force-bar.fore.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.fore.neg::before,
+        .g-force-bar.fore.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
+        /* Right quadrant: divider at 90° (east) */
+        .g-force-bar.right.pos { transform: rotate(90deg); color: var(--cyan); }
+        .g-force-bar.right.neg { transform: rotate(90deg); color: var(--cyan); }
+        .g-force-bar.right.pos::before,
+        .g-force-bar.right.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.right.neg::before,
+        .g-force-bar.right.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
+        /* Aft quadrant: divider at 180° (south) */
+        .g-force-bar.aft.pos { transform: rotate(180deg); color: var(--green); }
+        .g-force-bar.aft.neg { transform: rotate(180deg); color: var(--red); }
+        .g-force-bar.aft.pos::before,
+        .g-force-bar.aft.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.aft.neg::before,
+        .g-force-bar.aft.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
+        /* Left quadrant: divider at 270° (west) */
+        .g-force-bar.left.pos { transform: rotate(270deg); color: var(--cyan); }
+        .g-force-bar.left.neg { transform: rotate(270deg); color: var(--cyan); }
+        .g-force-bar.left.pos::before,
+        .g-force-bar.left.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.left.neg::before,
+        .g-force-bar.left.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
         /* Center divider lines (positive/negative split at 0) */
         .g-force-divider {
             position: absolute; top: 50%; left: 50%;
@@ -956,24 +972,8 @@ html {
         </aside>
     </main>
 
-    <!-- TACTICAL ROW -->
+<!-- TACTICAL ROW -->
     <section class="tactical" aria-label="Tactical readouts">
-        <div class="t-card panel g-card">
-            <div class="g-meter-dial" role="img" aria-label="Lateral and longitudinal G meter">
-                <div class="dial-cross-h"></div>
-                <div class="dial-cross-v"></div>
-                <div class="dial-ring"></div>
-                <div id="g-dot" class="g-dot"></div>
-            </div>
-            <div>
-                <span class="t-lbl">Gセンサー // G-LOAD</span>
-                <div class="g-nums">
-                    <div><span>PK.LAT</span><span id="peak-lat-g" class="lcd-text">0.00</span></div>
-                    <div><span>PK.LON</span><span id="peak-lon-g" class="lcd-text">0.00</span></div>
-                </div>
-</div>
-        </div>
-
         <div class="t-card panel score-card">
             <span class="t-lbl">性能指数 // V-SCORE <span id="score-panel-label" class="score-src">(GPS)</span></span>
             <div class="score-top">
@@ -1120,7 +1120,6 @@ let lastRenderTime  = performance.now();
             iosGrantBtn:  document.getElementById('ios-grant-btn'),
             
             // Live G-Meter
-            gDot:         document.getElementById('g-dot'),
             gMagnitudeArc: document.getElementById('g-magnitude-arc'),
             liveLatG:     document.getElementById('live-lat-g'),
             liveLonG:     document.getElementById('live-lon-g'),
@@ -1137,10 +1136,7 @@ let lastRenderTime  = performance.now();
             brakeFill:    document.getElementById('brake-fill'),
             latFill:      document.getElementById('lat-fill'),
             peakMarker:   document.getElementById('peak-marker'),
-            peakLatG:     document.getElementById('peak-lat-g'),
-            peakLonG:     document.getElementById('peak-lon-g'),
             peakLatGMetric: document.getElementById('peak-lat-g-metric'),
-            peakLonGMetric: document.getElementById('peak-lon-g-metric'),
             peakLonGMetric: document.getElementById('peak-lon-g-metric'),
             glitchCount:  document.getElementById('glitch-count'),
             vbarSpd:      document.getElementById('vbar-spd'),
@@ -1164,11 +1160,11 @@ let lastRenderTime  = performance.now();
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
-            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, gMagnitudeArc: null, gBarForePos: 0, gBarForeNeg: 0, gBarRightPos: 0, gBarRightNeg: 0, gBarAftPos: 0, gBarAftNeg: 0, gBarLeftPos: 0, gBarLeftNeg: 0, accuracy: null,
+            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gMagnitudeArc: null, gBarForePos: 0, gBarForeNeg: 0, gBarRightPos: 0, gBarRightNeg: 0, gBarAftPos: 0, gBarAftNeg: 0, gBarLeftPos: 0, gBarLeftNeg: 0, accuracy: null,
             // Gundam HUD additions
             distKm: null, sessClock: null, brakeLive: null,
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
-            peakLatG: null, peakLonG: null, peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
+            peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
             alertOn: null
         };
@@ -1274,12 +1270,11 @@ let lastRenderTime  = performance.now();
             prev.brakeScore = null;
             prev.liveLatG  = null;
             prev.liveLonG  = null;
-            prev.gDot      = null;
 
             // invalidate Gundam HUD prev-diffs so counters re-render from zero
             prev.distKm = null; prev.brakeLive = null;
             prev.accelBar = null; prev.brakeBar = null; prev.latBar = null; prev.peakDeg = null;
-            prev.peakLatG = null; prev.peakLonG = null; prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
+            prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
             prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
 
             timer0_60.state = T_IDLE;
@@ -1678,11 +1673,6 @@ let lastRenderTime  = performance.now();
             if (prev.liveLatG !== latStr) { dom.liveLatG.textContent = latStr; prev.liveLatG = latStr; }
             if (prev.liveLonG !== lonStr) { dom.liveLonG.textContent = lonStr; prev.liveLonG = lonStr; }
 
-            const pxX = Math.max(-20, Math.min(20, (uiLatG  / 1.5) * 20));
-            const pxY = Math.max(-20, Math.min(20, (-uiLongG / 1.5) * 20));
-            const tf  = `translate(${pxX.toFixed(1)}px, ${pxY.toFixed(1)}px)`;
-            if (prev.gDot !== tf) { dom.gDot.style.transform = tf; prev.gDot = tf; }
-
             // G-vector inside gauge (em units relative to gauge size)
             const gMax = 1.5;
             const emX = Math.max(-0.35, Math.min(0.35, (uiLatG  / gMax) * 0.35));
@@ -1708,7 +1698,7 @@ let lastRenderTime  = performance.now();
 
             const setBar = (el, fill, prevKey) => {
                 if (prev[prevKey] !== fill) {
-                    if (fill > 0.01) el.style.transform = `scaleX(${fill.toFixed(3)})`;
+                    if (fill > 0.01) el.style.transform = `scaleX(${ (fill * 0.5).toFixed(3) })`;
                     else el.style.transform = 'scaleX(0)';
                     prev[prevKey] = fill;
                 }
@@ -1752,8 +1742,6 @@ let lastRenderTime  = performance.now();
             // G peak readouts
             const pkLat = fmt2.format(maxGpsLatG);
             const pkLon = fmt2.format(maxGpsAccelG);
-            if (prev.peakLatG !== pkLat) { dom.peakLatG.textContent = pkLat; prev.peakLatG = pkLat; }
-            if (prev.peakLonG !== pkLon) { dom.peakLonG.textContent = pkLon; prev.peakLonG = pkLon; }
             // Live G max readouts (inline with current values)
             if (dom.liveLatGMax && prev.liveLatGMax !== pkLat) { dom.liveLatGMax.textContent = pkLat; prev.liveLatGMax = pkLat; }
             if (dom.liveLonGMax && prev.liveLonGMax !== pkLon) { dom.liveLonGMax.textContent = pkLon; prev.liveLonGMax = pkLon; }
