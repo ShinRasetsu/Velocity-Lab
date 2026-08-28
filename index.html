@@ -413,38 +413,73 @@ html {
             -webkit-mask: radial-gradient(circle, black 70%, transparent 71%);
             mask: radial-gradient(circle, black 70%, transparent 71%);
         }
-        /* Cardinal crosshair */
-        .g-meter-cross {
-            position: absolute; inset: 0;
-            display: flex; align-items: center; justify-content: center;
+        /* ── G-FORCE QUADRANT BARS ─────────────────────────────────────────
+   4 wedges (90° each) around gauge center. Each wedge split by center
+   radial line: positive fills clockwise, negative fills counter-clockwise.
+   Colors: Green=Accel (Fwd), Red=Brake (Aft), Cyan=Lat (L/R)           */
+        .g-force-bars {
+            position: absolute; inset: 0.08em; border-radius: 50%;
+            pointer-events: none; z-index: 2;
         }
-        .g-meter-cross::before,
-        .g-meter-cross::after {
-            content: "";
+        .g-force-bar {
             position: absolute;
-            background: rgba(148,163,184,0.18);
+            top: 50%; left: 50%;
+            width: 0.34em; height: 0.34em;
+            margin: -0.34em 0 0 -0.34em;
+            border-radius: 50%;
+            clip-path: none;
+            transform-origin: 50% 50%;
         }
-        .g-meter-cross::before { width: 0.012em; height: 60%; }
-        .g-meter-cross::after  { width: 60%; height: 0.012em; }
-        /* Corner brackets at 45° */
-        .g-meter-corners {
-            position: absolute; inset: 0;
-        }
-        .g-meter-corners::before,
-        .g-meter-corners::after,
-        .g-meter-corners span::before,
-        .g-meter-corners span::after {
+        /* Base wedge mask - each bar is a 90° sector */
+        .g-force-bar::before {
             content: "";
-            position: absolute;
-            width: 0.22em; height: 0.22em;
-            border: 2px solid rgba(0,255,136,0.35);
-            border-radius: 0;
+            position: absolute; inset: 0; border-radius: 50%;
+            background: currentColor;
+            opacity: 0.18;
+            clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
         }
-        .g-meter-corners::before { top: 0; left: 0; border-right: none; border-bottom: none; }
-        .g-meter-corners::after  { top: 0; right: 0; border-left: none; border-bottom: none; }
-        .g-meter-corners span::before { bottom: 0; left: 0; border-right: none; border-top: none; }
-        .g-meter-corners span::after  { bottom: 0; right: 0; border-left: none; border-top: none; }
-        /* G-limit circle (1.5G) */
+        /* Fore (0°/360°) - Accel + / Brake - : Green / Red */
+        .g-force-bar.fore { transform: rotate(-45deg); }
+        .g-force-bar.fore.pos { --bar-color: var(--green); color: var(--green); }
+        .g-force-bar.fore.neg { --bar-color: var(--red); color: var(--red); transform: rotate(-135deg); }
+        /* Right (90°) - Lat Right + : Cyan */
+        .g-force-bar.right { transform: rotate(45deg); }
+        .g-force-bar.right.pos { --bar-color: var(--cyan); color: var(--cyan); }
+        .g-force-bar.right.neg { --bar-color: var(--cyan); color: var(--cyan); transform: rotate(135deg); }
+        /* Aft (180°) - Brake - / Accel + : Red / Green (mirrored) */
+        .g-force-bar.aft { transform: rotate(135deg); }
+        .g-force-bar.aft.pos { --bar-color: var(--green); color: var(--green); transform: rotate(45deg); }
+        .g-force-bar.aft.neg { --bar-color: var(--red); color: var(--red); transform: rotate(-45deg); }
+        /* Left (270°) - Lat Left + : Cyan */
+        .g-force-bar.left { transform: rotate(-135deg); }
+        .g-force-bar.left.pos { --bar-color: var(--cyan); color: var(--cyan); transform: rotate(135deg); }
+        .g-force-bar.left.neg { --bar-color: var(--cyan); color: var(--cyan); transform: rotate(-45deg); }
+        /* Fill level - JS sets --fill (0..1) */
+        .g-force-bar::after {
+            content: "";
+            position: absolute; inset: 0; border-radius: 50%;
+            background: currentColor;
+            opacity: 0.85;
+            clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
+            transform: scaleX(0);
+            transform-origin: 50% 50%;
+            transition: transform 60ms linear;
+            will-change: transform;
+        }
+        /* Center divider lines (positive/negative split) */
+        .g-force-divider {
+            position: absolute; top: 50%; left: 50%;
+            width: 0.014em; height: 0.34em;
+            margin: -0.34em 0 0 -0.007em;
+            background: rgba(148,163,184,0.35);
+            border-radius: 0.007em;
+            pointer-events: none;
+        }
+        .g-force-divider.f { transform: rotate(0deg); }
+        .g-force-divider.r { transform: rotate(90deg); }
+        .g-force-divider.a { transform: rotate(180deg); }
+        .g-force-divider.l { transform: rotate(-90deg); }
+        /* G-limit reference ring (1.5G) */
         .g-meter-limit {
             position: absolute; top: 50%; left: 50%;
             width: 0.72em; height: 0.72em;
@@ -453,7 +488,7 @@ html {
             border: 1px solid rgba(0,255,136,0.25);
             box-shadow: inset 0 0 0.05em rgba(0,255,136,0.1);
         }
-        /* Warning circle (1.0G) */
+        /* Warning ring (1.0G) */
         .g-meter-warn {
             position: absolute; top: 50%; left: 50%;
             width: 0.48em; height: 0.48em;
@@ -461,47 +496,7 @@ html {
             border-radius: 50%;
             border: 1px dashed rgba(255,170,0,0.35);
         }
-        /* Moving G-vector ball */
-        .g-vector {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 0.1em; height: 0.1em;
-            margin: -0.05em 0 0 -0.05em;
-            border-radius: 50%;
-            background: var(--cyan);
-            box-shadow: 
-                0 0 0.025em var(--cyan),
-                0 0 0.06em var(--cyan),
-                inset 0 -0.01em 0.015em rgba(0,0,0,0.5);
-            border: 2px solid rgba(255,255,255,0.15);
-            pointer-events: none;
-            transition: transform 40ms linear;
-            will-change: transform;
-            z-index: 3;
-        }
-        .g-vector::before {
-            content: "";
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 0.04em; height: 0.04em;
-            margin: -0.02em 0 0 -0.02em;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), transparent 70%);
-        }
-        /* Vector trail (motion blur) */
-        .g-vector-trail {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 0.1em; height: 0.1em;
-            margin: -0.05em 0 0 -0.05em;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--cyan), transparent 60%);
-            opacity: 0;
-            pointer-events: none;
-            z-index: 2;
-        }
-        .g-vector-trail.active { opacity: 0.4; animation: g-trail 120ms linear infinite; }
-        @keyframes g-trail { to { transform: scale(3); opacity: 0; } }
+        
         /* G-magnitude arc indicator */
         .g-mag-arc {
             position: absolute; inset: 0.08em; border-radius: 50%;
@@ -873,14 +868,28 @@ html {
                 <div class="gauge-redline" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
 <div class="gauge-core" aria-hidden="true"></div>
-                <div class="g-meter" aria-hidden="true">
-                    <div class="g-meter-grid"></div>
-                    <div class="g-meter-cross"></div>
-                    <div class="g-meter-corners"><span></span></div>
+                <div class="g-force-bars" aria-hidden="true">
+                    <!-- Fore: Accel + (Green) / Brake - (Red) -->
+                    <div class="g-force-bar fore pos" id="g-bar-fore-pos"></div>
+                    <div class="g-force-bar fore neg" id="g-bar-fore-neg"></div>
+                    <!-- Right: Lat Right + (Cyan) / Lat Left - (Cyan) -->
+                    <div class="g-force-bar right pos" id="g-bar-right-pos"></div>
+                    <div class="g-force-bar right neg" id="g-bar-right-neg"></div>
+                    <!-- Aft: Brake - (Red) / Accel + (Green) -->
+                    <div class="g-force-bar aft pos" id="g-bar-aft-pos"></div>
+                    <div class="g-force-bar aft neg" id="g-bar-aft-neg"></div>
+                    <!-- Left: Lat Left + (Cyan) / Lat Right - (Cyan) -->
+                    <div class="g-force-bar left pos" id="g-bar-left-pos"></div>
+                    <div class="g-force-bar left neg" id="g-bar-left-neg"></div>
+                    <!-- Center dividers -->
+                    <div class="g-force-divider f"></div>
+                    <div class="g-force-divider r"></div>
+                    <div class="g-force-divider a"></div>
+                    <div class="g-force-divider l"></div>
+                    <!-- Reference rings -->
                     <div class="g-meter-limit"></div>
                     <div class="g-meter-warn"></div>
-                    <div id="g-vector-trail" class="g-vector-trail"></div>
-                    <div id="g-vector" class="g-vector"></div>
+                    <!-- Magnitude arc -->
                     <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
                 </div>
                 <div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
@@ -1093,8 +1102,6 @@ let lastRenderTime  = performance.now();
             
             // Live G-Meter
             gDot:         document.getElementById('g-dot'),
-            gVector:      document.getElementById('g-vector'),
-            gVectorTrail: document.getElementById('g-vector-trail'),
             gMagnitudeArc: document.getElementById('g-magnitude-arc'),
             liveLatG:     document.getElementById('live-lat-g'),
             liveLonG:     document.getElementById('live-lon-g'),
@@ -1121,7 +1128,16 @@ let lastRenderTime  = performance.now();
             vbarAcc:      document.getElementById('vbar-acc'),
             vbarBrk:      document.getElementById('vbar-brk'),
             vbarHdl:      document.getElementById('vbar-hdl'),
-            maxSpeedGauge: document.getElementById('max-speed-gauge')
+            maxSpeedGauge: document.getElementById('max-speed-gauge'),
+            // G-Force quadrant bars
+            gBarForePos:  document.getElementById('g-bar-fore-pos'),
+            gBarForeNeg:  document.getElementById('g-bar-fore-neg'),
+            gBarRightPos: document.getElementById('g-bar-right-pos'),
+            gBarRightNeg: document.getElementById('g-bar-right-neg'),
+            gBarAftPos:   document.getElementById('g-bar-aft-pos'),
+            gBarAftNeg:   document.getElementById('g-bar-aft-neg'),
+            gBarLeftPos:  document.getElementById('g-bar-left-pos'),
+            gBarLeftNeg:  document.getElementById('g-bar-left-neg'),
         };
 
         const prev = {
@@ -1129,7 +1145,7 @@ let lastRenderTime  = performance.now();
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
-            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, gVector: null, gVectorTrail: null, gMagnitudeArc: null, accuracy: null,
+            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, gMagnitudeArc: null, gBarForePos: 0, gBarForeNeg: 0, gBarRightPos: 0, gBarRightNeg: 0, gBarAftPos: 0, gBarAftNeg: 0, gBarLeftPos: 0, gBarLeftNeg: 0, accuracy: null,
             // Gundam HUD additions
             distKm: null, sessClock: null, brakeLive: null,
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
@@ -1653,18 +1669,39 @@ let lastRenderTime  = performance.now();
             const emX = Math.max(-0.35, Math.min(0.35, (uiLatG  / gMax) * 0.35));
             const emY = Math.max(-0.35, Math.min(0.35, (-uiLongG / gMax) * 0.35));
             const gv  = `translate(${emX.toFixed(3)}em, ${emY.toFixed(3)}em)`;
-            if (prev.gVector !== gv) { dom.gVector.style.transform = gv; prev.gVector = gv; }
-
-            // Trail follows vector with slight delay (opacity when moving)
-            const trailOn = (Math.abs(uiLatG) > 0.05 || Math.abs(uiLongG) > 0.05);
-            if (prev.gVectorTrail !== trailOn) { dom.gVectorTrail.classList.toggle("active", trailOn); prev.gVectorTrail = trailOn; }
-            if (trailOn) dom.gVectorTrail.style.transform = gv;
 
             // G-magnitude arc display
             const gMag = Math.hypot(uiLatG, uiLongG);
             const gMagStr = fmt2.format(gMag);
-            if (prev.gMagnitude !== gMagStr) { dom.gMagnitude.textContent = "G: " + gMagStr; prev.gMagnitude = gMagStr; }
             if (prev.gMagnitudeArc !== gMagStr) { dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
+
+            // G-Force quadrant bars (max 1.5G)
+            const gMax = 1.5;
+            const forePosFill = Math.max(0, Math.min(1,  uiLongG / gMax));
+            const foreNegFill = Math.max(0, Math.min(1, -uiLongG / gMax));
+            const rightPosFill = Math.max(0, Math.min(1,  uiLatG / gMax));
+            const rightNegFill = Math.max(0, Math.min(1, -uiLatG / gMax));
+            // Aft mirrors Fore, Left mirrors Right (opposite)
+            const aftPosFill = forePosFill;
+            const aftNegFill = foreNegFill;
+            const leftPosFill = rightNegFill;
+            const leftNegFill = rightPosFill;
+
+            const setBar = (el, fill, prevKey) => {
+                if (prev[prevKey] !== fill) {
+                    if (fill > 0.01) el.style.transform = `scaleX(${fill.toFixed(3)})`;
+                    else el.style.transform = 'scaleX(0)';
+                    prev[prevKey] = fill;
+                }
+            };
+            setBar(dom.gBarForePos,  forePosFill,  'gBarForePos');
+            setBar(dom.gBarForeNeg,  foreNegFill,  'gBarForeNeg');
+            setBar(dom.gBarRightPos, rightPosFill, 'gBarRightPos');
+            setBar(dom.gBarRightNeg, rightNegFill, 'gBarRightNeg');
+            setBar(dom.gBarAftPos,   aftPosFill,   'gBarAftPos');
+            setBar(dom.gBarAftNeg,   aftNegFill,   'gBarAftNeg');
+            setBar(dom.gBarLeftPos,  leftPosFill,  'gBarLeftPos');
+            setBar(dom.gBarLeftNeg,  leftNegFill,  'gBarLeftNeg');
 
             // ── Gundam HUD live telemetry ─────────────────────────────────────
             // Session clock (mm:ss since tracking init)
