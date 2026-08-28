@@ -443,9 +443,9 @@ html {
                     transparent calc(75% + var(--left-pos, 0%) * 0.25) 100%
                 ),
                 conic-gradient(from 0deg, rgba(255,51,102,0.92) 0deg 360deg);
-            /* 0.01em thick — clearly visible */
-            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
-            mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
+            /* 75% thickness of speed-ring: 0.0045*0.75=0.003375em */
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.043375em), #000 calc(100% - 0.04em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.043375em), #000 calc(100% - 0.04em));
             filter: drop-shadow(0 0 0.03em rgba(255,51,102,0.6));
         }
         .peak-marker { z-index: 4; }
@@ -503,10 +503,10 @@ html {
         @keyframes fade-up { to { opacity: 1; transform: translateY(0); } }
         @keyframes ring-expand { to { transform: scale(1); opacity: 1; } }
 
-        /* Larger default gauge — compact so 100svh fits */
-        .gauge-wrap { --gauge: clamp(10.5rem, min(70vw, 18rem), 18rem); }
+        /* Larger default gauge — restored original size */
+        .gauge-wrap { --gauge: clamp(12rem, min(80vw, 20rem), 20rem); }
         .speed-gauge { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1), font-size 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
-        .gauge-wrap.large .speed-gauge { --gauge: clamp(12.5rem, min(75vw, 20rem), 20rem); }
+        .gauge-wrap.large .speed-gauge { --gauge: clamp(14rem, min(85vw, 22rem), 22rem); }
 
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
@@ -1071,7 +1071,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.12 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.13 — Velocity-Lab</div>
 </div>
 
 
