@@ -124,18 +124,19 @@ body {
             color: #ffffff;
             overscroll-behavior: none;
             user-select: none;
-            touch-action: none;
-            /* viewport lock: prevent any horizontal overflow at the root */
+            touch-action: pan-y;
             max-width: 100vw;
             overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* CRT scanlines over the whole cockpit */
+/* CRT scanlines over the whole cockpit */
         .scanlines {
             position: fixed; inset: 0; z-index: 9990;
             pointer-events: none;
             background: repeating-linear-gradient(0deg, rgba(255,255,255,0.028) 0 1px, transparent 1px 3px);
-            opacity: 0.5;
+            opacity: 0.3;
         }
 
         /* mecha panel: hairline border + glowing corner brackets */
@@ -165,14 +166,12 @@ body {
 
 /* ── shell ───────────────────────────────────────────────────────── */
         .dashboard-shell {
-            width: min(100%, 78rem);
-            max-width: 100%;
+            width: 100%;
             min-height: 100svh;
-            margin: 0 auto;
-            padding: calc(0.6rem + env(safe-area-inset-top)) 0.9rem calc(0.6rem + env(safe-area-inset-bottom)) 0.9rem;
+            padding: calc(0.6rem + env(safe-area-inset-top)) 0.75rem calc(0.6rem + env(safe-area-inset-bottom)) 0.75rem;
             display: flex;
             flex-direction: column;
-            gap: 0.55rem;
+            gap: 0.5rem;
             position: relative;
             z-index: 1;
             overflow-x: hidden;
@@ -182,42 +181,47 @@ body {
         /* Hide max cards to prevent layout shift (all viewports) */
         #peak-g, #peak-lat-g-metric, #peak-lon-g-metric { display: none; }
 
-        /* ── iOS gate ────────────────────────────────────────────────────── */
+/* ── iOS gate ────────────────────────────────────────────────────── */
         #ios-gate {
             position: fixed; inset: 0; background: #050505;
             z-index: 9999; display: flex; flex-direction: column;
             align-items: center; justify-content: center; gap: 1.5rem;
-            padding: calc(1.5rem + env(safe-area-inset-top)) calc(1.5rem + env(safe-area-inset-right)) calc(1.5rem + env(safe-area-inset-bottom)) calc(1.5rem + env(safe-area-inset-left));
+            padding: calc(1.5rem + env(safe-area-inset-top)) 0.75rem calc(1.5rem + env(safe-area-inset-bottom)) 0.75rem;
             text-align: center;
         }
         .gate-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.25em; }
         .gate-sub { color: #9ca3af; font-size: 0.75rem; max-width: 26rem; line-height: 1.625; }
 
-/* ── command bar ─────────────────────────────────────────────────── */
+/* ── command bar: mobile portrait 2-row layout ───────────────────── */
         .cmd-bar {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-            padding: 0.25rem 0.6rem;
-            flex-wrap: nowrap;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.15rem;
+            padding: 0.25rem 0.5rem;
         }
         .cmd-bar::after { display: none; }
 
-        .cmd-brand { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 1; min-width: 0; }
+        /* Row 1: Brand + Actions */
+        .cmd-brand {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.3rem;
+        }
         .brand-row {
-            display: flex; align-items: center; gap: 0.3rem;
-            color: var(--green); font-size: 0.65rem; font-weight: 800;
+            display: flex; align-items: center; gap: 0.25rem;
+            color: var(--green); font-size: 0.6rem; font-weight: 800;
             text-transform: uppercase; letter-spacing: 0.05em;
             white-space: nowrap;
         }
         .brand-mark {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 1.15rem; height: 1.15rem;
+            width: 1rem; height: 1rem;
             border: 1px solid rgba(0,255,136,0.45);
             clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.2rem), calc(100% - 0.2rem) 100%, 0 100%);
             background: rgba(0,255,136,0.1);
-            font-size: 0.45rem;
+            font-size: 0.4rem;
             flex-shrink: 0;
         }
         .brand-subtitle { display: none; }
@@ -227,26 +231,32 @@ body {
             align-items: center; gap: 0.2rem;
         }
         .action-rail button {
-            min-height: 1.35rem;
-            padding: 0.15rem 0.45rem;
-            font-size: 0.48rem;
+            min-height: 1.3rem;
+            padding: 0.15rem 0.4rem;
+            font-size: 0.45rem;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.3);
         }
 
-        .cmd-status { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 1; min-width: 0; }
+        /* Row 2: Status + System */
+        .cmd-status {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.3rem;
+        }
         #status-indicator {
-            font-size: 0.65rem; font-weight: 800; letter-spacing: 0.06em;
+            font-size: 0.6rem; font-weight: 800; letter-spacing: 0.06em;
             white-space: nowrap;
         }
-        .cmd-status-sub { display: flex; gap: 0.4rem; font-size: 0.45rem; font-weight: 700; letter-spacing: 0.05em; color: #6b7280; text-transform: uppercase; }
+        .cmd-status-sub { display: flex; gap: 0.35rem; font-size: 0.4rem; font-weight: 700; letter-spacing: 0.05em; color: #6b7280; text-transform: uppercase; }
 
-        .cmd-sys { display: flex; flex-direction: row; align-items: center; gap: 0.4rem; font-size: 0.48rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+        .cmd-sy { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 0.3rem; font-size: 0.45rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
         .cmd-sys span { display: inline-flex; align-items: center; gap: 0.25rem; }
         .cmd-sys span::before {
-            content: ""; width: 0.25rem; height: 0.25rem; border-radius: 999px;
+            content: ""; width: 0.2rem; height: 0.2rem; border-radius: 999px;
             background: currentColor; box-shadow: 0 0 3px currentColor; flex: none;
         }
-        .cmd-sys .action-btn { padding: 0.12rem 0.35rem; font-size: 0.42rem; min-height: 1.3rem; }
+        .cmd-sys .action-btn { padding: 0.12rem 0.3rem; font-size: 0.4rem; min-height: 1.2rem; }
 
         /* ── GNSS loss banner ────────────────────────────────────────────── */
         .gnss-alert {
@@ -260,41 +270,49 @@ body {
         .gnss-alert.active { display: flex; animation: alert-blink 0.9s steps(2, jump-none) infinite; }
         @keyframes alert-blink { 50% { filter: brightness(1.6); } }
 
-        /* ── main stage: side columns flanking the gauge ─────────────────── */
+/* ── main stage: mobile portrait stack ───────────────────────────── */
         .stage {
-            display: grid;
-            grid-template-columns: minmax(7.5rem, 1fr) auto minmax(7.5rem, 1fr);
-            align-items: center;
-            gap: 0.8rem;
-            flex: 1;
-            min-height: 0;
-            width: 100%;
-            --gauge: clamp(8rem, min(46vw, 21rem, calc(100svh - 33rem)), 21rem);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            --gauge: clamp(11rem, min(75vw, 16rem), 16rem);
+            flex: none;
+            align-items: stretch;
         }
-
-        .side-col {
-            display: flex; flex-direction: column; gap: 0.45rem;
-            min-width: 0;
+        .side-col:first-of-type {
+            order: 1;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.45rem;
+        }
+        .gauge-wrap { order: 2; align-self: center; }
+        .speed-track { width: 100%; margin-top: 0.55rem; }
+        .side-col:last-of-type {
+            order: 3;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.45rem;
         }
         .side-cell {
-            padding: 0.4rem 0.55rem;
+            padding: 0.38rem 0.4rem;
             background: var(--panel);
             border: 1px solid var(--line);
-            border-left: 2px solid rgba(0,255,136,0.35);
-            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.45rem), calc(100% - 0.45rem) 100%, 0 100%);
+            border-top: 2px solid rgba(0,255,136,0.45);
+            text-align: center;
         }
+        .side-col:last-of-type .side-cell { border-top-color: rgba(0,191,255,0.45); }
 .side-lbl {
-            display: block; font-size: 0.5rem; font-weight: 800;
-            letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;
-            margin-bottom: 0.15rem;
+            display: block; font-size: 0.45rem; font-weight: 800;
+            letter-spacing: 0.1em; text-transform: uppercase; color: #6b7280;
+            margin-bottom: 0.12rem;
         }
-        .side-val { display: block; font-size: 0.95rem; font-weight: 800; }
-        .g-readout { display: flex; align-items: baseline; gap: 0; white-space: nowrap; }
+        .side-val { display: block; font-size: 0.88rem; font-weight: 800; }
+        .g-readout { display: flex; align-items: baseline; justify-content: center; gap: 0; white-space: nowrap; }
         .g-max-sep { font-size: 0.7rem; font-weight: 600; opacity: 0.5; margin: 0 0.15rem; }
 
         /* live G bars (accel / brake / lateral) */
         .g-bar {
-            margin-top: 0.3rem; height: 0.32rem;
+            margin-top: 0.25rem; height: 0.26rem;
             background: rgba(148,163,184,0.12);
             border: 1px solid rgba(148,163,184,0.15);
             overflow: hidden;
@@ -548,7 +566,7 @@ body {
         .accent-blue { border-top-color: #00bfff; }
         .accent-purple { border-top-color: #bb86fc; }
         .accent-yellow { border-top-color: #facc15; }
-        .accent-red { border-top-color: #f87171; }
+.accent-red { border-top-color: #f87171; }
         .accent-green { border-top-color: #00ff88; }
         .accent-gray { border-top-color: #9ca3af; }
 
@@ -573,168 +591,55 @@ body {
         }
         .hazard-right { color: rgba(255,170,0,0.7); }
 
-        /* ── responsive ──────────────────────────────────────────────────── */
-        @media (min-width: 640px) {
-            .stage { --gauge: clamp(8rem, min(40vw, 23rem, calc(100svh - 32rem)), 23rem); }
+        /* never let a rigid child widen the shell past the screen */
+        .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
+
+        /* tactical row: shrinkable columns */
+        .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.45rem; align-items: stretch; }
+        .t-card { 
+            padding: 0.5rem 0.55rem; gap: 0.35rem; 
+            display: flex; flex-direction: column; 
+            height: 100%; 
+            justify-content: center;
+            min-width: 0;
         }
-
-        @media (max-width: 760px) {
-            .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .score-card { grid-column: span 2; }
+        .g-card { 
+            flex: 1; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center;
+            flex-wrap: wrap;
         }
-
-        /* ── mobile portrait: compact stack, scrollable, touch-friendly ──── */
-        /* The HUD is denser than a phone viewport, so the shell scrolls.
-           body ships with overflow:hidden + touch-action:none (anti-bounce
-           for desktop); both are relaxed here or nothing below the gauge
-           would ever be reachable. */
-        @media (max-width: 640px) {
-            body.overflow-hidden {
-                overflow-y: auto;
-                overflow-x: hidden;
-                touch-action: pan-y;
-                -webkit-overflow-scrolling: touch;
-            }
-            .scanlines { opacity: 0.3; }
-            /* Some Android devices report an inflated LEFT safe-area inset in
-               portrait (camera-cutout quirk) which shoves the whole HUD right.
-               Override the ENTIRE padding shorthand with !important to kill
-               any env() bleed; keep vertical env() for notch/home-bar. */
-            .dashboard-shell {
-                padding: calc(0.6rem + env(safe-area-inset-top)) 0.75rem calc(0.6rem + env(safe-area-inset-bottom)) 0.75rem !important;
-                gap: 0.5rem;
-                /* DO NOT use overflow-x: clip here — it breaks touch scrolling on Android */
-            }
-            #ios-gate {
-                padding: calc(1.5rem + env(safe-area-inset-top)) 0.75rem calc(1.5rem + env(safe-area-inset-bottom)) 0.75rem !important;
-            }
-            html, body { max-width: 100vw; overflow-x: hidden; }
-            .dashboard-shell { overflow-x: hidden; overflow-y: auto; }
-            .stage { width: 100% !important; max-width: 100% !important; }
-            .side-col { min-width: 0 !important; }
-            .tactical { min-width: 0 !important; }
-            .metric-grid { min-width: 0 !important; }
-
-/* command bar: 2-row layout for mobile portrait - readable & compact */
-            .cmd-bar {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 0.15rem;
-                padding: 0.25rem 0.5rem;
-            }
-            /* Row 1: Brand + Actions */
-            .cmd-brand {
-                flex-direction: row;
-                justify-content: space-between;
-                align-items: center;
-                gap: 0.3rem;
-            }
-            .brand-row { font-size: 0.6rem; gap: 0.25rem; }
-            .brand-mark { width: 1rem; height: 1rem; font-size: 0.4rem; }
-            .action-rail { gap: 0.2rem; }
-            .action-rail button { min-height: 1.3rem; padding: 0.15rem 0.4rem; font-size: 0.45rem; }
-            /* Row 2: Status + System */
-            .cmd-status {
-                flex-direction: row;
-                justify-content: space-between;
-                align-items: center;
-                gap: 0.3rem;
-            }
-            #status-indicator { font-size: 0.6rem; }
-            .cmd-status-sub { gap: 0.35rem; font-size: 0.4rem; }
-            .cmd-sys { gap: 0.3rem; font-size: 0.45rem; }
-            .cmd-sys span::before { width: 0.2rem; height: 0.2rem; }
-            .cmd-sys .action-btn { padding: 0.12rem 0.3rem; font-size: 0.4rem; min-height: 1.2rem; }
-            /* never let a rigid child widen the shell past the screen */
-            .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
-
-            /* stage: cells arranged equally AROUND the centred gauge —
-               2×2 data block above, gauge hero in the middle, 3-across
-               G-load row below. Symmetric composition, everything centred. */
-            .stage {
-                display: flex;
-                flex-direction: column;
-                gap: 0.5rem;
-                --gauge: clamp(11rem, min(75vw, 16rem), 16rem);
-                flex: none;
-                align-items: stretch;
-            }
-            .side-col:first-of-type {
-                order: 1;
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 0.45rem;
-            }
-            .gauge-wrap { order: 2; align-self: center; }
-            .speed-track { width: 100%; margin-top: 0.55rem; }
-            .side-col:last-of-type {
-                order: 3;
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 0.45rem;
-            }
-            .side-cell {
-                padding: 0.38rem 0.4rem;
-                text-align: center;
-                /* symmetric card on mobile: top accent instead of left,
-                   no one-sided corner cut — everything reads centred */
-                border-left: 1px solid var(--line);
-                border-top: 2px solid rgba(0,255,136,0.45);
-                clip-path: none;
-            }
-            .side-col:last-of-type .side-cell { border-top-color: rgba(0,191,255,0.45); }
-            .side-val { font-size: 0.88rem; }
-            .side-lbl { font-size: 0.45rem; margin-bottom: 0.12rem; letter-spacing: 0.1em; }
-            .g-bar { height: 0.26rem; margin-top: 0.25rem; }
-
-            /* tactical row: shrinkable columns (plain 1fr = minmax(auto,1fr)
-               which lets wide card content push the shell past the screen) */
-            .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.45rem; align-items: stretch; }
-            .t-card { 
-                padding: 0.5rem 0.55rem; gap: 0.35rem; 
-                display: flex; flex-direction: column; 
-                height: 100%; 
-                justify-content: center;
-                min-width: 0;
-            }
-            .g-card { 
-                flex: 1; display: flex; flex-direction: column; 
-                justify-content: center; align-items: center;
-                flex-wrap: wrap;
-            }
-            .g-meter-dial { width: 3.8rem; height: 3.8rem; margin: 0 auto; flex-shrink: 0; }
-            .g-meter-dial::after { width: 2.6rem; height: 2.6rem; }
-            .g-nums { font-size: 0.52rem; gap: 0.2rem; margin-top: auto; text-align: center; min-width: 0; width: 100%; }
-            .g-nums div { gap: 0.5rem; }
-            .run-card { 
-                display: flex; flex-direction: column; 
-                justify-content: center; align-items: center; text-align: center; 
-            }
-            .run-time { font-size: 1.35rem; }
-            .run-name { font-size: 0.7rem; }
-            .run-hint { display: none; }
-            .score-card { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; }
-            .score-total { font-size: 1.4rem; }
-            .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; justify-content: center; }
-
-/* metric footer */
-            .metric-group + .metric-group { margin-top: 0.45rem; }
-            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.35rem; }
-            .metric-card { 
-                min-height: 3rem; 
-                padding: 0.4rem 0.5rem; 
-                display: flex; 
-                flex-direction: column; 
-                justify-content: center; 
-                align-items: center;
-                gap: 0.15rem;
-                box-sizing: border-box;
-            }
-            .metric-card > * { width: 100%; display: flex; justify-content: center; align-items: center; }
-            .metric-caption { text-align: center; }
-            .timer-lbl { font-size: 0.95rem; }
-            .hazard-strip { font-size: 0.48rem; letter-spacing: 0.12em; }
+        .g-meter-dial { width: 3.8rem; height: 3.8rem; margin: 0 auto; flex-shrink: 0; }
+        .g-meter-dial::after { width: 2.6rem; height: 2.6rem; }
+        .g-nums { font-size: 0.52rem; gap: 0.2rem; margin-top: auto; text-align: center; min-width: 0; width: 100%; }
+        .g-nums div { gap: 0.5rem; }
+        .run-card { 
+            display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; text-align: center; 
         }
+        .run-time { font-size: 1.35rem; }
+        .run-name { font-size: 0.7rem; }
+        .run-hint { display: none; }
+        .score-card { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; }
+        .score-total { font-size: 1.4rem; }
+        .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; justify-content: center; }
+
+        /* metric footer */
+        .metric-group + .metric-group { margin-top: 0.45rem; }
+        .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.35rem; }
+        .metric-card { 
+            min-height: 3rem; 
+            padding: 0.4rem 0.5rem; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center;
+            gap: 0.15rem;
+            box-sizing: border-box;
+        }
+        .metric-card > * { width: 100%; display: flex; justify-content: center; align-items: center; }
+        .metric-caption { text-align: center; }
+        .timer-lbl { font-size: 0.95rem; }
+        .hazard-strip { font-size: 0.48rem; letter-spacing: 0.12em; }
 
         @media (max-height: 620px) {
             .stage { --gauge: clamp(5.5rem, min(42vw, 10rem, calc(100svh - 30rem)), 10rem); }
@@ -756,7 +661,7 @@ body {
         }
     </style>
 </head>
-<body class="overflow-hidden">
+<body>
 <div class="scanlines" aria-hidden="true"></div>
 <div class="dashboard-shell">
 
