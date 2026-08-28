@@ -803,13 +803,17 @@ html {
 <div class="scanlines" aria-hidden="true"></div>
 <div class="dashboard-shell">
 
-    <!-- iOS SENSOR GATE -->
+<!-- iOS SENSOR GATE -->
     <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true">
         <span class="gate-title clr-green neon-accent">VELOCITY-LAB</span>
         <span class="gate-sub">モーションセンサー起動必須 // MOTION SENSOR ACCESS REQUIRED FOR IMU FUSION TELEMETRY.</span>
         <button id="ios-grant-btn" aria-label="Grant Motion Access" class="action-btn btn-ios-grant neon-accent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
             GRANT MOTION ACCESS
+        </button>
+        <button id="ios-gps-only-btn" aria-label="Use GPS Only" class="action-btn btn-reset neon-warning" style="margin-top:0.5rem;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+            USE GPS ONLY
         </button>
     </div>
 
@@ -958,14 +962,15 @@ html {
         const QUARTER_MILE_METERS  = 402.336;
         const IMU_ALPHA            = 0.15;
         const SPEED_ZERO_SNAP_KMPH = 1.5;
-        const GPS_STALE_MS         = 2500;   
-        const GPS_MAX_DT_SEC       = 3.0;    
+        const GPS_STALE_MS         = 8000;   
+        const GPS_MAX_DT_SEC       = 5.0;    
+        const GPS_RETRY_MS         = 10000;
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
 
         // -- sensor fusion / accuracy optimization --
         const GPS_ACC_TRUST_MIN_M    = 4.0;
         const GPS_ACC_TRUST_MAX_M    = 25.0;
-        const GPS_QUALITY_MIN        = 0.5;
+        const GPS_QUALITY_MIN        = 0.2;
         const FUSION_CORRECTION_GAIN = 0.35;
         const FUSION_GPS_WEIGHT      = 0.12;
         const IMU_BIAS_CLAMP         = 2.0;
@@ -1513,7 +1518,25 @@ let lastRenderTime  = performance.now();
             if (prev.accuracy !== accStr) { dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
         }
 
-        function onPositionError() { setDOM(dom.status, 'status', "ERR: NO SIGNAL", "text-red-500 neon-danger"); }
+        function onPositionError(err) {
+            let msg = "ERR: NO SIGNAL";
+            if (err && err.code) {
+                switch (err.code) {
+                    case err.PERMISSION_DENIED: msg = "ERR: GPS PERMISSION DENIED"; break;
+                    case err.POSITION_UNAVAILABLE: msg = "ERR: POSITION UNAVAILABLE"; break;
+                    case err.TIMEOUT: msg = "ERR: GPS TIMEOUT"; break;
+                }
+            }
+            setDOM(dom.status, 'status', msg, "text-red-500 neon-danger");
+            
+            // Retry after delay for non-permission errors
+            if (err && err.code !== err.PERMISSION_DENIED) {
+                setTimeout(() => {
+                    if ("geolocation" in navigator) navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                        { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_RETRY_MS });
+                }, 5000);
+            }
+        }
 
         // ─── GUNDAM HUD LIVE TELEMETRY ────────────────────────────────────────────
         // While a sprint machine is T_RUNNING its card ticks with live elapsed and
@@ -1702,9 +1725,20 @@ let lastRenderTime  = performance.now();
             // iOS only grants DeviceMotion once per origin; remember the grant so a
             // page refresh / re-install does NOT re-prompt the user every single launch.
             if (localStorage.getItem('VelocityLab_ios_motion_granted') === '1') return true;
+            
+            // Don't block GPS - start GPS first, show gate non-blocking
             dom.iosGate.style.display = 'flex';
+            
+            // Return a promise that resolves when user grants OR after timeout
             return new Promise(resolve => {
+                const timeout = setTimeout(() => {
+                    // Timeout after 10s - proceed with GPS only
+                    dom.iosGate.style.display = 'none';
+                    resolve(false);
+                }, 10000);
+                
                 dom.iosGrantBtn.addEventListener('click', async () => {
+                    clearTimeout(timeout);
                     dom.iosGate.style.display = 'none';
                     try {
                         const ok = (await DeviceMotionEvent.requestPermission()) === 'granted';
@@ -1712,6 +1746,16 @@ let lastRenderTime  = performance.now();
                         resolve(ok);
                     } catch { resolve(false); }
                 }, { once: true });
+                
+                // Add "Use GPS Only" button handler
+                const gpsOnlyBtn = document.getElementById('ios-gps-only-btn');
+                if (gpsOnlyBtn) {
+                    gpsOnlyBtn.addEventListener('click', () => {
+                        clearTimeout(timeout);
+                        dom.iosGate.style.display = 'none';
+                        resolve(false);
+                    }, { once: true });
+                }
             });
         }
 
@@ -1719,10 +1763,30 @@ let lastRenderTime  = performance.now();
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
             sessionStartMs = performance.now();
             loadSession();
-            const motionOk = await requestIOSMotion(); 
-            if ("geolocation" in navigator) navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
-                { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
-            if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
+            
+            // Check GPS permission status first
+            let gpsPermState = 'prompt';
+            try {
+                const perm = await navigator.permissions.query({ name: 'geolocation' });
+                gpsPermState = perm.state;
+                if (perm.state === 'denied') {
+                    setDOM(dom.status, 'status', "ERR: GPS PERMISSION DENIED", "text-red-500 neon-danger");
+                }
+            } catch { /* permissions API not supported */ }
+            
+            // Start GPS immediately (don't wait for motion permission)
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+            }
+            
+            // Handle iOS motion permission asynchronously (non-blocking)
+            const motionPromise = requestIOSMotion();
+            motionPromise.then(motionOk => {
+                if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
+                updateFusionStatusUI();
+            });
+            
             requestWakeLock();
             requestAnimationFrame(renderLoop);
 
