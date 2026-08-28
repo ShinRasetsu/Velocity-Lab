@@ -397,12 +397,22 @@ body {
             font-size: 0.0525em; font-weight: 800;
             letter-spacing: 0.35em; text-indent: 0.35em; text-transform: uppercase;
         }
-        .gauge-caption {
+.gauge-caption {
             margin-top: 0.022em;
             color: rgba(255,170,0,0.55);
             font-size: 0.026em; font-weight: 700;
             letter-spacing: 0.3em; text-indent: 0.3em; text-transform: uppercase;
         }
+        .gauge-max-speed {
+            margin-top: 0.015em;
+            font-size: 0.035em; font-weight: 700;
+            letter-spacing: 0.1em; text-transform: uppercase;
+            opacity: 0.8;
+        }
+        #speed-gauge-btn {
+            transition: opacity 0.1s;
+        }
+        #speed-gauge-btn:active { opacity: 0.7; }
 
         /* linear speed track with threshold zone marks (60mph / 100kmh) */
         .speed-track {
@@ -684,10 +694,6 @@ body {
             <div class="brand-row neon-accent"><span class="brand-mark">VL</span><span>VELOCITY-LAB</span></div>
             <span class="brand-subtitle">計測システム // TELEMETRY HUD</span>
             <div class="action-rail">
-                <button id="reset-run-btn" aria-label="Reset Telemetry Run" class="action-btn gap-1.5 neon-warning btn-reset">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg>
-                    RESET RUN
-                </button>
                 <button id="pwa-install-btn" style="display:none;" aria-label="Install App" class="action-btn gap-1.5 neon-accent btn-install">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
                     INSTALL
@@ -725,10 +731,6 @@ body {
                 <span class="side-lbl">計測時間 // SESSION</span>
                 <span id="session-time" class="side-val lcd-text text-white">00:00</span>
             </div>
-            <div class="side-cell">
-                <span class="side-lbl">最高速度 // MAX</span>
-                <span id="max-speed-display" class="side-val lcd-text spd-green">0.0</span>
-            </div>
         </aside>
 
         <div class="gauge-wrap">
@@ -738,10 +740,11 @@ body {
                 <div class="gauge-redline" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
                 <div class="gauge-core" aria-hidden="true"></div>
-                <div class="speed-readout">
+<div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
                     <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
                     <span class="speed-unit">KM/H</span>
                     <span class="gauge-caption">車両速度 // VELOCITY</span>
+                    <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
                 </div>
             </div>
             <div class="speed-track" aria-hidden="true">
@@ -945,7 +948,6 @@ let lastRenderTime  = performance.now();
             speedBar:     document.getElementById('speed-bar'),
             wakeLock:     document.getElementById('wake-lock-status'),
             updateRate:   document.getElementById('update-rate'),
-            maxSpeed:     document.getElementById('max-speed-display'),
             peakG:        document.getElementById('peak-g'),
             brakeScore:   document.getElementById('brake-score'),
             t100_0:       document.getElementById('timer-100-0'),
@@ -962,7 +964,7 @@ let lastRenderTime  = performance.now();
             t100_200:     document.getElementById('timer-100-200'),
             tQuarter:     document.getElementById('timer-quarter'),
             installBtn:   document.getElementById('pwa-install-btn'),
-            resetRunBtn:  document.getElementById('reset-run-btn'),
+            speedGaugeBtn: document.getElementById('speed-gauge-btn'),
             
             iosGate:      document.getElementById('ios-gate'),
             iosGrantBtn:  document.getElementById('ios-grant-btn'),
@@ -995,13 +997,14 @@ let lastRenderTime  = performance.now();
             vbarSpd:      document.getElementById('vbar-spd'),
             vbarAcc:      document.getElementById('vbar-acc'),
             vbarBrk:      document.getElementById('vbar-brk'),
-            vbarHdl:      document.getElementById('vbar-hdl')
+            vbarHdl:      document.getElementById('vbar-hdl'),
+            maxSpeedGauge: document.getElementById('max-speed-gauge')
         };
 
         const prev = {
             speed: null, speedBar: null, ringDeg: null,
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
-            brakeScore: null, maxSpeed: null, updateRate: null, status: null,
+            brakeScore: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
             liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, accuracy: null,
             // Gundam HUD additions
@@ -1071,7 +1074,7 @@ let lastRenderTime  = performance.now();
                 maxGpsAccelG    = data.maxGpsAccelG || 0.0;
                 maxGpsLatG      = data.maxGpsLatG || 0.0;
                 
-                setDOM(dom.maxSpeed, 'maxSpeed', "MAX: " + fmt2.format(maxSpeedKmph));
+                if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: " + fmt2.format(maxSpeedKmph);
                 setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G");
                 setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G");
                 
@@ -1109,7 +1112,6 @@ let lastRenderTime  = performance.now();
             confidenceSum     = 0.0;
             confidenceSamples = 0;
 
-            prev.maxSpeed   = null;
             prev.peakG      = null;
             prev.brakeScore = null;
             prev.liveLatG  = null;
@@ -1136,14 +1138,14 @@ let lastRenderTime  = performance.now();
             setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
             
             dom.peakG.textContent      = "0.00 G";
-            dom.maxSpeed.textContent   = "MAX: 0.00";
+            if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.00";
             dom.brakeScore.textContent = "0.00 G";
             
             evaluateAndRenderScore();
             localStorage.removeItem(STORAGE_KEY);
         }
 
-        dom.resetRunBtn.addEventListener('click', resetRun);
+        dom.speedGaugeBtn.addEventListener('click', resetRun);
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -1404,7 +1406,7 @@ let lastRenderTime  = performance.now();
                 setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
                 updateTimers(gpsSpeedKmph, distanceMeters, now);
 
-                if (gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; setDOM(dom.maxSpeed, 'maxSpeed', "MAX: " + fmt2.format(maxSpeedKmph)); stateDirty = true; }
+                if (gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: " + fmt2.format(maxSpeedKmph); stateDirty = true; }
                 if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
                 if (Math.abs(fusedLatG) > maxGpsLatG) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; }
                 if (fusedLongG < -0.3) {
