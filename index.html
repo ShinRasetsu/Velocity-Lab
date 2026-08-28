@@ -502,6 +502,66 @@ html {
         .gauge-wrap { --gauge: clamp(12rem, min(80vw, 20rem), 20rem); }
         .speed-gauge { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1), font-size 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
         .gauge-wrap.large .speed-gauge { --gauge: clamp(14rem, min(85vw, 22rem), 22rem); }
+
+        /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
+        /* initial hidden state (before .boot) */
+        .dashboard-shell .cmd-bar,
+        .dashboard-shell .tactical,
+        .dashboard-shell .metric-footer,
+        .dashboard-shell .hazard-strip {
+            opacity: 0;
+        }
+        .dashboard-shell .side-cell,
+        .dashboard-shell .t-card,
+        .dashboard-shell .metric-card {
+            opacity: 0;
+            transform: translateY(14px) scale(0.98);
+        }
+        .dashboard-shell .speed-track {
+            opacity: 0;
+        }
+
+        /* boot animations — staggered Gundam HUD power-on */
+        .dashboard-shell.boot .cmd-bar {
+            animation: hud-boot-bar 0.55s cubic-bezier(0.4,0,0.2,1) 0.08s forwards;
+        }
+        .dashboard-shell.boot .side-col:first-of-type .side-cell:nth-child(1) {
+            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.22s forwards;
+        }
+        .dashboard-shell.boot .side-col:first-of-type .side-cell:nth-child(2) {
+            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.28s forwards;
+        }
+        .dashboard-shell.boot .side-col:last-of-type .side-cell:nth-child(1) {
+            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.34s forwards;
+        }
+        .dashboard-shell.boot .side-col:last-of-type .side-cell:nth-child(2) {
+            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.40s forwards;
+        }
+        .dashboard-shell.boot .side-col:last-of-type .side-cell:nth-child(3) {
+            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.46s forwards;
+        }
+        .dashboard-shell.boot .speed-track {
+            animation: hud-boot-fade 0.5s ease-out 0.52s forwards;
+        }
+        .dashboard-shell.boot .tactical .t-card {
+            animation: hud-boot-card 0.55s cubic-bezier(0.4,0,0.2,1) 0.58s forwards;
+        }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(1) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.62s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(2) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.68s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(3) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.74s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(4) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.80s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(5) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.86s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(6) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.92s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(7) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.98s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(8) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 1.04s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(9) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 1.10s forwards; }
+        .dashboard-shell.boot .hazard-strip {
+            animation: hud-boot-bar 0.5s cubic-bezier(0.4,0,0.2,1) 1.16s forwards;
+        }
+
+        @keyframes hud-boot-bar { from { opacity:0; transform: translateY(-8px); } to { opacity:1; transform: translateY(0); } }
+        @keyframes hud-boot-fade { from { opacity:0; } to { opacity:1; } }
+        @keyframes hud-boot-card { to { opacity:1; transform: translateY(0) scale(1); } }
         /* Magnitude arc at bottom */
         .g-mag-arc {
             position: absolute; inset: 0.08em; border-radius: 50%;
@@ -817,6 +877,23 @@ html {
             .action-btn { transition: none; }
             .action-btn:active { transform: none; }
             .v-bar-fill { transition: none; }
+            .dashboard-shell .cmd-bar,
+            .dashboard-shell .stage,
+            .dashboard-shell .side-cell,
+            .dashboard-shell .t-card,
+            .dashboard-shell .metric-card,
+            .dashboard-shell .hazard-strip,
+            .dashboard-shell .speed-track,
+            .speed-gauge .gauge-ticks,
+            .speed-gauge .gauge-redline,
+            .speed-gauge .speed-readout,
+            .g-force-ring {
+                opacity: 1 !important;
+                transform: none !important;
+                filter: none !important;
+                animation: none !important;
+            }
+            .speed-gauge { transition: none !important; }
         }
     </style>
 </head>
@@ -1931,14 +2008,44 @@ let lastRenderTime  = performance.now();
             requestWakeLock();
             requestAnimationFrame(renderLoop);
 
-            // Trigger boot animations
+            // Trigger boot animations — every readout/bar/panel + gauge/ring
             setTimeout(() => {
+                const shell = document.querySelector('.dashboard-shell');
                 const gaugeWrap = document.querySelector('.gauge-wrap');
                 const speedGauge = document.querySelector('.speed-gauge');
                 const gForceRing = document.querySelector('.g-force-ring');
+                if (shell) shell.classList.add('boot');
                 if (gaugeWrap) gaugeWrap.classList.add('large');
                 if (speedGauge) speedGauge.classList.add('boot');
                 if (gForceRing) gForceRing.classList.add('boot');
+
+                // Bar demo sweep — every bar fills 0→100→0 so you can verify
+                const demoBars = [
+                    dom.accelFill, dom.brakeFill, dom.latFill,
+                    dom.vbarSpd, dom.vbarAcc, dom.vbarBrk, dom.vbarHdl,
+                    dom.speedBar
+                ];
+                demoBars.forEach((bar, i) => {
+                    if (!bar) return;
+                    const go = 650 + i * 85;
+                    const back = 1250 + i * 85;
+                    setTimeout(() => { bar.style.transition = 'width 0.45s cubic-bezier(0.4,0,0.2,1)'; bar.style.width = '100%'; }, go);
+                    setTimeout(() => { bar.style.width = '0%'; }, back);
+                    // restore JS-controlled transition after demo
+                    setTimeout(() => { bar.style.transition = ''; }, back + 500);
+                });
+                // Speed readout demo — quick 0→188.8 flicker
+                if (dom.speed) {
+                    let c = 0;
+                    const iv = setInterval(() => {
+                        c += 22;
+                        if (dom.speed) dom.speed.textContent = fmt1.format(Math.min(c, 188.8));
+                        if (c >= 188.8) {
+                            clearInterval(iv);
+                            setTimeout(() => { if (dom.speed) dom.speed.textContent = fmt1.format(displaySpeedMs * MS_TO_KMPH); }, 350);
+                        }
+                    }, 65);
+                }
             }, 100);
 
             // Auto-scale on resize/orientation change
