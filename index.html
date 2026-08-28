@@ -102,7 +102,7 @@
         /* ── base / atmosphere ───────────────────────────────────────────── */
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
 
-        :root {
+:root {
             --line: rgba(148,163,184,0.16);
             --line-strong: rgba(148,163,184,0.30);
             --green: #00ff88;
@@ -111,9 +111,26 @@
             --cyan: #00bfff;
             --purple: #bb86fc;
             --panel: linear-gradient(180deg, rgba(10,15,24,0.88), rgba(4,7,12,0.92));
+            /* Base viewport reference: 390×844 (iPhone 12/13/14 Pro) */
+            --vp-w: 390;
+            --vp-h: 844;
+            --scale: 1;
         }
 
-body {
+        @media (max-width: 390px) {
+            :root { --scale: calc(100vw / 390); }
+        }
+        @media (min-width: 391px) and (max-width: 768px) {
+            :root { --scale: calc(100vw / 390); }
+        }
+        @media (min-width: 769px) {
+            :root { --scale: calc(100vh / 844); }
+        }
+
+html {
+            font-size: calc(16px * var(--scale));
+        }
+        body {
             margin: 0;
             font-family: 'JetBrains Mono', monospace;
             background:
@@ -829,10 +846,9 @@ body {
     <section class="metric-footer" aria-label="Telemetry Metrics">
         <div class="metric-group" aria-label="Sprint Timers">
             <span class="metric-group-label">スプリント // SPRINT TIMERS</span>
-            <div class="metric-grid">
+<div class="metric-grid">
                 <div class="metric-card accent-orange"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 MPH</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
                 <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 KM/H</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 KM/H</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
                 <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 MILE</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
 </section>
 
@@ -1610,6 +1626,21 @@ let lastRenderTime  = performance.now();
             if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
             requestWakeLock();
             requestAnimationFrame(renderLoop);
+
+            // Auto-scale on resize/orientation change
+            function updateScale() {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const baseW = 390, baseH = 844;
+                let scale = 1;
+                if (vw <= baseW) scale = vw / baseW;
+                else if (vh <= baseH) scale = vh / baseH;
+                else scale = Math.min(vw / baseW, vh / baseH);
+                document.documentElement.style.setProperty('--scale', scale.toFixed(4));
+            }
+            updateScale();
+            window.addEventListener('resize', updateScale);
+            window.addEventListener('orientationchange', () => setTimeout(updateScale, 100));
         }
 
         window.addEventListener('load', checkPermissionsAndInit);
