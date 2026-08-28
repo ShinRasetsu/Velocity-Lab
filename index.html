@@ -963,7 +963,7 @@ html {
         const QUARTER_MILE_METERS  = 402.336;
         const IMU_ALPHA            = 0.15;
         const SPEED_ZERO_SNAP_KMPH = 1.5;
-        const GPS_STALE_MS         = 8000;   
+        const GPS_STALE_MS         = 30000;   
         const GPS_MAX_DT_SEC       = 5.0;    
         const GPS_RETRY_MS         = 10000;
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
@@ -994,6 +994,8 @@ html {
         
         let lastGpsTime     = -1;
         let prevGpsSpeedMs  = 0.0;
+        let lastGpsLat      = undefined;
+        let lastGpsLon      = undefined;
         
 let lastRenderTime  = performance.now();
         let maxSpeedKmph    = 0.0;
@@ -1469,7 +1471,24 @@ let lastRenderTime  = performance.now();
             if (lastGpsTime > 0) gpsDt = Math.min((now - lastGpsTime) / 1000.0, GPS_MAX_DT_SEC);
             lastGpsTime = now;
 
-            const gpsSpeedMs = (typeof c.speed === 'number') ? Math.max(0, c.speed) : 0.0;
+            // GPS speed fallback: use coords.speed if available, else calculate from position delta
+            let gpsSpeedMs = 0.0;
+            if (typeof c.speed === 'number' && !isNaN(c.speed)) {
+                gpsSpeedMs = Math.max(0, c.speed);
+            } else if (lastGpsLat !== undefined && lastGpsLon !== undefined && gpsDt > 0) {
+                // Calculate speed from position delta (Haversine)
+                const R = 6371000;
+                const dLat = (c.latitude - lastGpsLat) * Math.PI / 180;
+                const dLon = (c.longitude - lastGpsLon) * Math.PI / 180;
+                const lat1 = lastGpsLat * Math.PI / 180;
+                const lat2 = c.latitude * Math.PI / 180;
+                const a = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+                const dist = 2 * R * Math.asin(Math.sqrt(a));
+                gpsSpeedMs = dist / gpsDt;
+            }
+            lastGpsLat = c.latitude;
+            lastGpsLon = c.longitude;
+
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
             const conf = gpsConfidence(acc);   // 0..1 GPS quality
             confidenceSum     += conf;
@@ -1566,7 +1585,7 @@ let lastRenderTime  = performance.now();
         }
 
         function purgeData() {
-            // Reset all sprint timers manually (no __resetTimers in runtime)
+            // Reset all sprint timers
             [timer0_60, timer0_100, timer100_200, timerQuarter, timer100_0].forEach(t => {
                 t.state = T_IDLE;
                 t.start = 0;
@@ -1581,6 +1600,15 @@ let lastRenderTime  = performance.now();
             // Reset distance
             distanceMeters = 0;
             if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
+            // Reset speed
+            currentSpeedMs = 0.0;
+            displaySpeedMs = 0.0;
+            if (dom.speed) dom.speed.textContent = "0.0";
+            if (dom.speedBar) dom.speedBar.style.width = "0%";
+            if (dom.ring) dom.ring.style.setProperty('--deg', '0deg');
+            // Reset GPS position tracking
+            lastGpsLat = undefined;
+            lastGpsLon = undefined;
             // Reset G bars
             if (dom.accelFill) dom.accelFill.style.width = "0%";
             if (dom.brakeFill) dom.brakeFill.style.width = "0%";
@@ -1591,13 +1619,17 @@ let lastRenderTime  = performance.now();
             updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, performance.now());
             updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, performance.now());
             updateLiveBrake();
-            // Reset live-run card
-            if (dom.liveRunName) dom.liveRunName.textContent = "STANDBY";
-            if (dom.liveRunTime) dom.liveRunTime.textContent = "--.---";
             // Reset V-score
             evaluateAndRenderScore();
+            // Reset max speed display
+            if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.0";
+            // Reset peak marker
+            if (dom.peakMarker) dom.peakMarker.style.transform = "rotate(0deg)";
+            // Reset glitch count
+            gpsGlitchCount = 0;
+            if (dom.glitchCount) dom.glitchCount.textContent = "0";
             // Visual feedback
-            window.alert("Data purged. Dashboard reset to initial state.");
+            alert("Data purged. Dashboard reset to initial state.");
         }
 
         function restartGPS() {
@@ -1613,11 +1645,25 @@ let lastRenderTime  = performance.now();
             const now = performance.now();
             const dt  = now - lastRenderTime;
             const gnssStale = (now - lastGpsTime) > GPS_STALE_MS;
+            const gpsAcquired = lastGpsTime > 0;
+            
             if (gnssStale) {
                 currentSpeedMs = 0.0;
-                setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+                if (!gpsAcquired) {
+                    // No GPS fix ever received - still acquiring
+                    setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+                } else {
+                    // Had GPS but now stale
+                    setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
+                }
                 if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
+            } else if (gpsAcquired) {
+                // GPS is active and fresh
+                setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
             } else {
+                // GPS not acquired yet, but not stale (within first 30s)
+                setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
                 if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
             }
             const alpha = 1 - Math.exp(-dt * 0.008); 
