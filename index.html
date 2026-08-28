@@ -429,10 +429,10 @@ html {
             pointer-events: none;
             z-index: 2;  /* below peakmarker (4) & readout (3), above core (1) */
             overflow: visible;
-            /* faint base track visible at 0G so you can find it — always visible */
-            border: 1px solid rgba(148,163,184,0.22);
-            box-shadow: 0 0 10px rgba(148,163,184,0.10) inset;
-            /* Ring fill: conic-gradient with 8 segments (45° each) + faint base */
+            /* TEMP: whole ring RED for identification */
+            border: 2px solid rgba(255,51,102,0.95);
+            box-shadow: 0 0 12px rgba(255,51,102,0.5) inset, 0 0 10px rgba(255,51,102,0.4);
+            /* Ring fill: conic-gradient with 8 segments (45° each) + RED base for ID */
             background:
                 conic-gradient(from 0deg,
                     var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
@@ -452,7 +452,7 @@ html {
                     var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
                     transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
                 ),
-                conic-gradient(from 0deg, rgba(148,163,184,0.08) 0deg 360deg);
+                conic-gradient(from 0deg, rgba(255,51,102,0.92) 0deg 360deg);
             /* Make it a ring: mask out center 86% — thin band inside gauge */
             -webkit-mask: radial-gradient(circle, transparent 86%, black 86%);
             mask: radial-gradient(circle, transparent 86%, black 86%);
@@ -1078,7 +1078,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.4 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.5 — Velocity-Lab</div>
 </div>
 
 
