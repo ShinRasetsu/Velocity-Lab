@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'velocity-lab-v1.4.3';
+const CACHE_VERSION = 'velocity-lab-v1.4.4';
 
 const APP_SHELL_CACHE = `shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE   = `runtime-${CACHE_VERSION}`;
