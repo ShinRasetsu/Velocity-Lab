@@ -429,33 +429,13 @@ html {
             pointer-events: none;
             z-index: 2;  /* below peakmarker (4) & readout (3), above core (1) */
             overflow: visible;
-            /* TEMP: WHOLE RING SOLID RED FOR IDENTIFICATION — unmistakable */
+            /* TEMP: SOLID RED DISC FOR IDENTIFICATION — unmistakable, covers gauge interior */
             border: 3px solid rgba(255,51,102,1);
-            box-shadow: 0 0 16px rgba(255,51,102,0.7) inset, 0 0 14px rgba(255,51,102,0.6), 0 0 24px rgba(255,51,102,0.35);
-            /* Ring fill: THICK RED base + colored segments — full red when 0G */
-            background:
-                conic-gradient(from 0deg,
-                    var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
-                    transparent calc(var(--fore-pos, 0%) * 45deg / 100), transparent 45deg,
-                    var(--cyan) 45deg, var(--cyan) calc(45deg + var(--right-pos, 0%) * 45deg / 100),
-                    transparent calc(45deg + var(--right-pos, 0%) * 45deg / 100), transparent 90deg,
-                    var(--green) 90deg, var(--green) calc(90deg + var(--aft-pos, 0%) * 45deg / 100),
-                    transparent calc(90deg + var(--aft-pos, 0%) * 45deg / 100), transparent 135deg,
-                    var(--cyan) 135deg, var(--cyan) calc(135deg + var(--left-pos, 0%) * 45deg / 100),
-                    transparent calc(135deg + var(--left-pos, 0%) * 45deg / 100), transparent 180deg,
-                    var(--red) 180deg, var(--red) calc(180deg + var(--fore-neg, 0%) * 45deg / 100),
-                    transparent calc(180deg + var(--fore-neg, 0%) * 45deg / 100), transparent 225deg,
-                    var(--cyan) 225deg, var(--cyan) calc(225deg + var(--right-neg, 0%) * 45deg / 100),
-                    transparent calc(225deg + var(--right-neg, 0%) * 45deg / 100), transparent 270deg,
-                    var(--red) 270deg, var(--red) calc(270deg + var(--aft-neg, 0%) * 45deg / 100),
-                    transparent calc(270deg + var(--aft-neg, 0%) * 45deg / 100), transparent 315deg,
-                    var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
-                    transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
-                ),
-                conic-gradient(from 0deg, rgba(255,51,102,1) 0deg 360deg);
-            /* THICK ring for ID: 75% mask = 25% thickness */
-            -webkit-mask: radial-gradient(circle, transparent 75%, black 75%);
-            mask: radial-gradient(circle, transparent 75%, black 75%);
+            box-shadow: 0 0 20px rgba(255,51,102,0.8) inset, 0 0 16px rgba(255,51,102,0.6), 0 0 28px rgba(255,51,102,0.5);
+            background: rgba(255,51,102,0.88);
+            /* No mask — solid disc for ID */
+            -webkit-mask: none;
+            mask: none;
         }
         .peak-marker { z-index: 4; }
         .gauge-wrap { overflow: visible; }
@@ -473,10 +453,10 @@ html {
         @property --left-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --deg { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 
-        /* ── Startup animations — verifiable boot sequence ── */
+        /* ── Startup animations — verifiable boot sequence — FORCED VISIBLE FOR ID */
         .g-force-ring {
-            opacity: 0;
-            transform: scale(0.88);
+            opacity: 1 !important;
+            transform: scale(1) !important;
         }
         .g-force-ring.boot {
             animation:
