@@ -399,47 +399,120 @@ html {
             box-shadow: inset 0 0 0.14em rgba(0,0,0,0.85), 0 20px 50px rgba(0,0,0,0.4);
         }
 
-        /* G-load vector: moves inside gauge showing lat/long G */
+        /* ── GUNDAM G-METER: Tactical G-Ball ───────────────────────── */
+        .g-meter {
+            position: absolute; inset: 0.08em;
+            pointer-events: none; z-index: 2;
+        }
+        /* Reticle grid */
+        .g-meter-grid {
+            position: absolute; inset: 0; border-radius: 50%;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 0.06em, rgba(148,163,184,0.04) 0.06em, rgba(148,163,184,0.04) 0.12em),
+                repeating-linear-gradient(90deg, transparent, transparent 0.06em, rgba(148,163,184,0.04) 0.06em, rgba(148,163,184,0.04) 0.12em);
+            -webkit-mask: radial-gradient(circle, black 70%, transparent 71%);
+            mask: radial-gradient(circle, black 70%, transparent 71%);
+        }
+        /* Cardinal crosshair */
+        .g-meter-cross {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .g-meter-cross::before,
+        .g-meter-cross::after {
+            content: "";
+            position: absolute;
+            background: rgba(148,163,184,0.18);
+        }
+        .g-meter-cross::before { width: 0.012em; height: 60%; }
+        .g-meter-cross::after  { width: 60%; height: 0.012em; }
+        /* Corner brackets at 45° */
+        .g-meter-corners {
+            position: absolute; inset: 0;
+        }
+        .g-meter-corners::before,
+        .g-meter-corners::after,
+        .g-meter-corners span::before,
+        .g-meter-corners span::after {
+            content: "";
+            position: absolute;
+            width: 0.22em; height: 0.22em;
+            border: 2px solid rgba(0,255,136,0.35);
+            border-radius: 0;
+        }
+        .g-meter-corners::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+        .g-meter-corners::after  { top: 0; right: 0; border-left: none; border-bottom: none; }
+        .g-meter-corners span::before { bottom: 0; left: 0; border-right: none; border-top: none; }
+        .g-meter-corners span::after  { bottom: 0; right: 0; border-left: none; border-top: none; }
+        /* G-limit circle (1.5G) */
+        .g-meter-limit {
+            position: absolute; top: 50%; left: 50%;
+            width: 0.72em; height: 0.72em;
+            margin: -0.36em 0 0 -0.36em;
+            border-radius: 50%;
+            border: 1px solid rgba(0,255,136,0.25);
+            box-shadow: inset 0 0 0.05em rgba(0,255,136,0.1);
+        }
+        /* Warning circle (1.0G) */
+        .g-meter-warn {
+            position: absolute; top: 50%; left: 50%;
+            width: 0.48em; height: 0.48em;
+            margin: -0.24em 0 0 -0.24em;
+            border-radius: 50%;
+            border: 1px dashed rgba(255,170,0,0.35);
+        }
+        /* Moving G-vector ball */
         .g-vector {
             position: absolute;
             top: 50%; left: 50%;
-            width: 0.12em; height: 0.12em;
-            margin: -0.06em 0 0 -0.06em;
+            width: 0.1em; height: 0.1em;
+            margin: -0.05em 0 0 -0.05em;
             border-radius: 50%;
             background: var(--cyan);
             box-shadow: 
-                0 0 0.03em var(--cyan),
-                0 0 0.08em var(--cyan),
-                inset 0 0 0.02em rgba(255,255,255,0.3);
-            border: 2px solid rgba(255,255,255,0.2);
+                0 0 0.025em var(--cyan),
+                0 0 0.06em var(--cyan),
+                inset 0 -0.01em 0.015em rgba(0,0,0,0.5);
+            border: 2px solid rgba(255,255,255,0.15);
             pointer-events: none;
-            transition: transform 50ms linear;
+            transition: transform 40ms linear;
             will-change: transform;
-            z-index: 2;
+            z-index: 3;
         }
         .g-vector::before {
             content: "";
             position: absolute;
             top: 50%; left: 50%;
-            width: 0.3em; height: 0.3em;
-            margin: -0.15em 0 0 -0.15em;
+            width: 0.04em; height: 0.04em;
+            margin: -0.02em 0 0 -0.02em;
             border-radius: 50%;
-            border: 1px solid rgba(0,191,255,0.2);
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), transparent 70%);
         }
-        .g-vector::after {
-            content: "";
+        /* Vector trail (motion blur) */
+        .g-vector-trail {
             position: absolute;
             top: 50%; left: 50%;
-            width: 0.6em; height: 0.6em;
-            margin: -0.3em 0 0 -0.3em;
+            width: 0.1em; height: 0.1em;
+            margin: -0.05em 0 0 -0.05em;
             border-radius: 50%;
-            border: 1px solid rgba(0,191,255,0.1);
+            background: linear-gradient(135deg, var(--cyan), transparent 60%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 2;
         }
-        .gauge-g-mag {
-            margin-top: 0.015em;
-            font-size: 0.03em; font-weight: 700;
-            letter-spacing: 0.08em; text-transform: uppercase;
-            opacity: 0.7;
+        .g-vector-trail.active { opacity: 0.4; animation: g-trail 120ms linear infinite; }
+        @keyframes g-trail { to { transform: scale(3); opacity: 0; } }
+        /* G-magnitude arc indicator */
+        .g-mag-arc {
+            position: absolute; inset: 0.08em; border-radius: 50%;
+            pointer-events: none; z-index: 1;
+        }
+        .g-mag-arc span {
+            position: absolute; bottom: 0.04em; left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.028em; font-weight: 800; letter-spacing: 0.05em;
+            color: var(--purple); text-transform: uppercase;
+            text-shadow: 0 0 0.02em var(--purple);
         }
 
         .speed-readout {
@@ -800,13 +873,21 @@ html {
                 <div class="gauge-redline" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
 <div class="gauge-core" aria-hidden="true"></div>
-                <div id="g-vector" class="g-vector" aria-hidden="true"></div>
-<div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
+                <div class="g-meter" aria-hidden="true">
+                    <div class="g-meter-grid"></div>
+                    <div class="g-meter-cross"></div>
+                    <div class="g-meter-corners"><span></span></div>
+                    <div class="g-meter-limit"></div>
+                    <div class="g-meter-warn"></div>
+                    <div id="g-vector-trail" class="g-vector-trail"></div>
+                    <div id="g-vector" class="g-vector"></div>
+                    <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
+                </div>
+                <div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
                     <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
                     <span class="speed-unit">KM/H</span>
                     <span class="gauge-caption">車両速度 // VELOCITY</span>
                     <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
-                    <span id="g-magnitude" class="gauge-g-mag lcd-text clr-purple">G: 0.00</span>
                 </div>
             </div>
             <div class="speed-track" aria-hidden="true">
@@ -1013,6 +1094,8 @@ let lastRenderTime  = performance.now();
             // Live G-Meter
             gDot:         document.getElementById('g-dot'),
             gVector:      document.getElementById('g-vector'),
+            gVectorTrail: document.getElementById('g-vector-trail'),
+            gMagnitudeArc: document.getElementById('g-magnitude-arc'),
             liveLatG:     document.getElementById('live-lat-g'),
             liveLonG:     document.getElementById('live-lon-g'),
             liveLatGMax:  document.getElementById('live-lat-g-max'),
@@ -1038,8 +1121,7 @@ let lastRenderTime  = performance.now();
             vbarAcc:      document.getElementById('vbar-acc'),
             vbarBrk:      document.getElementById('vbar-brk'),
             vbarHdl:      document.getElementById('vbar-hdl'),
-            maxSpeedGauge: document.getElementById('max-speed-gauge'),
-            gMagnitude:    document.getElementById('g-magnitude')
+            maxSpeedGauge: document.getElementById('max-speed-gauge')
         };
 
         const prev = {
@@ -1047,7 +1129,7 @@ let lastRenderTime  = performance.now();
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
-            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, gVector: null, gMagnitude: null, accuracy: null,
+            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, gVector: null, gVectorTrail: null, gMagnitudeArc: null, accuracy: null,
             // Gundam HUD additions
             distKm: null, sessClock: null, brakeLive: null,
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
@@ -1573,10 +1655,16 @@ let lastRenderTime  = performance.now();
             const gv  = `translate(${emX.toFixed(3)}em, ${emY.toFixed(3)}em)`;
             if (prev.gVector !== gv) { dom.gVector.style.transform = gv; prev.gVector = gv; }
 
-            // G-magnitude display
+            // Trail follows vector with slight delay (opacity when moving)
+            const trailOn = (Math.abs(uiLatG) > 0.05 || Math.abs(uiLongG) > 0.05);
+            if (prev.gVectorTrail !== trailOn) { dom.gVectorTrail.classList.toggle("active", trailOn); prev.gVectorTrail = trailOn; }
+            if (trailOn) dom.gVectorTrail.style.transform = gv;
+
+            // G-magnitude arc display
             const gMag = Math.hypot(uiLatG, uiLongG);
             const gMagStr = fmt2.format(gMag);
             if (prev.gMagnitude !== gMagStr) { dom.gMagnitude.textContent = "G: " + gMagStr; prev.gMagnitude = gMagStr; }
+            if (prev.gMagnitudeArc !== gMagStr) { dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
 
             // ── Gundam HUD live telemetry ─────────────────────────────────────
             // Session clock (mm:ss since tracking init)
