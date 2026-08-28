@@ -503,10 +503,10 @@ html {
         @keyframes fade-up { to { opacity: 1; transform: translateY(0); } }
         @keyframes ring-expand { to { transform: scale(1); opacity: 1; } }
 
-        /* Larger default gauge — restored original size */
-        .gauge-wrap { --gauge: clamp(12rem, min(80vw, 20rem), 20rem); }
+        /* Larger default gauge — compact so 100svh fits (core unchanged per request) */
+        .gauge-wrap { --gauge: clamp(10.5rem, min(70vw, 18rem), 18rem); }
         .speed-gauge { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1), font-size 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
-        .gauge-wrap.large .speed-gauge { --gauge: clamp(14rem, min(85vw, 22rem), 22rem); }
+        .gauge-wrap.large .speed-gauge { --gauge: clamp(12.5rem, min(75vw, 20rem), 20rem); }
 
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
@@ -1071,7 +1071,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.13 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.14 — Velocity-Lab</div>
 </div>
 
 
