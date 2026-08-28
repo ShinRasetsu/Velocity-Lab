@@ -424,15 +424,15 @@ html {
    Uses conic-gradient for clean arc segments. */
         .g-force-ring {
             position: absolute;
-            inset: 0.08em; /* inside speed-gauge just below peakmarker (0.028em+0.05em) */
+            inset: 0.04em; /* inside speed-gauge just below peakmarker — VERY VISIBLE FOR ID */
             border-radius: 50%;
             pointer-events: none;
             z-index: 2;  /* below peakmarker (4) & readout (3), above core (1) */
             overflow: visible;
-            /* TEMP: whole ring RED for identification */
-            border: 2px solid rgba(255,51,102,0.95);
-            box-shadow: 0 0 12px rgba(255,51,102,0.5) inset, 0 0 10px rgba(255,51,102,0.4);
-            /* Ring fill: conic-gradient with 8 segments (45° each) + RED base for ID */
+            /* TEMP: WHOLE RING SOLID RED FOR IDENTIFICATION — unmistakable */
+            border: 3px solid rgba(255,51,102,1);
+            box-shadow: 0 0 16px rgba(255,51,102,0.7) inset, 0 0 14px rgba(255,51,102,0.6), 0 0 24px rgba(255,51,102,0.35);
+            /* Ring fill: THICK RED base + colored segments — full red when 0G */
             background:
                 conic-gradient(from 0deg,
                     var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
@@ -452,10 +452,10 @@ html {
                     var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
                     transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
                 ),
-                conic-gradient(from 0deg, rgba(255,51,102,0.92) 0deg 360deg);
-            /* Make it a ring: mask out center 86% — thin band inside gauge */
-            -webkit-mask: radial-gradient(circle, transparent 86%, black 86%);
-            mask: radial-gradient(circle, transparent 86%, black 86%);
+                conic-gradient(from 0deg, rgba(255,51,102,1) 0deg 360deg);
+            /* THICK ring for ID: 75% mask = 25% thickness */
+            -webkit-mask: radial-gradient(circle, transparent 75%, black 75%);
+            mask: radial-gradient(circle, transparent 75%, black 75%);
         }
         .peak-marker { z-index: 4; }
         .gauge-wrap { overflow: visible; }
@@ -1078,7 +1078,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.5 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.6 — Velocity-Lab</div>
 </div>
 
 
