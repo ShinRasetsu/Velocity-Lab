@@ -413,88 +413,110 @@ html {
             -webkit-mask: radial-gradient(circle, black 70%, transparent 71%);
             mask: radial-gradient(circle, black 70%, transparent 71%);
         }
-        /* ── G-FORCE QUADRANT BARS ─────────────────────────────────────────
-   4 wedges (90° each) around gauge center. Each wedge split by center
-   radial line: positive fills clockwise, negative fills counter-clockwise.
-   Colors: Green=Accel (Fwd), Red=Brake (Aft), Cyan=Lat (L/R)           */
-        .g-force-bars {
-            position: absolute; inset: 0.08em; border-radius: 50%;
-            pointer-events: none; z-index: 2;
+        /* ── G-FORCE RING (outside speed-gauge) ─────────────────────────────
+           4 arc segments on a ring outside the speed-gauge.
+           Each 90° quadrant: center divider = 0, fills outward ±1.5G max.
+           Fore=Accel+/Brake- (Green/Red), Right=Lat+/Lat- (Cyan),
+           Aft=mirror Fore, Left=mirror Right. */
+        .g-force-ring {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: calc(var(--gauge) * 1.18);
+            height: calc(var(--gauge) * 1.18);
+            margin: calc(var(--gauge) * -0.59) 0 0 calc(var(--gauge) * -0.59);
+            pointer-events: none;
+            z-index: 5;
         }
+        .g-force-bars {
+            position: absolute; inset: 0; border-radius: 50%;
+            pointer-events: none;
+        }
+        /* Each bar is a 90° arc segment on the ring */
         .g-force-bar {
             position: absolute;
             top: 50%; left: 50%;
-            width: 0.34em; height: 0.34em;
-            margin: -0.34em 0 0 -0.34em;
+            width: 100%; height: 100%;
+            margin: -50% 0 0 -50%;
             border-radius: 50%;
-            clip-path: none;
             transform-origin: 50% 50%;
         }
-        /* Base wedge mask - each bar is a 90° sector */
+        /* Base track (background) - full 90° arc at ring radius */
         .g-force-bar::before {
             content: "";
-            position: absolute; inset: 0; border-radius: 50%;
+            position: absolute; inset: 0.08em; border-radius: 50%;
             background: currentColor;
-            opacity: 0.18;
+            opacity: 0.12;
             clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
         }
-        /* Fore (0°/360°) - Accel + / Brake - : Green / Red */
-        .g-force-bar.fore { transform: rotate(-45deg); }
-        .g-force-bar.fore.pos { --bar-color: var(--green); color: var(--green); }
-        .g-force-bar.fore.neg { --bar-color: var(--red); color: var(--red); transform: rotate(-135deg); }
-        /* Right (90°) - Lat Right + : Cyan */
-        .g-force-bar.right { transform: rotate(45deg); }
-        .g-force-bar.right.pos { --bar-color: var(--cyan); color: var(--cyan); }
-        .g-force-bar.right.neg { --bar-color: var(--cyan); color: var(--cyan); transform: rotate(135deg); }
-        /* Aft (180°) - Brake - / Accel + : Red / Green (mirrored) */
-        .g-force-bar.aft { transform: rotate(135deg); }
-        .g-force-bar.aft.pos { --bar-color: var(--green); color: var(--green); transform: rotate(45deg); }
-        .g-force-bar.aft.neg { --bar-color: var(--red); color: var(--red); transform: rotate(-45deg); }
-        /* Left (270°) - Lat Left + : Cyan */
-        .g-force-bar.left { transform: rotate(-135deg); }
-        .g-force-bar.left.pos { --bar-color: var(--cyan); color: var(--cyan); transform: rotate(135deg); }
-        .g-force-bar.left.neg { --bar-color: var(--cyan); color: var(--cyan); transform: rotate(-45deg); }
-        /* Fill level - JS sets --fill (0..1) */
+        /* Fill - grows from center divider outward */
         .g-force-bar::after {
             content: "";
-            position: absolute; inset: 0; border-radius: 50%;
+            position: absolute; inset: 0.08em; border-radius: 50%;
             background: currentColor;
-            opacity: 0.85;
+            opacity: 0.9;
             clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
             transform: scaleX(0);
             transform-origin: 50% 50%;
             transition: transform 60ms linear;
             will-change: transform;
         }
-        /* Center divider lines (positive/negative split) */
+        /* Fore (0°/360°) - Accel + (Green) / Brake - (Red) */
+        .g-force-bar.fore { transform: rotate(-45deg); }
+        .g-force-bar.fore.pos { color: var(--green); }
+        .g-force-bar.fore.neg { color: var(--red); transform: rotate(-135deg); }
+        /* Right (90°) - Lat Right + (Cyan) / Lat Left - (Cyan) */
+        .g-force-bar.right { transform: rotate(45deg); }
+        .g-force-bar.right.pos { color: var(--cyan); }
+        .g-force-bar.right.neg { color: var(--cyan); transform: rotate(135deg); }
+        /* Aft (180°) - Brake - (Red) / Accel + (Green) - mirrors Fore */
+        .g-force-bar.aft { transform: rotate(135deg); }
+        .g-force-bar.aft.pos { color: var(--green); transform: rotate(45deg); }
+        .g-force-bar.aft.neg { color: var(--red); transform: rotate(-45deg); }
+        /* Left (270°) - Lat Left + (Cyan) / Lat Right - (Cyan) - mirrors Right */
+        .g-force-bar.left { transform: rotate(-135deg); }
+        .g-force-bar.left.pos { color: var(--cyan); transform: rotate(135deg); }
+        .g-force-bar.left.neg { color: var(--cyan); transform: rotate(-45deg); }
+        /* Center divider lines (positive/negative split at 0) */
         .g-force-divider {
             position: absolute; top: 50%; left: 50%;
-            width: 0.014em; height: 0.34em;
-            margin: -0.34em 0 0 -0.007em;
-            background: rgba(148,163,184,0.35);
-            border-radius: 0.007em;
+            width: 0.012em; height: 0.38em;
+            margin: -0.38em 0 0 -0.006em;
+            background: rgba(148,163,184,0.4);
+            border-radius: 0.006em;
             pointer-events: none;
         }
         .g-force-divider.f { transform: rotate(0deg); }
         .g-force-divider.r { transform: rotate(90deg); }
         .g-force-divider.a { transform: rotate(180deg); }
         .g-force-divider.l { transform: rotate(-90deg); }
-        /* G-limit reference ring (1.5G) */
+        /* G-limit reference ring (1.5G) - at ring radius */
         .g-meter-limit {
             position: absolute; top: 50%; left: 50%;
-            width: 0.72em; height: 0.72em;
-            margin: -0.36em 0 0 -0.36em;
+            width: 0.82em; height: 0.82em;
+            margin: -0.41em 0 0 -0.41em;
             border-radius: 50%;
-            border: 1px solid rgba(0,255,136,0.25);
-            box-shadow: inset 0 0 0.05em rgba(0,255,136,0.1);
+            border: 1px solid rgba(0,255,136,0.3);
+            box-shadow: inset 0 0 0.06em rgba(0,255,136,0.15);
         }
         /* Warning ring (1.0G) */
         .g-meter-warn {
             position: absolute; top: 50%; left: 50%;
-            width: 0.48em; height: 0.48em;
-            margin: -0.24em 0 0 -0.24em;
+            width: 0.55em; height: 0.55em;
+            margin: -0.275em 0 0 -0.275em;
             border-radius: 50%;
-            border: 1px dashed rgba(255,170,0,0.35);
+            border: 1px dashed rgba(255,170,0,0.4);
+        }
+        /* Magnitude arc at bottom */
+        .g-mag-arc {
+            position: absolute; inset: 0.08em; border-radius: 50%;
+            pointer-events: none; z-index: 1;
+        }
+        .g-mag-arc span {
+            position: absolute; bottom: 0.06em; left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.028em; font-weight: 800; letter-spacing: 0.05em;
+            color: var(--purple); text-transform: uppercase;
+            text-shadow: 0 0 0.02em var(--purple);
         }
         
         /* G-magnitude arc indicator */
@@ -861,14 +883,23 @@ html {
             </div>
         </aside>
 
-        <div class="gauge-wrap">
+<div class="gauge-wrap">
             <div class="speed-gauge">
                 <div class="gauge-ticks" aria-hidden="true"></div>
                 <div id="speed-ring" aria-hidden="true"></div>
                 <div class="gauge-redline" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
-<div class="gauge-core" aria-hidden="true"></div>
-                <div class="g-force-bars" aria-hidden="true">
+                <div class="gauge-core" aria-hidden="true"></div>
+                <div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
+                    <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
+                    <span class="speed-unit">KM/H</span>
+                    <span class="gauge-caption">車両速度 // VELOCITY</span>
+                    <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
+                </div>
+            </div>
+            <!-- G-Force Ring: outside speed-gauge, inside gauge-wrap -->
+            <div class="g-force-ring" aria-hidden="true">
+                <div class="g-force-bars">
                     <!-- Fore: Accel + (Green) / Brake - (Red) -->
                     <div class="g-force-bar fore pos" id="g-bar-fore-pos"></div>
                     <div class="g-force-bar fore neg" id="g-bar-fore-neg"></div>
@@ -891,12 +922,6 @@ html {
                     <div class="g-meter-warn"></div>
                     <!-- Magnitude arc -->
                     <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
-                </div>
-                <div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
-                    <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
-                    <span class="speed-unit">KM/H</span>
-                    <span class="gauge-caption">車両速度 // VELOCITY</span>
-                    <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
                 </div>
             </div>
             <div class="speed-track" aria-hidden="true">
