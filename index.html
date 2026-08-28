@@ -424,37 +424,37 @@ html {
    Uses conic-gradient for clean arc segments. */
         .g-force-ring {
             position: absolute;
-            inset: 0.06em; /* clearly inside speed-ring (0.0375em outer), 0.0225em gap */
+            inset: 0.06em;
             border-radius: 50%;
             pointer-events: none;
             z-index: 2;
             overflow: visible;
-            /* RED ring — visible thickness ~2× speed-ring for ID (will tune to 3/4 after confirm) */
-            border: none;
+            /* RED ring — 3/4 thickness of speed-ring, fallback border if conic fails */
+            border: 1.5px solid rgba(255,51,102,0.85);
             background:
                 conic-gradient(from 0deg,
-                    var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
-                    transparent calc(var(--fore-pos, 0%) * 45deg / 100), transparent 45deg,
-                    var(--cyan) 45deg, var(--cyan) calc(45deg + var(--right-pos, 0%) * 45deg / 100),
-                    transparent calc(45deg + var(--right-pos, 0%) * 45deg / 100), transparent 90deg,
-                    var(--green) 90deg, var(--green) calc(90deg + var(--aft-pos, 0%) * 45deg / 100),
-                    transparent calc(90deg + var(--aft-pos, 0%) * 45deg / 100), transparent 135deg,
-                    var(--cyan) 135deg, var(--cyan) calc(135deg + var(--left-pos, 0%) * 45deg / 100),
-                    transparent calc(135deg + var(--left-pos, 0%) * 45deg / 100), transparent 180deg,
-                    var(--red) 180deg, var(--red) calc(180deg + var(--fore-neg, 0%) * 45deg / 100),
-                    transparent calc(180deg + var(--fore-neg, 0%) * 45deg / 100), transparent 225deg,
-                    var(--cyan) 225deg, var(--cyan) calc(225deg + var(--right-neg, 0%) * 45deg / 100),
-                    transparent calc(225deg + var(--right-neg, 0%) * 45deg / 100), transparent 270deg,
-                    var(--red) 270deg, var(--red) calc(270deg + var(--aft-neg, 0%) * 45deg / 100),
-                    transparent calc(270deg + var(--aft-neg, 0%) * 45deg / 100), transparent 315deg,
-                    var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
-                    transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
+                    var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 0.125),
+                    transparent calc(var(--fore-pos, 0%) * 0.125), transparent 12.5%,
+                    var(--cyan) 12.5%, var(--cyan) calc(12.5% + var(--right-pos, 0%) * 0.125),
+                    transparent calc(12.5% + var(--right-pos, 0%) * 0.125), transparent 25%,
+                    var(--green) 25%, var(--green) calc(25% + var(--aft-pos, 0%) * 0.125),
+                    transparent calc(25% + var(--aft-pos, 0%) * 0.125), transparent 37.5%,
+                    var(--cyan) 37.5%, var(--cyan) calc(37.5% + var(--left-pos, 0%) * 0.125),
+                    transparent calc(37.5% + var(--left-pos, 0%) * 0.125), transparent 50%,
+                    var(--red) 50%, var(--red) calc(50% + var(--fore-neg, 0%) * 0.125),
+                    transparent calc(50% + var(--fore-neg, 0%) * 0.125), transparent 62.5%,
+                    var(--cyan) 62.5%, var(--cyan) calc(62.5% + var(--right-neg, 0%) * 0.125),
+                    transparent calc(62.5% + var(--right-neg, 0%) * 0.125), transparent 75%,
+                    var(--red) 75%, var(--red) calc(75% + var(--aft-neg, 0%) * 0.125),
+                    transparent calc(75% + var(--aft-neg, 0%) * 0.125), transparent 87.5%,
+                    var(--cyan) 87.5%, var(--cyan) calc(87.5% + var(--left-neg, 0%) * 0.125),
+                    transparent calc(87.5% + var(--left-neg, 0%) * 0.125), transparent 100%
                 ),
-                conic-gradient(from 0deg, rgba(255,51,102,0.92) 0deg 360deg);
-            /* 0.01em thick (~2.5px) — clearly visible, ~2× speed-ring for ID */
-            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
-            mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
-            filter: drop-shadow(0 0 0.03em rgba(255,51,102,0.6));
+                conic-gradient(from 0deg, rgba(255,51,102,0.88) 0deg 360deg);
+            /* 3/4 thickness of speed-ring: 0.0045em*0.75=0.0034em */
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.0434em), #000 calc(100% - 0.04em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.0434em), #000 calc(100% - 0.04em));
+            filter: drop-shadow(0 0 0.02em rgba(255,51,102,0.5));
         }
         .peak-marker { z-index: 4; }
         .gauge-wrap { overflow: visible; }
@@ -1077,7 +1077,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.10 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.11 — Velocity-Lab</div>
 </div>
 
 
