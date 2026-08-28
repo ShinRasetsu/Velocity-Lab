@@ -425,38 +425,40 @@ html {
             position: absolute;
             /* centered on speed-gauge, not gauge-wrap (which includes speed-track) */
             top: calc(var(--gauge) * 0.5); left: 50%;
-            width: calc(var(--gauge) * 1.18);
-            height: calc(var(--gauge) * 1.18);
-            margin: calc(var(--gauge) * -0.59) 0 0 calc(var(--gauge) * -0.59);
+            width: calc(var(--gauge) * 1.20);
+            height: calc(var(--gauge) * 1.20);
+            margin: calc(var(--gauge) * -0.60) 0 0 calc(var(--gauge) * -0.60);
             border-radius: 50%;
             pointer-events: none;
-            z-index: 5;  /* above speed-gauge */
+            z-index: 10;  /* clearly above speed-gauge */
             overflow: visible;
-            /* faint base track visible at 0G so you can find it */
-            border: 1px solid rgba(148,163,184,0.18);
-            box-shadow: 0 0 8px rgba(148,163,184,0.08) inset;
-            /* Ring fill: conic-gradient with 8 segments (45° each) */
-            background: conic-gradient(from 0deg,
-                var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
-                transparent calc(var(--fore-pos, 0%) * 45deg / 100), transparent 45deg,
-                var(--cyan) 45deg, var(--cyan) calc(45deg + var(--right-pos, 0%) * 45deg / 100),
-                transparent calc(45deg + var(--right-pos, 0%) * 45deg / 100), transparent 90deg,
-                var(--green) 90deg, var(--green) calc(90deg + var(--aft-pos, 0%) * 45deg / 100),
-                transparent calc(90deg + var(--aft-pos, 0%) * 45deg / 100), transparent 135deg,
-                var(--cyan) 135deg, var(--cyan) calc(135deg + var(--left-pos, 0%) * 45deg / 100),
-                transparent calc(135deg + var(--left-pos, 0%) * 45deg / 100), transparent 180deg,
-                var(--red) 180deg, var(--red) calc(180deg + var(--fore-neg, 0%) * 45deg / 100),
-                transparent calc(180deg + var(--fore-neg, 0%) * 45deg / 100), transparent 225deg,
-                var(--cyan) 225deg, var(--cyan) calc(225deg + var(--right-neg, 0%) * 45deg / 100),
-                transparent calc(225deg + var(--right-neg, 0%) * 45deg / 100), transparent 270deg,
-                var(--red) 270deg, var(--red) calc(270deg + var(--aft-neg, 0%) * 45deg / 100),
-                transparent calc(270deg + var(--aft-neg, 0%) * 45deg / 100), transparent 315deg,
-                var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
-                transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
-            );
-            /* Make it a ring: mask out center 85% — keep border inside mask */
-            -webkit-mask: radial-gradient(circle, transparent 84%, black 84%);
-            mask: radial-gradient(circle, transparent 84%, black 84%);
+            /* faint base track visible at 0G so you can find it — always visible */
+            border: 1.5px solid rgba(148,163,184,0.28);
+            box-shadow: 0 0 12px rgba(148,163,184,0.12) inset, 0 0 6px rgba(148,163,184,0.06);
+            /* Ring fill: conic-gradient with 8 segments (45° each) + faint base */
+            background:
+                conic-gradient(from 0deg,
+                    var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
+                    transparent calc(var(--fore-pos, 0%) * 45deg / 100), transparent 45deg,
+                    var(--cyan) 45deg, var(--cyan) calc(45deg + var(--right-pos, 0%) * 45deg / 100),
+                    transparent calc(45deg + var(--right-pos, 0%) * 45deg / 100), transparent 90deg,
+                    var(--green) 90deg, var(--green) calc(90deg + var(--aft-pos, 0%) * 45deg / 100),
+                    transparent calc(90deg + var(--aft-pos, 0%) * 45deg / 100), transparent 135deg,
+                    var(--cyan) 135deg, var(--cyan) calc(135deg + var(--left-pos, 0%) * 45deg / 100),
+                    transparent calc(135deg + var(--left-pos, 0%) * 45deg / 100), transparent 180deg,
+                    var(--red) 180deg, var(--red) calc(180deg + var(--fore-neg, 0%) * 45deg / 100),
+                    transparent calc(180deg + var(--fore-neg, 0%) * 45deg / 100), transparent 225deg,
+                    var(--cyan) 225deg, var(--cyan) calc(225deg + var(--right-neg, 0%) * 45deg / 100),
+                    transparent calc(225deg + var(--right-neg, 0%) * 45deg / 100), transparent 270deg,
+                    var(--red) 270deg, var(--red) calc(270deg + var(--aft-neg, 0%) * 45deg / 100),
+                    transparent calc(270deg + var(--aft-neg, 0%) * 45deg / 100), transparent 315deg,
+                    var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
+                    transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
+                ),
+                conic-gradient(from 0deg, rgba(148,163,184,0.09) 0deg 360deg);
+            /* Make it a ring: mask out center 84% — keep border inside mask */
+            -webkit-mask: radial-gradient(circle, transparent 83%, black 83%);
+            mask: radial-gradient(circle, transparent 83%, black 83%);
         }
         .gauge-wrap { overflow: visible; }
         /* No child bars needed - all in conic-gradient */
@@ -561,10 +563,6 @@ html {
         .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(3) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.74s forwards; }
         .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(4) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.80s forwards; }
         .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(5) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.86s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(6) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.92s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(7) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.98s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(8) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 1.04s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(9) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 1.10s forwards; }
         .dashboard-shell.boot .hazard-strip {
             animation: hud-boot-bar 0.5s cubic-bezier(0.4,0,0.2,1) 1.16s forwards;
         }
@@ -1053,12 +1051,10 @@ html {
                 <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 KM/H</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
                 <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 KM/H</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
                 <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 MILE</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-green"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX ACCEL</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
-                <div class="metric-card accent-red"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">BRAKE</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
                 <div class="metric-card accent-gray col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0M BRAKING DIST</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
-                <div class="metric-card accent-gray"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">PEAK LAT G</span><span id="peak-lat-g-metric" class="timer-lbl clr-blue lcd-text">0.00 G</span></div>
-                <div class="metric-card accent-gray"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">PEAK LON G</span><span id="peak-lon-g-metric" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
             </div>
+            <!-- hidden peaks kept for JS (already mirrored in live G // max) -->
+            <div style="display:none"><span id="peak-g">0.00 G</span><span id="brake-score">0.00 G</span><span id="peak-lat-g-metric">0.00 G</span><span id="peak-lon-g-metric">0.00 G</span></div>
         </div>
     </section>
 
