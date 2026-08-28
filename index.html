@@ -246,6 +246,7 @@ body {
             align-items: center;
             gap: 0.3rem;
         }
+        .cmd-status-left { display: flex; align-items: center; gap: 0.35rem; }
         #status-indicator {
             font-size: 0.6rem; font-weight: 800; letter-spacing: 0.06em;
             white-space: nowrap;
@@ -682,30 +683,31 @@ body {
         <div class="cmd-brand">
             <div class="brand-row neon-accent"><span class="brand-mark">VL</span><span>VELOCITY-LAB</span></div>
             <span class="brand-subtitle">計測システム // TELEMETRY HUD</span>
-        </div>
-        <div class="action-rail">
-            <button id="reset-run-btn" aria-label="Reset Telemetry Run" class="action-btn gap-1.5 neon-warning btn-reset">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg>
-                RESET RUN
-            </button>
-            <button id="pwa-install-btn" style="display:none;" aria-label="Install App" class="action-btn gap-1.5 neon-accent btn-install">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
-                INSTALL
-            </button>
+            <div class="action-rail">
+                <button id="reset-run-btn" aria-label="Reset Telemetry Run" class="action-btn gap-1.5 neon-warning btn-reset">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg>
+                    RESET RUN
+                </button>
+                <button id="pwa-install-btn" style="display:none;" aria-label="Install App" class="action-btn gap-1.5 neon-accent btn-install">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+                    INSTALL
+                </button>
+            </div>
         </div>
 
         <div class="cmd-status" aria-live="polite">
-            <span id="status-indicator" class="text-yellow-500 neon-warning">[ ACQUIRING GNSS ]</span>
-            <span class="cmd-status-sub">
-                <span id="accuracy-display">ACC -- M</span>
-                <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
-            </span>
-        </div>
-
-<div class="cmd-sys" aria-live="polite">
-            <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
-            <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
-            <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
+            <div class="cmd-status-left">
+                <span id="status-indicator" class="text-yellow-500 neon-warning">[ ACQUIRING GNSS ]</span>
+                <span class="cmd-status-sub">
+                    <span id="accuracy-display">ACC -- M</span>
+                    <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
+                </span>
+            </div>
+            <div class="cmd-sys" aria-live="polite">
+                <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
+                <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
+                <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
+            </div>
         </div>
     </header>
 
