@@ -493,6 +493,12 @@ html {
         .speed-gauge.boot .gauge-redline { animation: redline-draw 1.2s ease-out 0.4s forwards; }
         .speed-gauge .speed-readout { opacity: 0; transform: translateY(0.8em); }
         .speed-gauge.boot .speed-readout { animation: fade-up 0.7s ease-out 0.7s forwards; }
+        #speed-ring { --deg: 0deg; }
+        .speed-gauge.boot #speed-ring { animation: speed-ring-sweep 1.4s cubic-bezier(0.4,0,0.2,1) 0.25s forwards; }
+        @keyframes speed-ring-sweep { 0% { --deg:0deg } 45% { --deg:360deg } 85% { --deg:360deg } 100% { --deg:0deg } }
+        #peak-marker { transform: rotate(0deg); }
+        .speed-gauge.boot #peak-marker { animation: peak-sweep 1.4s cubic-bezier(0.4,0,0.2,1) 0.30s forwards; }
+        @keyframes peak-sweep { 0% { transform: rotate(0deg)} 45% { transform: rotate(360deg)} 85% { transform: rotate(360deg)} 100% { transform: rotate(0deg)} }
         @keyframes tick-draw { to { opacity: 1; filter: blur(0); } }
         @keyframes redline-draw { to { opacity: 1; transform: scale(1); } }
         @keyframes fade-up { to { opacity: 1; transform: translateY(0); } }
@@ -506,8 +512,6 @@ html {
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
         .dashboard-shell .cmd-bar,
-        .dashboard-shell .tactical,
-        .dashboard-shell .metric-footer,
         .dashboard-shell .hazard-strip {
             opacity: 0;
         }
@@ -2034,7 +2038,7 @@ let lastRenderTime  = performance.now();
                     // restore JS-controlled transition after demo
                     setTimeout(() => { bar.style.transition = ''; }, back + 500);
                 });
-                // Speed readout demo — quick 0→188.8 flicker
+                // Speed readout demo — quick 0→188.8 flicker (motorcycle RPM sweep)
                 if (dom.speed) {
                     let c = 0;
                     const iv = setInterval(() => {
@@ -2046,6 +2050,60 @@ let lastRenderTime  = performance.now();
                         }
                     }, 65);
                 }
+                // --- Full LCD self-test: all segments 88 like motorcycle cluster ---
+                const lcdTest = [
+                    [dom.distDisplay, '88.88 KM'],
+                    [dom.sessionTime, '88:88'],
+                    [dom.liveLonG, '+8.88'], [dom.liveLonGMax, '8.88'],
+                    [dom.liveLatG, '8.88'], [dom.liveLatGMax, '8.88'],
+                    [dom.brakeLive, '8.88'], [dom.brakeLiveMax, '8.88'],
+                    [dom.gMagnitudeArc, 'G: 8.88'],
+                    [dom.maxSpeedGauge, 'MAX: 188.8'],
+                    [dom.t0_60, '88.888 s'], [dom.t0_100, '88.888 s'],
+                    [dom.t100_200, '88.888 s'], [dom.tQuarter, '88.888 s'],
+                    [dom.t100_0, '888.8 m'], [dom.peakG, '8.88 G'],
+                    [dom.brakeScore, '8.88 G'], [dom.peakLatGMetric, '8.88'], [dom.peakLonGMetric, '8.88'],
+                    [dom.vScoreTotal, '88'], [dom.vScoreSpd,'88'], [dom.vScoreAcc,'88'], [dom.vScoreBrk,'88'], [dom.vScoreHdl,'88'],
+                    [dom.glitchCount, '88'],
+                    [dom.accuracy, 'ACC 88.8 m'],
+                    [dom.updateRate, 'GPS 88.8 HZ'],
+                ];
+                lcdTest.forEach(([el, v]) => { if (el) { el.textContent = v; el.style.filter = 'brightness(1.3)'; } });
+                // light up all metric/tactical labels briefly
+                document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = 'brightness(1.6)');
+                setTimeout(() => {
+                    // restore to live 0 state
+                    if (dom.distDisplay) { dom.distDisplay.textContent = fmt2.format(distanceMeters/1000) + ' KM'; dom.distDisplay.style.filter=''; }
+                    if (dom.sessionTime) { dom.sessionTime.textContent = '00:00'; dom.sessionTime.style.filter=''; }
+                    if (dom.liveLonG) { dom.liveLonG.textContent = '+0.00'; dom.liveLonG.style.filter=''; }
+                    if (dom.liveLonGMax) { dom.liveLonGMax.textContent = '0.00'; dom.liveLonGMax.style.filter=''; }
+                    if (dom.liveLatG) { dom.liveLatG.textContent = '0.00'; dom.liveLatG.style.filter=''; }
+                    if (dom.liveLatGMax) { dom.liveLatGMax.textContent = '0.00'; dom.liveLatGMax.style.filter=''; }
+                    if (dom.brakeLive) { dom.brakeLive.textContent = '0.00'; dom.brakeLive.style.filter=''; }
+                    if (dom.brakeLiveMax) { dom.brakeLiveMax.textContent = '0.00'; dom.brakeLiveMax.style.filter=''; }
+                    if (dom.gMagnitudeArc) { dom.gMagnitudeArc.textContent = 'G: 0.00'; dom.gMagnitudeArc.style.filter=''; }
+                    if (dom.maxSpeedGauge) { dom.maxSpeedGauge.textContent = 'MAX: 0.0'; dom.maxSpeedGauge.style.filter=''; }
+                    if (dom.t0_60) { dom.t0_60.textContent = '--.--- s'; dom.t0_60.style.filter=''; }
+                    if (dom.t0_100) { dom.t0_100.textContent = '--.--- s'; dom.t0_100.style.filter=''; }
+                    if (dom.t100_200) { dom.t100_200.textContent = '--.--- s'; dom.t100_200.style.filter=''; }
+                    if (dom.tQuarter) { dom.tQuarter.textContent = '--.--- s'; dom.tQuarter.style.filter=''; }
+                    if (dom.t100_0) { dom.t100_0.textContent = '-- m'; dom.t100_0.style.filter=''; }
+                    if (dom.peakG) { dom.peakG.textContent = '0.00 G'; dom.peakG.style.filter=''; }
+                    if (dom.brakeScore) { dom.brakeScore.textContent = '0.00 G'; dom.brakeScore.style.filter=''; }
+                    if (dom.peakLatGMetric) { dom.peakLatGMetric.textContent = '0.00'; dom.peakLatGMetric.style.filter=''; }
+                    if (dom.peakLonGMetric) { dom.peakLonGMetric.textContent = '0.00'; dom.peakLonGMetric.style.filter=''; }
+                    if (dom.vScoreTotal) { dom.vScoreTotal.textContent = '0'; dom.vScoreTotal.style.filter=''; }
+                    if (dom.vScoreSpd) { dom.vScoreSpd.textContent = '0'; dom.vScoreSpd.style.filter=''; }
+                    if (dom.vScoreAcc) { dom.vScoreAcc.textContent = '0'; dom.vScoreAcc.style.filter=''; }
+                    if (dom.vScoreBrk) { dom.vScoreBrk.textContent = '0'; dom.vScoreBrk.style.filter=''; }
+                    if (dom.vScoreHdl) { dom.vScoreHdl.textContent = '0'; dom.vScoreHdl.style.filter=''; }
+                    if (dom.glitchCount) { dom.glitchCount.textContent = '0'; dom.glitchCount.style.filter=''; }
+                    if (dom.accuracy) { dom.accuracy.textContent = 'ACC -- M'; dom.accuracy.style.filter=''; }
+                    if (dom.updateRate) { dom.updateRate.textContent = 'GPS 0.0 HZ'; dom.updateRate.style.filter=''; }
+                    document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = '');
+                    // restore prev caches so live updates repaint
+                    prev.speed=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null;
+                }, 1250);
             }, 100);
 
             // Auto-scale on resize/orientation change
