@@ -456,30 +456,51 @@ html {
         /* No child bars needed - all in conic-gradient */
         .g-force-bars { display: none; }
 
-        /* Startup animations */
+        /* ── @property for smooth conic-gradient animation (Chrome/Edge/Firefox) ── */
+        @property --fore-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --fore-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --right-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --right-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --aft-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --aft-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --left-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --left-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --deg { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+        /* ── Startup animations — verifiable boot sequence ── */
+        .g-force-ring {
+            opacity: 0;
+            transform: scale(0.85);
+        }
         .g-force-ring.boot {
-            animation: g-force-boot 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            animation:
+                ring-expand 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards,
+                g-force-boot 2.0s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
         }
         @keyframes g-force-boot {
-            0% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; opacity: 0; transform: scale(0.5); }
-            15% { opacity: 1; transform: scale(1); }
+            0% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
+            15% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
             25% { --fore-pos: 100%; --fore-neg: 100%; }
             40% { --right-pos: 100%; --right-neg: 100%; }
             55% { --aft-pos: 100%; --aft-neg: 100%; }
             70% { --left-pos: 100%; --left-neg: 100%; }
+            85% { --fore-pos: 100%; --fore-neg: 100%; --right-pos: 100%; --right-neg: 100%; --aft-pos: 100%; --aft-neg: 100%; --left-pos: 100%; --left-neg: 100%; }
             100% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
         }
-        .speed-gauge.boot .gauge-ticks { animation: tick-draw 1.5s ease-out forwards; }
-        .speed-gauge.boot .gauge-redline { animation: redline-draw 1.5s ease-out 0.3s forwards; }
-        .speed-gauge.boot .speed-readout { animation: fade-up 0.8s ease-out 0.6s forwards; opacity: 0; }
-        .speed-gauge.boot .g-force-ring { animation: ring-expand 1s ease-out 0.4s forwards; }
-        @keyframes tick-draw { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
-        @keyframes redline-draw { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-        @keyframes fade-up { from { opacity: 0; transform: translateY(1em); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes ring-expand { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .speed-gauge .gauge-ticks { opacity: 0; filter: blur(2px); }
+        .speed-gauge.boot .gauge-ticks { animation: tick-draw 1.2s ease-out 0.1s forwards; }
+        .speed-gauge .gauge-redline { opacity: 0; transform: scale(0.8); }
+        .speed-gauge.boot .gauge-redline { animation: redline-draw 1.2s ease-out 0.4s forwards; }
+        .speed-gauge .speed-readout { opacity: 0; transform: translateY(0.8em); }
+        .speed-gauge.boot .speed-readout { animation: fade-up 0.7s ease-out 0.7s forwards; }
+        @keyframes tick-draw { to { opacity: 1; filter: blur(0); } }
+        @keyframes redline-draw { to { opacity: 1; transform: scale(1); } }
+        @keyframes fade-up { to { opacity: 1; transform: translateY(0); } }
+        @keyframes ring-expand { to { transform: scale(1); opacity: 1; } }
 
-        /* Larger default gauge */
+        /* Larger default gauge — animated growth on boot */
         .gauge-wrap { --gauge: clamp(12rem, min(80vw, 20rem), 20rem); }
+        .speed-gauge { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1), font-size 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
         .gauge-wrap.large .speed-gauge { --gauge: clamp(14rem, min(85vw, 22rem), 22rem); }
         /* Magnitude arc at bottom */
         .g-mag-arc {
