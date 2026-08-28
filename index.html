@@ -343,7 +343,7 @@ html {
         .g-bar-fill.lat   { background: linear-gradient(90deg, #00bfff, #8adfff); box-shadow: 0 0 8px rgba(0,191,255,0.5); }
 
         /* ── circular gauge cluster ──────────────────────────────────────── */
-        .gauge-wrap { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+        .gauge-wrap { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; }
 
         .speed-gauge {
             width: var(--gauge);
@@ -414,18 +414,20 @@ html {
             -webkit-mask: radial-gradient(circle, black 70%, transparent 71%);
             mask: radial-gradient(circle, black 70%, transparent 71%);
         }
-        /* ── G-FORCE RING (thin band at core outer edge) ──────────────────────────
-   Sits between core (z-index: 1) and readout (z-index: 3).
-   Radius = core outer edge + thin band thickness. */
+        /* ── G-FORCE RING (thin band OUTSIDE speed-gauge) ─────────────────────────
+   Thin band around the speed-gauge circle. 4 arc quadrants.
+   Each 90°: center divider = 0, fills ± along arc.
+   Fore=Accel+/Brake- (Green/Red), Right=Lat+/Lat- (Cyan),
+   Aft=mirror Fore, Left=mirror Right. */
         .g-force-ring {
             position: absolute;
             top: 50%; left: 50%;
-            width: calc(var(--gauge) - 0.124em + 0.16em);  /* core + 0.16em ring */
-            height: calc(var(--gauge) - 0.124em + 0.16em);
-            margin: calc(var(--gauge) * -0.5 + 0.062em - 0.08em) 0 0 calc(var(--gauge) * -0.5 + 0.062em - 0.08em);
+            width: calc(var(--gauge) * 1.22);
+            height: calc(var(--gauge) * 1.22);
+            margin: calc(var(--gauge) * -0.61) 0 0 calc(var(--gauge) * -0.61);
             border-radius: 50%;
             pointer-events: none;
-            z-index: 2;  /* between core (1) and readout (3) */
+            z-index: 5;  /* above everything in gauge-wrap */
         }
         .g-force-bars {
             position: absolute; inset: 0; border-radius: 50%;
