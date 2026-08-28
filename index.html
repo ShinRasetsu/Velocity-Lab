@@ -454,36 +454,6 @@ html {
         }
         /* No child bars needed - all in conic-gradient */
         .g-force-bars { display: none; }
-        /* Center divider lines (positive/negative split at 0) */
-        .g-force-divider {
-            position: absolute; top: 50%; left: 50%;
-            width: 0.012em; height: 0.38em;
-            margin: -0.38em 0 0 -0.006em;
-            background: rgba(148,163,184,0.4);
-            border-radius: 0.006em;
-            pointer-events: none;
-        }
-        .g-force-divider.f { transform: rotate(0deg); }
-        .g-force-divider.r { transform: rotate(90deg); }
-        .g-force-divider.a { transform: rotate(180deg); }
-        .g-force-divider.l { transform: rotate(-90deg); }
-        /* G-limit reference ring (1.5G) - at ring radius */
-        .g-meter-limit {
-            position: absolute; top: 50%; left: 50%;
-            width: 0.82em; height: 0.82em;
-            margin: -0.41em 0 0 -0.41em;
-            border-radius: 50%;
-            border: 1px solid rgba(0,255,136,0.3);
-            box-shadow: inset 0 0 0.06em rgba(0,255,136,0.15);
-        }
-        /* Warning ring (1.0G) */
-        .g-meter-warn {
-            position: absolute; top: 50%; left: 50%;
-            width: 0.55em; height: 0.55em;
-            margin: -0.275em 0 0 -0.275em;
-            border-radius: 50%;
-            border: 1px dashed rgba(255,170,0,0.4);
-        }
         /* Magnitude arc at bottom */
         .g-mag-arc {
             position: absolute; inset: 0.08em; border-radius: 50%;
@@ -877,23 +847,7 @@ html {
             </div>
             <!-- G-Force Ring: OUTSIDE speed-gauge, thin band around it -->
             <div class="g-force-ring" aria-hidden="true">
-                <div class="g-force-bars">
-                    <div class="g-force-bar fore pos" id="g-bar-fore-pos"></div>
-                    <div class="g-force-bar fore neg" id="g-bar-fore-neg"></div>
-                    <div class="g-force-bar right pos" id="g-bar-right-pos"></div>
-                    <div class="g-force-bar right neg" id="g-bar-right-neg"></div>
-                    <div class="g-force-bar aft pos" id="g-bar-aft-pos"></div>
-                    <div class="g-force-bar aft neg" id="g-bar-aft-neg"></div>
-                    <div class="g-force-bar left pos" id="g-bar-left-pos"></div>
-                    <div class="g-force-bar left neg" id="g-bar-left-neg"></div>
-                    <div class="g-force-divider f"></div>
-                    <div class="g-force-divider r"></div>
-                    <div class="g-force-divider a"></div>
-                    <div class="g-force-divider l"></div>
-                    <div class="g-meter-limit"></div>
-                    <div class="g-meter-warn"></div>
-                    <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
-                </div>
+                <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
             </div>
             <div class="speed-track" aria-hidden="true">
                 <div id="speed-bar" class="speed-bar-fill"></div>
