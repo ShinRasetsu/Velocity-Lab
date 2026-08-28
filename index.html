@@ -433,9 +433,7 @@ html {
             position: absolute; inset: 0; border-radius: 50%;
             pointer-events: none;
         }
-        /* Each bar is a 45° wedge growing from the quadrant's center divider.
-   8 bars total: 4 quadrants × 2 directions (pos/neg).
-   Each grows from the divider (0 G) along the arc. */
+        /* Each bar is a thin 45° arc segment on the ring. Uses conic-gradient for clean arcs. */
         .g-force-bar {
             position: absolute;
             top: 50%; left: 50%;
@@ -444,57 +442,53 @@ html {
             border-radius: 50%;
             transform-origin: 50% 50%;
         }
-        /* Ring track thickness = inset from edge */
-        /* Base track (background) - 45° wedge */
-        .g-force-bar::before {
-            content: "";
-            position: absolute; inset: 0.08em; border-radius: 50%;
-            background: currentColor;
-            opacity: 0.12;
-            clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
-        }
-        /* Fill - grows from divider (transform-origin at center) along arc */
+        /* Thin ring: 85% to 100% radius = 15% thickness */
+        .g-force-bar::before,
         .g-force-bar::after {
             content: "";
-            position: absolute; inset: 0.08em; border-radius: 50%;
+            position: absolute;
+            inset: 15%;  /* 85% to 100% = thin ring */
+            border-radius: 50%;
             background: currentColor;
+            opacity: 0.12;
+            clip-path: polygon(
+                50% 15%, 100% 50%, 50% 85%, 50% 50%,
+                15% 50%, 50% 15%
+            );
+        }
+        .g-force-bar::after {
             opacity: 0.9;
-            clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
-            transform: scaleX(0);
+            transform: scale(0, 1);  /* scale Y to grow from center */
             transform-origin: 50% 50%;
             transition: transform 60ms linear;
             will-change: transform;
         }
-        /* Quadrant center dividers (where 0 G is): Fore=0°, Right=90°, Aft=180°, Left=270° */
-        /* Each bar is a 45° wedge positioned at the divider */
-        /* Fore quadrant (top): divider at 0° (north) */
+        /* Divider at quadrant center: Fore=0°, Right=90°, Aft=180°, Left=270° */
+        /* Each bar = 45° wedge growing from divider along arc */
         .g-force-bar.fore.pos { transform: rotate(0deg); color: var(--green); }
         .g-force-bar.fore.neg { transform: rotate(0deg); color: var(--red); }
         .g-force-bar.fore.pos::before,
-        .g-force-bar.fore.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.fore.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
         .g-force-bar.fore.neg::before,
-        .g-force-bar.fore.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
-        /* Right quadrant: divider at 90° (east) */
+        .g-force-bar.fore.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
         .g-force-bar.right.pos { transform: rotate(90deg); color: var(--cyan); }
         .g-force-bar.right.neg { transform: rotate(90deg); color: var(--cyan); }
         .g-force-bar.right.pos::before,
-        .g-force-bar.right.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.right.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
         .g-force-bar.right.neg::before,
-        .g-force-bar.right.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
-        /* Aft quadrant: divider at 180° (south) */
+        .g-force-bar.right.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
         .g-force-bar.aft.pos { transform: rotate(180deg); color: var(--green); }
         .g-force-bar.aft.neg { transform: rotate(180deg); color: var(--red); }
         .g-force-bar.aft.pos::before,
-        .g-force-bar.aft.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.aft.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
         .g-force-bar.aft.neg::before,
-        .g-force-bar.aft.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
-        /* Left quadrant: divider at 270° (west) */
+        .g-force-bar.aft.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
         .g-force-bar.left.pos { transform: rotate(270deg); color: var(--cyan); }
         .g-force-bar.left.neg { transform: rotate(270deg); color: var(--cyan); }
         .g-force-bar.left.pos::before,
-        .g-force-bar.left.pos::after { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+        .g-force-bar.left.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
         .g-force-bar.left.neg::before,
-        .g-force-bar.left.neg::after { clip-path: polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%); }
+        .g-force-bar.left.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
         /* Center divider lines (positive/negative split at 0) */
         .g-force-divider {
             position: absolute; top: 50%; left: 50%;
