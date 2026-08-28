@@ -1764,13 +1764,11 @@ let lastRenderTime  = performance.now();
             sessionStartMs = performance.now();
             loadSession();
             
-            // Check GPS permission status first
-            let gpsPermState = 'prompt';
+            // Check GPS permission status first (non-blocking)
             try {
                 const perm = await navigator.permissions.query({ name: 'geolocation' });
-                gpsPermState = perm.state;
                 if (perm.state === 'denied') {
-                    setDOM(dom.status, 'status', "ERR: GPS PERMISSION DENIED", "text-red-500 neon-danger");
+                    setDOM(dom.status, 'status', "ERR: GPS PERMISSION DENIED — Enable in Settings", "text-red-500 neon-danger");
                 }
             } catch { /* permissions API not supported */ }
             
@@ -1778,6 +1776,8 @@ let lastRenderTime  = performance.now();
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+            } else {
+                setDOM(dom.status, 'status', "ERR: GEOLOCATION NOT SUPPORTED", "text-red-500 neon-danger");
             }
             
             // Handle iOS motion permission asynchronously (non-blocking)
@@ -1785,7 +1785,7 @@ let lastRenderTime  = performance.now();
             motionPromise.then(motionOk => {
                 if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
                 updateFusionStatusUI();
-            });
+            }).catch(() => { /* ignore */ });
             
             requestWakeLock();
             requestAnimationFrame(renderLoop);
