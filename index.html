@@ -418,7 +418,8 @@ html {
    Thin band around the speed-gauge circle. 4 arc quadrants.
    Each 90°: center divider = 0, fills ± along arc.
    Fore=Accel+/Brake- (Green/Red), Right=Lat+/Lat- (Cyan),
-   Aft=mirror Fore, Left=mirror Right. */
+   Aft=mirror Fore, Left=mirror Right.
+   Uses conic-gradient for clean arc segments. */
         .g-force-ring {
             position: absolute;
             top: 50%; left: 50%;
@@ -428,67 +429,31 @@ html {
             border-radius: 50%;
             pointer-events: none;
             z-index: 5;  /* above everything in gauge-wrap */
-        }
-        .g-force-bars {
-            position: absolute; inset: 0; border-radius: 50%;
-            pointer-events: none;
-        }
-        /* Each bar is a thin 45° arc segment on the ring. Uses conic-gradient for clean arcs. */
-        .g-force-bar {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 100%; height: 100%;
-            margin: -50% 0 0 -50%;
-            border-radius: 50%;
-            transform-origin: 50% 50%;
-        }
-        /* Thin ring: 85% to 100% radius = 15% thickness */
-        .g-force-bar::before,
-        .g-force-bar::after {
-            content: "";
-            position: absolute;
-            inset: 15%;  /* 85% to 100% = thin ring */
-            border-radius: 50%;
-            background: currentColor;
-            opacity: 0.12;
-            clip-path: polygon(
-                50% 15%, 100% 50%, 50% 85%, 50% 50%,
-                15% 50%, 50% 15%
+            /* Ring track: conic-gradient with 8 segments (45° each) */
+            background: conic-gradient(from 0deg,
+                var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 45deg / 100),
+                transparent calc(var(--fore-pos, 0%) * 45deg / 100), transparent 45deg,
+                var(--cyan) 45deg, var(--cyan) calc(45deg + var(--right-pos, 0%) * 45deg / 100),
+                transparent calc(45deg + var(--right-pos, 0%) * 45deg / 100), transparent 90deg,
+                var(--green) 90deg, var(--green) calc(90deg + var(--aft-pos, 0%) * 45deg / 100),
+                transparent calc(90deg + var(--aft-pos, 0%) * 45deg / 100), transparent 135deg,
+                var(--cyan) 135deg, var(--cyan) calc(135deg + var(--left-pos, 0%) * 45deg / 100),
+                transparent calc(135deg + var(--left-pos, 0%) * 45deg / 100), transparent 180deg,
+                var(--red) 180deg, var(--red) calc(180deg + var(--fore-neg, 0%) * 45deg / 100),
+                transparent calc(180deg + var(--fore-neg, 0%) * 45deg / 100), transparent 225deg,
+                var(--cyan) 225deg, var(--cyan) calc(225deg + var(--right-neg, 0%) * 45deg / 100),
+                transparent calc(225deg + var(--right-neg, 0%) * 45deg / 100), transparent 270deg,
+                var(--red) 270deg, var(--red) calc(270deg + var(--aft-neg, 0%) * 45deg / 100),
+                transparent calc(270deg + var(--aft-neg, 0%) * 45deg / 100), transparent 315deg,
+                var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
+                transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
             );
+            /* Make it a ring: mask out center 85% */
+            -webkit-mask: radial-gradient(circle, transparent 85%, black 85%);
+            mask: radial-gradient(circle, transparent 85%, black 85%);
         }
-        .g-force-bar::after {
-            opacity: 0.9;
-            transform: scale(0, 1);  /* scale Y to grow from center */
-            transform-origin: 50% 50%;
-            transition: transform 60ms linear;
-            will-change: transform;
-        }
-        /* Divider at quadrant center: Fore=0°, Right=90°, Aft=180°, Left=270° */
-        /* Each bar = 45° wedge growing from divider along arc */
-        .g-force-bar.fore.pos { transform: rotate(0deg); color: var(--green); }
-        .g-force-bar.fore.neg { transform: rotate(0deg); color: var(--red); }
-        .g-force-bar.fore.pos::before,
-        .g-force-bar.fore.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
-        .g-force-bar.fore.neg::before,
-        .g-force-bar.fore.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
-        .g-force-bar.right.pos { transform: rotate(90deg); color: var(--cyan); }
-        .g-force-bar.right.neg { transform: rotate(90deg); color: var(--cyan); }
-        .g-force-bar.right.pos::before,
-        .g-force-bar.right.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
-        .g-force-bar.right.neg::before,
-        .g-force-bar.right.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
-        .g-force-bar.aft.pos { transform: rotate(180deg); color: var(--green); }
-        .g-force-bar.aft.neg { transform: rotate(180deg); color: var(--red); }
-        .g-force-bar.aft.pos::before,
-        .g-force-bar.aft.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
-        .g-force-bar.aft.neg::before,
-        .g-force-bar.aft.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
-        .g-force-bar.left.pos { transform: rotate(270deg); color: var(--cyan); }
-        .g-force-bar.left.neg { transform: rotate(270deg); color: var(--cyan); }
-        .g-force-bar.left.pos::before,
-        .g-force-bar.left.pos::after { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 50% 50%); }
-        .g-force-bar.left.neg::before,
-        .g-force-bar.left.neg::after { clip-path: polygon(50% 0, 0 50%, 50% 100%, 50% 50%); }
+        /* No child bars needed - all in conic-gradient */
+        .g-force-bars { display: none; }
         /* Center divider lines (positive/negative split at 0) */
         .g-force-divider {
             position: absolute; top: 50%; left: 50%;
@@ -1140,15 +1105,7 @@ let lastRenderTime  = performance.now();
             vbarBrk:      document.getElementById('vbar-brk'),
             vbarHdl:      document.getElementById('vbar-hdl'),
             maxSpeedGauge: document.getElementById('max-speed-gauge'),
-            // G-Force quadrant bars
-            gBarForePos:  document.getElementById('g-bar-fore-pos'),
-            gBarForeNeg:  document.getElementById('g-bar-fore-neg'),
-            gBarRightPos: document.getElementById('g-bar-right-pos'),
-            gBarRightNeg: document.getElementById('g-bar-right-neg'),
-            gBarAftPos:   document.getElementById('g-bar-aft-pos'),
-            gBarAftNeg:   document.getElementById('g-bar-aft-neg'),
-            gBarLeftPos:  document.getElementById('g-bar-left-pos'),
-            gBarLeftNeg:  document.getElementById('g-bar-left-neg'),
+            gForceRing:   document.querySelector('.g-force-ring'),
         };
 
         const prev = {
@@ -1680,33 +1637,28 @@ let lastRenderTime  = performance.now();
             const gMagStr = fmt2.format(gMag);
             if (prev.gMagnitudeArc !== gMagStr) { dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
 
-            // G-Force quadrant bars (max 1.5G)
+            // G-Force quadrant bars (max 1.5G) - set CSS custom properties on ring
             const gMax = 1.5;
-            const forePosFill = Math.max(0, Math.min(1,  uiLongG / gMax));
-            const foreNegFill = Math.max(0, Math.min(1, -uiLongG / gMax));
-            const rightPosFill = Math.max(0, Math.min(1,  uiLatG / gMax));
-            const rightNegFill = Math.max(0, Math.min(1, -uiLatG / gMax));
-            // Aft mirrors Fore, Left mirrors Right (opposite)
-            const aftPosFill = forePosFill;
-            const aftNegFill = foreNegFill;
-            const leftPosFill = rightNegFill;
-            const leftNegFill = rightPosFill;
+            const forePos = Math.round(Math.max(0, Math.min(100,  uiLongG / gMax * 100)));
+            const foreNeg = Math.round(Math.max(0, Math.min(100, -uiLongG / gMax * 100)));
+            const rightPos = Math.round(Math.max(0, Math.min(100,  uiLatG / gMax * 100)));
+            const rightNeg = Math.round(Math.max(0, Math.min(100, -uiLatG / gMax * 100)));
+            const aftPos = forePos;
+            const aftNeg = foreNeg;
+            const leftPos = rightNeg;
+            const leftNeg = rightPos;
 
-            const setBar = (el, fill, prevKey) => {
-                if (prev[prevKey] !== fill) {
-                    if (fill > 0.01) el.style.transform = `scaleX(${ (fill * 0.5).toFixed(3) })`;
-                    else el.style.transform = 'scaleX(0)';
-                    prev[prevKey] = fill;
-                }
-            };
-            setBar(dom.gBarForePos,  forePosFill,  'gBarForePos');
-            setBar(dom.gBarForeNeg,  foreNegFill,  'gBarForeNeg');
-            setBar(dom.gBarRightPos, rightPosFill, 'gBarRightPos');
-            setBar(dom.gBarRightNeg, rightNegFill, 'gBarRightNeg');
-            setBar(dom.gBarAftPos,   aftPosFill,   'gBarAftPos');
-            setBar(dom.gBarAftNeg,   aftNegFill,   'gBarAftNeg');
-            setBar(dom.gBarLeftPos,  leftPosFill,  'gBarLeftPos');
-            setBar(dom.gBarLeftNeg,  leftNegFill,  'gBarLeftNeg');
+            const ring = dom.gForceRing || document.querySelector('.g-force-ring');
+            if (ring) {
+                ring.style.setProperty('--fore-pos', forePos + '%');
+                ring.style.setProperty('--fore-neg', foreNeg + '%');
+                ring.style.setProperty('--right-pos', rightPos + '%');
+                ring.style.setProperty('--right-neg', rightNeg + '%');
+                ring.style.setProperty('--aft-pos', aftPos + '%');
+                ring.style.setProperty('--aft-neg', aftNeg + '%');
+                ring.style.setProperty('--left-pos', leftPos + '%');
+                ring.style.setProperty('--left-neg', leftNeg + '%');
+            }
 
             // ── Gundam HUD live telemetry ─────────────────────────────────────
             // Session clock (mm:ss since tracking init)
