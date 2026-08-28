@@ -424,18 +424,14 @@ html {
    Uses conic-gradient for clean arc segments. */
         .g-force-ring {
             position: absolute;
-            /* centered on speed-gauge, not gauge-wrap (which includes speed-track) */
-            top: calc(var(--gauge) * 0.5); left: 50%;
-            width: calc(var(--gauge) * 1.20);
-            height: calc(var(--gauge) * 1.20);
-            margin: calc(var(--gauge) * -0.60) 0 0 calc(var(--gauge) * -0.60);
+            inset: 0.08em; /* inside speed-gauge just below peakmarker (0.028em+0.05em) */
             border-radius: 50%;
             pointer-events: none;
-            z-index: 10;  /* clearly above speed-gauge */
+            z-index: 2;  /* below peakmarker (4) & readout (3), above core (1) */
             overflow: visible;
             /* faint base track visible at 0G so you can find it — always visible */
-            border: 1.5px solid rgba(148,163,184,0.28);
-            box-shadow: 0 0 12px rgba(148,163,184,0.12) inset, 0 0 6px rgba(148,163,184,0.06);
+            border: 1px solid rgba(148,163,184,0.22);
+            box-shadow: 0 0 10px rgba(148,163,184,0.10) inset;
             /* Ring fill: conic-gradient with 8 segments (45° each) + faint base */
             background:
                 conic-gradient(from 0deg,
@@ -456,11 +452,12 @@ html {
                     var(--cyan) 315deg, var(--cyan) calc(315deg + var(--left-neg, 0%) * 45deg / 100),
                     transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
                 ),
-                conic-gradient(from 0deg, rgba(148,163,184,0.09) 0deg 360deg);
-            /* Make it a ring: mask out center 84% — keep border inside mask */
-            -webkit-mask: radial-gradient(circle, transparent 83%, black 83%);
-            mask: radial-gradient(circle, transparent 83%, black 83%);
+                conic-gradient(from 0deg, rgba(148,163,184,0.08) 0deg 360deg);
+            /* Make it a ring: mask out center 86% — thin band inside gauge */
+            -webkit-mask: radial-gradient(circle, transparent 86%, black 86%);
+            mask: radial-gradient(circle, transparent 86%, black 86%);
         }
+        .peak-marker { z-index: 4; }
         .gauge-wrap { overflow: visible; }
         /* No child bars needed - all in conic-gradient */
         .g-force-bars { display: none; }
@@ -825,7 +822,16 @@ html {
         }
         .hazard-right { color: rgba(255,170,0,0.7); }
 
-        /* never let a rigid child widen the shell past the screen */
+        .version-tag {
+            text-align: center;
+            font-size: 0.38rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            color: rgba(148,163,184,0.35);
+            padding: 0.12rem 0 0;
+            text-transform: uppercase;
+            line-height: 1;
+        }
         .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
 
         /* tactical row: shrinkable columns — compact so bottom fits 100svh */
@@ -984,6 +990,10 @@ html {
                 <div id="speed-ring" aria-hidden="true"></div>
                 <div class="gauge-redline" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
+                <!-- G-Force Ring: INSIDE speed-gauge just below peakmarker -->
+                <div class="g-force-ring" aria-hidden="true">
+                    <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
+                </div>
                 <div class="gauge-core" aria-hidden="true"></div>
                 <div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
                     <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
@@ -991,10 +1001,6 @@ html {
                     <span class="gauge-caption">車両速度 // VELOCITY</span>
                     <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
                 </div>
-            </div>
-            <!-- G-Force Ring: OUTSIDE speed-gauge, thin band around it -->
-            <div class="g-force-ring" aria-hidden="true">
-                <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
             </div>
             <div class="speed-track" aria-hidden="true">
                 <div id="speed-bar" class="speed-bar-fill"></div>
@@ -1072,6 +1078,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
+    <div id="app-version" class="version-tag">VER 1.4.4 — Velocity-Lab</div>
 </div>
 
 
