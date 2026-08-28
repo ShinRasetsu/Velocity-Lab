@@ -424,12 +424,12 @@ html {
    Uses conic-gradient for clean arc segments. */
         .g-force-ring {
             position: absolute;
-            inset: 0.04em;
+            inset: 0.06em; /* clearly inside speed-ring (0.0375em outer), 0.0225em gap */
             border-radius: 50%;
             pointer-events: none;
             z-index: 2;
             overflow: visible;
-            /* RED ring 3/4 thickness of speed-ring (speed-ring 0.0045em → 0.0034em) */
+            /* RED ring — visible thickness ~2× speed-ring for ID (will tune to 3/4 after confirm) */
             border: none;
             background:
                 conic-gradient(from 0deg,
@@ -451,10 +451,10 @@ html {
                     transparent calc(315deg + var(--left-neg, 0%) * 45deg / 100), transparent 360deg
                 ),
                 conic-gradient(from 0deg, rgba(255,51,102,0.92) 0deg 360deg);
-            /* 3/4 thickness of speed-ring: speed-ring 0.042-0.0375=0.0045em → 0.0034em */
-            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.0434em), #000 calc(100% - 0.04em));
-            mask: radial-gradient(closest-side, transparent calc(100% - 0.0434em), #000 calc(100% - 0.04em));
-            filter: drop-shadow(0 0 0.02em rgba(255,51,102,0.5));
+            /* 0.01em thick (~2.5px) — clearly visible, ~2× speed-ring for ID */
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
+            filter: drop-shadow(0 0 0.03em rgba(255,51,102,0.6));
         }
         .peak-marker { z-index: 4; }
         .gauge-wrap { overflow: visible; }
@@ -1077,7 +1077,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.9 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.10 — Velocity-Lab</div>
 </div>
 
 
