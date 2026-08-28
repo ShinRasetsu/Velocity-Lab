@@ -429,32 +429,24 @@ html {
             pointer-events: none;
             z-index: 2;
             overflow: visible;
-            /* RED ring — 3/4 thickness of speed-ring, fallback border if conic fails */
-            border: 1.5px solid rgba(255,51,102,0.85);
+            /* 4-part G-Force Ring: Front(Top) Back(Bottom) Left/Right — RED base for ID */
+            border: none;
             background:
-                conic-gradient(from 0deg,
-                    var(--green) 0deg, var(--green) calc(var(--fore-pos, 0%) * 0.125),
-                    transparent calc(var(--fore-pos, 0%) * 0.125), transparent 12.5%,
-                    var(--cyan) 12.5%, var(--cyan) calc(12.5% + var(--right-pos, 0%) * 0.125),
-                    transparent calc(12.5% + var(--right-pos, 0%) * 0.125), transparent 25%,
-                    var(--green) 25%, var(--green) calc(25% + var(--aft-pos, 0%) * 0.125),
-                    transparent calc(25% + var(--aft-pos, 0%) * 0.125), transparent 37.5%,
-                    var(--cyan) 37.5%, var(--cyan) calc(37.5% + var(--left-pos, 0%) * 0.125),
-                    transparent calc(37.5% + var(--left-pos, 0%) * 0.125), transparent 50%,
-                    var(--red) 50%, var(--red) calc(50% + var(--fore-neg, 0%) * 0.125),
-                    transparent calc(50% + var(--fore-neg, 0%) * 0.125), transparent 62.5%,
-                    var(--cyan) 62.5%, var(--cyan) calc(62.5% + var(--right-neg, 0%) * 0.125),
-                    transparent calc(62.5% + var(--right-neg, 0%) * 0.125), transparent 75%,
-                    var(--red) 75%, var(--red) calc(75% + var(--aft-neg, 0%) * 0.125),
-                    transparent calc(75% + var(--aft-neg, 0%) * 0.125), transparent 87.5%,
-                    var(--cyan) 87.5%, var(--cyan) calc(87.5% + var(--left-neg, 0%) * 0.125),
-                    transparent calc(87.5% + var(--left-neg, 0%) * 0.125), transparent 100%
+                conic-gradient(from 315deg,
+                    var(--green) 0% calc(var(--front-pos, 0%) * 0.25),
+                    transparent calc(var(--front-pos, 0%) * 0.25) 25%,
+                    var(--cyan) 25% calc(25% + var(--right-pos, 0%) * 0.25),
+                    transparent calc(25% + var(--right-pos, 0%) * 0.25) 50%,
+                    var(--red) 50% calc(50% + var(--back-pos, 0%) * 0.25),
+                    transparent calc(50% + var(--back-pos, 0%) * 0.25) 75%,
+                    var(--cyan) 75% calc(75% + var(--left-pos, 0%) * 0.25),
+                    transparent calc(75% + var(--left-pos, 0%) * 0.25) 100%
                 ),
-                conic-gradient(from 0deg, rgba(255,51,102,0.88) 0deg 360deg);
-            /* 3/4 thickness of speed-ring: 0.0045em*0.75=0.0034em */
-            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.0434em), #000 calc(100% - 0.04em));
-            mask: radial-gradient(closest-side, transparent calc(100% - 0.0434em), #000 calc(100% - 0.04em));
-            filter: drop-shadow(0 0 0.02em rgba(255,51,102,0.5));
+                conic-gradient(from 0deg, rgba(255,51,102,0.92) 0deg 360deg);
+            /* 0.01em thick — clearly visible */
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.07em), #000 calc(100% - 0.06em));
+            filter: drop-shadow(0 0 0.03em rgba(255,51,102,0.6));
         }
         .peak-marker { z-index: 4; }
         .gauge-wrap { overflow: visible; }
@@ -462,13 +454,15 @@ html {
         .g-force-bars { display: none; }
 
         /* ── @property for smooth conic-gradient animation (Chrome/Edge/Firefox) ── */
+        @property --front-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --back-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --right-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+        @property --left-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --fore-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --fore-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
-        @property --right-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --right-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --aft-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --aft-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
-        @property --left-pos { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --left-neg { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
         @property --deg { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 
@@ -483,14 +477,14 @@ html {
                 g-force-boot 2.0s cubic-bezier(0.4, 0, 0.2, 1) 0.18s forwards;
         }
         @keyframes g-force-boot {
-            0% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
-            15% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
-            25% { --fore-pos: 100%; --fore-neg: 100%; }
+            0% { --front-pos: 0%; --back-pos: 0%; --right-pos: 0%; --left-pos: 0%; --fore-pos: 0%; --fore-neg: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-neg: 0%; }
+            15% { --front-pos: 0%; --back-pos: 0%; --right-pos: 0%; --left-pos: 0%; --fore-pos: 0%; --fore-neg: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-neg: 0%; }
+            25% { --front-pos: 100%; --fore-pos: 100%; --fore-neg: 100%; }
             40% { --right-pos: 100%; --right-neg: 100%; }
-            55% { --aft-pos: 100%; --aft-neg: 100%; }
+            55% { --back-pos: 100%; --aft-pos: 100%; --aft-neg: 100%; }
             70% { --left-pos: 100%; --left-neg: 100%; }
-            85% { --fore-pos: 100%; --fore-neg: 100%; --right-pos: 100%; --right-neg: 100%; --aft-pos: 100%; --aft-neg: 100%; --left-pos: 100%; --left-neg: 100%; }
-            100% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
+            85% { --front-pos: 100%; --back-pos: 100%; --right-pos: 100%; --left-pos: 100%; --fore-pos: 100%; --fore-neg: 100%; --right-neg: 100%; --aft-pos: 100%; --aft-neg: 100%; --left-neg: 100%; }
+            100% { --front-pos: 0%; --back-pos: 0%; --right-pos: 0%; --left-pos: 0%; --fore-pos: 0%; --fore-neg: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-neg: 0%; }
         }
         .speed-gauge .gauge-ticks { opacity: 0; filter: blur(2px); }
         .speed-gauge.boot .gauge-ticks { animation: tick-draw 1.2s ease-out 0.1s forwards; }
@@ -1077,7 +1071,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.11 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.12 — Velocity-Lab</div>
 </div>
 
 
@@ -1883,25 +1877,24 @@ let lastRenderTime  = performance.now();
             if (prev.gMagnitudeArc !== gMagStr) { if (dom.gMagnitudeArc) dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
 
             // G-Force quadrant bars (max 1.5G) - set CSS custom properties on ring
-            const forePos = Math.round(Math.max(0, Math.min(100,  uiLongG / gMax * 100)));
-            const foreNeg = Math.round(Math.max(0, Math.min(100, -uiLongG / gMax * 100)));
+            const frontPos = Math.round(Math.max(0, Math.min(100,  uiLongG / gMax * 100)));
+            const backPos = Math.round(Math.max(0, Math.min(100, -uiLongG / gMax * 100)));
             const rightPos = Math.round(Math.max(0, Math.min(100,  uiLatG / gMax * 100)));
-            const rightNeg = Math.round(Math.max(0, Math.min(100, -uiLatG / gMax * 100)));
-            const aftPos = forePos;
-            const aftNeg = foreNeg;
-            const leftPos = rightNeg;
-            const leftNeg = rightPos;
+            const leftPos = Math.round(Math.max(0, Math.min(100, -uiLatG / gMax * 100)));
 
             const ring = dom.gForceRing || document.querySelector('.g-force-ring');
             if (ring) {
-                ring.style.setProperty('--fore-pos', forePos + '%');
-                ring.style.setProperty('--fore-neg', foreNeg + '%');
+                ring.style.setProperty('--front-pos', frontPos + '%');
+                ring.style.setProperty('--back-pos', backPos + '%');
                 ring.style.setProperty('--right-pos', rightPos + '%');
-                ring.style.setProperty('--right-neg', rightNeg + '%');
-                ring.style.setProperty('--aft-pos', aftPos + '%');
-                ring.style.setProperty('--aft-neg', aftNeg + '%');
                 ring.style.setProperty('--left-pos', leftPos + '%');
-                ring.style.setProperty('--left-neg', leftNeg + '%');
+                // legacy 8-var compat for boot animation
+                ring.style.setProperty('--fore-pos', frontPos + '%');
+                ring.style.setProperty('--fore-neg', backPos + '%');
+                ring.style.setProperty('--right-neg', leftPos + '%');
+                ring.style.setProperty('--aft-pos', frontPos + '%');
+                ring.style.setProperty('--aft-neg', backPos + '%');
+                ring.style.setProperty('--left-neg', rightPos + '%');
             }
 
             // ── Gundam HUD live telemetry ─────────────────────────────────────
