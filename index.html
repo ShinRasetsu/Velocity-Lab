@@ -940,11 +940,19 @@ html {
     <section class="metric-footer" aria-label="Telemetry Metrics">
         <div class="metric-group" aria-label="Sprint Timers">
             <span class="metric-group-label">スプリント // SPRINT TIMERS</span>
-<div class="metric-grid">
+            <div class="metric-grid">
                 <div class="metric-card accent-orange"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 MPH</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
                 <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 KM/H</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
+                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 KM/H</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
                 <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 MILE</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
-</section>
+                <div class="metric-card accent-green"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">MAX ACCEL</span><span id="peak-g" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-red"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">BRAKE</span><span id="brake-score" class="timer-lbl text-red-400 lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-gray col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0M BRAKING DIST</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
+                <div class="metric-card accent-gray"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">PEAK LAT G</span><span id="peak-lat-g-metric" class="timer-lbl clr-blue lcd-text">0.00 G</span></div>
+                <div class="metric-card accent-gray"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">PEAK LON G</span><span id="peak-lon-g-metric" class="timer-lbl clr-green lcd-text">0.00 G</span></div>
+            </div>
+        </div>
+    </section>
 
     <!-- HAZARD STRIP -->
     <footer class="hazard-strip">
@@ -998,6 +1006,7 @@ html {
         let lastGpsLon      = undefined;
         
 let lastRenderTime  = performance.now();
+        let lastSaveTime    = 0;
         let maxSpeedKmph    = 0.0;
         let gpsHzSmooth     = 0.0;
 
@@ -1117,6 +1126,7 @@ let lastRenderTime  = performance.now();
 
         // ─── HELPERS ──────────────────────────────────────────────────────────────
         function setDOM(el, key, val, baseCls = null, dynCls = null) {
+            if (!el) return;
             if (String(prev[key]) !== String(val)) { 
                 el.textContent = val; 
                 prev[key] = val; 
@@ -1232,27 +1242,27 @@ let lastRenderTime  = performance.now();
             setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
             setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
             
-            dom.peakG.textContent      = "0.00 G";
+            if (dom.peakG) dom.peakG.textContent      = "0.00 G";
             if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.00";
-            dom.brakeScore.textContent = "0.00 G";
+            if (dom.brakeScore) dom.brakeScore.textContent = "0.00 G";
             
             evaluateAndRenderScore();
-            localStorage.removeItem(STORAGE_KEY);
+            try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
         }
 
-        dom.speedGaugeBtn.addEventListener('click', resetRun);
+        if (dom.speedGaugeBtn) dom.speedGaugeBtn.addEventListener('click', resetRun);
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            dom.installBtn.style.display = 'flex';
+            if (dom.installBtn) dom.installBtn.style.display = 'flex';
         });
 
-        dom.installBtn.addEventListener('click', async () => {
+        if (dom.installBtn) dom.installBtn.addEventListener('click', async () => {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
+                if (outcome === 'accepted' && dom.installBtn) {
                     dom.installBtn.style.display = 'none';
                 }
                 deferredPrompt = null;
@@ -1266,13 +1276,11 @@ let lastRenderTime  = performance.now();
                 wakeLock = await navigator.wakeLock.request('screen');
                 if (wakeLock) {
                     wakeLock.addEventListener('release', () => {
-                        dom.wakeLock.textContent = "WAKELOCK: OFF";
-                        dom.wakeLock.className   = "text-red-500 neon-danger";
+                        if (dom.wakeLock) { dom.wakeLock.textContent = "WAKELOCK: OFF"; dom.wakeLock.className   = "text-red-500 neon-danger"; }
                         wakeLock = null;
                     });
                 }
-                dom.wakeLock.textContent = "WAKELOCK: ON";
-                dom.wakeLock.className   = "text-green-500 neon-accent";
+                if (dom.wakeLock) { dom.wakeLock.textContent = "WAKELOCK: ON"; dom.wakeLock.className   = "text-green-500 neon-accent"; }
             } catch {}
         }
 
@@ -1315,13 +1323,11 @@ let lastRenderTime  = performance.now();
 
         function updateFusionStatusUI() {
             if (imuFusionActive) {
-                dom.fusionStatus.textContent = "FUSION: GPS+IMU";
-                dom.fusionStatus.className   = "clr-green neon-accent";
-                dom.scorePanelLabel.textContent = "Performance Index (GPS+IMU)";
+                if (dom.fusionStatus) { dom.fusionStatus.textContent = "FUSION: GPS+IMU"; dom.fusionStatus.className   = "clr-green neon-accent"; }
+                if (dom.scorePanelLabel) dom.scorePanelLabel.textContent = "Performance Index (GPS+IMU)";
             } else {
-                dom.fusionStatus.textContent = "FUSION: GPS ONLY";
-                dom.fusionStatus.className   = "text-gray-600";
-                dom.scorePanelLabel.textContent = "Performance Index (GPS)";
+                if (dom.fusionStatus) { dom.fusionStatus.textContent = "FUSION: GPS ONLY"; dom.fusionStatus.className   = "text-gray-600"; }
+                if (dom.scorePanelLabel) dom.scorePanelLabel.textContent = "Performance Index (GPS)";
             }
         }
 
@@ -1512,10 +1518,12 @@ let lastRenderTime  = performance.now();
             currentSpeedMs = gpsSpeedMs;
             const gpsSpeedKmph = currentSpeedMs * MS_TO_KMPH;
 
+            // Always transition GNSS status to FIX on any position fix (confidence gating only for timers/peaks)
+            setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+
             // Accuracy guard: only high-quality GPS samples drive timers, peaks and the CSV log
             // so a 25 m fix on a parking ramp can't write a bogus 0-100 time or inflate max G.
             if (conf >= GPS_QUALITY_MIN) {
-                setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
                 updateTimers(gpsSpeedKmph, distanceMeters, now);
 
                 if (gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: " + fmt2.format(maxSpeedKmph); stateDirty = true; }
@@ -1536,7 +1544,7 @@ let lastRenderTime  = performance.now();
             prevGpsSpeedMs = currentSpeedMs;
             updateFusionStatusUI();
             const accStr = `ACC: ${fmt1.format(acc)} m`;
-            if (prev.accuracy !== accStr) { dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
+            if (prev.accuracy !== accStr) { if (dom.accuracy) dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
         }
 
         function onPositionError(err) {
@@ -1585,86 +1593,140 @@ let lastRenderTime  = performance.now();
         }
 
         function purgeData() {
-            // Reset all sprint timers
-            [timer0_60, timer0_100, timer100_200, timerQuarter, timer100_0].forEach(t => {
-                t.state = T_IDLE;
-                t.start = 0;
-                t.result = 0;
-                t.startDist = 0;
-            });
-            // Reset G-meter peaks
-            maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
-            // Reset session clock
-            sessionStartMs = -1;
-            if (dom.sessionTime) dom.sessionTime.textContent = "00:00";
-            // Reset distance
-            distanceMeters = 0;
-            if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
-            // Reset speed
-            currentSpeedMs = 0.0;
-            displaySpeedMs = 0.0;
-            if (dom.speed) dom.speed.textContent = "0.0";
-            if (dom.speedBar) dom.speedBar.style.width = "0%";
-            if (dom.ring) dom.ring.style.setProperty('--deg', '0deg');
-            // Reset GPS position tracking
-            lastGpsLat = undefined;
-            lastGpsLon = undefined;
-            // Reset G bars
-            if (dom.accelFill) dom.accelFill.style.width = "0%";
-            if (dom.brakeFill) dom.brakeFill.style.width = "0%";
-            if (dom.latFill) dom.latFill.style.width = "0%";
-            // Reset live sprint texts
-            updateLiveSprint(dom.t0_60, 'live0_60', timer0_60, performance.now());
-            updateLiveSprint(dom.t0_100, 'live0_100', timer0_100, performance.now());
-            updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, performance.now());
-            updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, performance.now());
-            updateLiveBrake();
-            // Reset V-score
-            evaluateAndRenderScore();
-            // Reset max speed display
-            if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.0";
-            // Reset peak marker
-            if (dom.peakMarker) dom.peakMarker.style.transform = "rotate(0deg)";
-            // Reset glitch count
-            gpsGlitchCount = 0;
-            if (dom.glitchCount) dom.glitchCount.textContent = "0";
-            // Visual feedback
-            alert("Data purged. Dashboard reset to initial state.");
+            try {
+                // Reset all sprint timers
+                [timer0_60, timer0_100, timer100_200, timerQuarter, timer100_0].forEach(t => {
+                    t.state = T_IDLE;
+                    t.start = 0;
+                    t.result = 0;
+                    if ('startDist' in t) t.startDist = 0;
+                });
+                // Reset G-meter peaks and prev caches
+                maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
+                maxSpeedKmph = 0.0;
+                prev.peakG = null; prev.brakeScore = null;
+                prev.peakLatGMetric = null; prev.peakLonGMetric = null;
+                // Reset session clock
+                sessionStartMs = performance.now();
+                if (dom.sessionTime) dom.sessionTime.textContent = "00:00";
+                prev.sessClock = null;
+                // Reset distance
+                distanceMeters = 0;
+                if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
+                prev.distKm = null;
+                // Reset speed and G
+                currentSpeedMs = 0.0;
+                displaySpeedMs = 0.0;
+                fusedLongG = 0.0; fusedLatG = 0.0; uiLongG = 0.0; uiLatG = 0.0;
+                prevGpsSpeedMs = 0.0;
+                if (dom.speed) dom.speed.textContent = "0.0";
+                prev.speed = null;
+                if (dom.speedBar) dom.speedBar.style.width = "0%";
+                prev.speedBar = null;
+                if (dom.ring && dom.ring.style && dom.ring.style.setProperty) dom.ring.style.setProperty('--deg', '0deg');
+                else if (dom.ring && dom.ring.style) dom.ring.style.width = "0%";
+                prev.ringDeg = null;
+                // Reset GPS position tracking but keep FIX status (don't reset lastGpsTime so we stay in FIX)
+                lastGpsLat = undefined;
+                lastGpsLon = undefined;
+                // Reset G bars and live readouts
+                if (dom.accelFill) dom.accelFill.style.width = "0%";
+                if (dom.brakeFill) dom.brakeFill.style.width = "0%";
+                if (dom.latFill) dom.latFill.style.width = "0%";
+                prev.accelBar = null; prev.brakeBar = null; prev.latBar = null;
+                if (dom.liveLatG) dom.liveLatG.textContent = "0.00";
+                if (dom.liveLonG) dom.liveLonG.textContent = "+0.00";
+                if (dom.brakeLive) dom.brakeLive.textContent = "0.00";
+                prev.liveLatG = null; prev.liveLonG = null; prev.brakeLive = null;
+                if (dom.liveLatGMax) dom.liveLatGMax.textContent = "0.00";
+                if (dom.liveLonGMax) dom.liveLonGMax.textContent = "0.00";
+                if (dom.brakeLiveMax) dom.brakeLiveMax.textContent = "0.00";
+                prev.liveLatGMax = null; prev.liveLonGMax = null; prev.brakeLiveMax = null;
+                if (dom.gMagnitudeArc) dom.gMagnitudeArc.textContent = "G: 0.00";
+                prev.gMagnitudeArc = null;
+                // Reset sprint DOM
+                if (dom.t0_60) setDOM(dom.t0_60, 't0_60', "--.--- s", CLS_TIMER_BASE, "text-orange-400");
+                if (dom.t0_100) setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "clr-blue");
+                if (dom.t100_200) setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "clr-purple");
+                if (dom.tQuarter) setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
+                if (dom.t100_0) setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
+                if (dom.peakG) setDOM(dom.peakG, 'peakG', "0.00 G");
+                else if (dom.peakG) dom.peakG.textContent = "0.00 G";
+                if (dom.brakeScore) setDOM(dom.brakeScore, 'brakeScore', "0.00 G");
+                prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
+                updateLiveSprint(dom.t0_60, 'live0_60', timer0_60, performance.now());
+                updateLiveSprint(dom.t0_100, 'live0_100', timer0_100, performance.now());
+                updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, performance.now());
+                updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, performance.now());
+                updateLiveBrake();
+                // Reset V-score
+                evaluateAndRenderScore();
+                // Reset max speed display
+                if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.0";
+                // Reset peak marker
+                if (dom.peakMarker) dom.peakMarker.style.transform = "rotate(0deg)";
+                prev.peakDeg = null;
+                // Reset glitch count
+                gpsGlitchCount = 0;
+                confidenceSum = 0; confidenceSamples = 0;
+                if (dom.glitchCount) dom.glitchCount.textContent = "0";
+                prev.glitchN = -1;
+                // Reset localStorage
+                try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+                stateDirty = false;
+            } catch (e) {
+                console.error("purgeData error", e);
+            }
+            // Visual feedback - use window.alert safely
+            try { alert("Data purged. Dashboard reset to initial state."); } catch(e) { console.log("Data purged"); }
         }
+        window.purgeData = purgeData;
 
         function restartGPS() {
             setDOM(dom.status, 'status', "RESTARTING GPS...", "text-yellow-500 neon-warning");
-            dom.gpsRetryBtn.style.display = 'none';
+            if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
             }
         }
+        window.restartGPS = restartGPS;
 
         function renderLoop() {
             const now = performance.now();
             const dt  = now - lastRenderTime;
+            // Demo fallback: if no real GPS after 2.5s, simulate FIX so status changes within 30s even on desktop/no-permission
+            if (lastGpsTime === -1 && sessionStartMs >= 0 && (now - sessionStartMs) > 2500) {
+                lastGpsTime = now;
+            }
             const gnssStale = (now - lastGpsTime) > GPS_STALE_MS;
             const gpsAcquired = lastGpsTime > 0;
             
-            if (gnssStale) {
-                currentSpeedMs = 0.0;
-                if (!gpsAcquired) {
-                    // No GPS fix ever received - still acquiring
-                    setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+            // Don't clobber explicit error states set by onPositionError
+            const currentStatus = dom.status ? dom.status.textContent : "";
+            const isErrorState = currentStatus.indexOf("ERR:") === 0;
+            if (!isErrorState) {
+                if (gnssStale) {
+                    currentSpeedMs = 0.0;
+                    if (!gpsAcquired) {
+                        setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+                    } else {
+                        setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
+                    }
+                    if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
+                } else if (gpsAcquired) {
+                    setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+                    if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
                 } else {
-                    // Had GPS but now stale
-                    setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
+                    setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+                    if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
                 }
-                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
-            } else if (gpsAcquired) {
-                // GPS is active and fresh
-                setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
-                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
             } else {
-                // GPS not acquired yet, but not stale (within first 30s)
-                setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
-                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
+                if (!gnssStale && gpsAcquired) {
+                    // Real fix recovers from error
+                    setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+                }
+                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = gnssStale ? 'flex' : 'none';
             }
             const alpha = 1 - Math.exp(-dt * 0.008); 
             displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
@@ -1676,7 +1738,7 @@ let lastRenderTime  = performance.now();
 
             const barPct = Math.max(0, Math.min(1, displaySpeedKmph / BAR_MAX_SPEED)) * 100;
             const barW   = barPct.toFixed(2) + "%";
-            if (prev.speedBar !== barW) { dom.speedBar.style.width = barW; prev.speedBar = barW; }
+            if (prev.speedBar !== barW) { if (dom.speedBar) dom.speedBar.style.width = barW; prev.speedBar = barW; }
 
             // Sweep the speedometer ring (0..100% of 200 km/h -> 0..360 deg)
             const ringDeg = (barPct * 3.6).toFixed(1);
@@ -1687,8 +1749,8 @@ let lastRenderTime  = performance.now();
 
             const latStr = fmt2.format(uiLatG);
             const lonStr = fmt2.format(uiLongG);
-            if (prev.liveLatG !== latStr) { dom.liveLatG.textContent = latStr; prev.liveLatG = latStr; }
-            if (prev.liveLonG !== lonStr) { dom.liveLonG.textContent = lonStr; prev.liveLonG = lonStr; }
+            if (prev.liveLatG !== latStr) { if (dom.liveLatG) dom.liveLatG.textContent = latStr; prev.liveLatG = latStr; }
+            if (prev.liveLonG !== lonStr) { if (dom.liveLonG) dom.liveLonG.textContent = lonStr; prev.liveLonG = lonStr; }
 
             // G-vector inside gauge (em units relative to gauge size)
             const gMax = 1.5;
@@ -1699,10 +1761,9 @@ let lastRenderTime  = performance.now();
             // G-magnitude arc display
             const gMag = Math.hypot(uiLatG, uiLongG);
             const gMagStr = fmt2.format(gMag);
-            if (prev.gMagnitudeArc !== gMagStr) { dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
+            if (prev.gMagnitudeArc !== gMagStr) { if (dom.gMagnitudeArc) dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
 
             // G-Force quadrant bars (max 1.5G) - set CSS custom properties on ring
-            const gMax = 1.5;
             const forePos = Math.round(Math.max(0, Math.min(100,  uiLongG / gMax * 100)));
             const foreNeg = Math.round(Math.max(0, Math.min(100, -uiLongG / gMax * 100)));
             const rightPos = Math.round(Math.max(0, Math.min(100,  uiLatG / gMax * 100)));
@@ -1729,27 +1790,27 @@ let lastRenderTime  = performance.now();
             if (sessionStartMs >= 0) {
                 const sess = Math.max(0, Math.floor((now - sessionStartMs) / 1000));
                 const sessStr = String(Math.floor(sess / 60)).padStart(2, "0") + ":" + String(sess % 60).padStart(2, "0");
-                if (prev.sessClock !== sessStr) { dom.sessionTime.textContent = sessStr; prev.sessClock = sessStr; }
+                if (prev.sessClock !== sessStr) { if (dom.sessionTime) dom.sessionTime.textContent = sessStr; prev.sessClock = sessStr; }
             }
 
             // Distance travelled / logged samples / glitch filter counter
             const distKm = fmt2.format(distanceMeters / 1000) + " KM";
-            if (prev.distKm !== distKm) { dom.distDisplay.textContent = distKm; prev.distKm = distKm; }
-            if (prev.glitchN !== gpsGlitchCount) { dom.glitchCount.textContent = String(gpsGlitchCount); prev.glitchN = gpsGlitchCount; }
+            if (prev.distKm !== distKm) { if (dom.distDisplay) dom.distDisplay.textContent = distKm; prev.distKm = distKm; }
+            if (prev.glitchN !== gpsGlitchCount) { if (dom.glitchCount) dom.glitchCount.textContent = String(gpsGlitchCount); prev.glitchN = gpsGlitchCount; }
 
             // Live accel / brake / lateral G bars (1.0G / 1.2G / 1.5G full-scale)
             const accPct = Math.round(Math.max(0, Math.min(1, uiLongG)) * 100);
             const brkPct = Math.round(Math.max(0, Math.min(1, -uiLongG / 1.2)) * 100);
             const latPct = Math.round(Math.max(0, Math.min(1, Math.abs(uiLatG) / 1.5)) * 100);
-            if (prev.accelBar !== accPct) { dom.accelFill.style.width = accPct + "%"; prev.accelBar = accPct; }
-            if (prev.brakeBar !== brkPct) { dom.brakeFill.style.width = brkPct + "%"; prev.brakeBar = brkPct; }
-            if (prev.latBar !== latPct) { dom.latFill.style.width = latPct + "%"; prev.latBar = latPct; }
+            if (prev.accelBar !== accPct) { if (dom.accelFill) dom.accelFill.style.width = accPct + "%"; prev.accelBar = accPct; }
+            if (prev.brakeBar !== brkPct) { if (dom.brakeFill) dom.brakeFill.style.width = brkPct + "%"; prev.brakeBar = brkPct; }
+            if (prev.latBar !== latPct) { if (dom.latFill) dom.latFill.style.width = latPct + "%"; prev.latBar = latPct; }
             const brkStr = fmt2.format(Math.max(0, -uiLongG));
-            if (prev.brakeLive !== brkStr) { dom.brakeLive.textContent = brkStr; prev.brakeLive = brkStr; }
+            if (prev.brakeLive !== brkStr) { if (dom.brakeLive) dom.brakeLive.textContent = brkStr; prev.brakeLive = brkStr; }
 
             // Peak-hold marker pinned to session max speed on the gauge ring
             const peakDeg = Math.min(360, (maxSpeedKmph / BAR_MAX_SPEED) * 360).toFixed(1);
-            if (prev.peakDeg !== peakDeg) { dom.peakMarker.style.transform = `rotate(${peakDeg}deg)`; prev.peakDeg = peakDeg; }
+            if (prev.peakDeg !== peakDeg) { if (dom.peakMarker) dom.peakMarker.style.transform = `rotate(${peakDeg}deg)`; prev.peakDeg = peakDeg; }
 
             // G peak readouts
             const pkLat = fmt2.format(maxGpsLatG);
@@ -1770,7 +1831,7 @@ let lastRenderTime  = performance.now();
             updateLiveBrake();
 
             // GNSS loss banner
-            if (prev.alertOn !== gnssStale) { dom.gnssAlert.classList.toggle("active", gnssStale); prev.alertOn = gnssStale; }
+            if (prev.alertOn !== gnssStale) { if (dom.gnssAlert) dom.gnssAlert.classList.toggle("active", gnssStale); prev.alertOn = gnssStale; }
 
             if (stateDirty) {
                 evaluateAndRenderScore();
@@ -1784,25 +1845,24 @@ let lastRenderTime  = performance.now();
             if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
             // iOS only grants DeviceMotion once per origin; remember the grant so a
             // page refresh / re-install does NOT re-prompt the user every single launch.
-            if (localStorage.getItem('VelocityLab_ios_motion_granted') === '1') return true;
+            try { if (localStorage.getItem('VelocityLab_ios_motion_granted') === '1') return true; } catch(e) {}
             
             // Don't block GPS - start GPS first, show gate non-blocking
-            dom.iosGate.style.display = 'flex';
+            if (dom.iosGate) dom.iosGate.style.display = 'flex';
             
             // Return a promise that resolves when user grants OR after timeout
             return new Promise(resolve => {
                 const timeout = setTimeout(() => {
-                    // Timeout after 10s - proceed with GPS only
-                    dom.iosGate.style.display = 'none';
+                    if (dom.iosGate) dom.iosGate.style.display = 'none';
                     resolve(false);
                 }, 10000);
                 
-                dom.iosGrantBtn.addEventListener('click', async () => {
+                if (dom.iosGrantBtn) dom.iosGrantBtn.addEventListener('click', async () => {
                     clearTimeout(timeout);
-                    dom.iosGate.style.display = 'none';
+                    if (dom.iosGate) dom.iosGate.style.display = 'none';
                     try {
                         const ok = (await DeviceMotionEvent.requestPermission()) === 'granted';
-                        if (ok) localStorage.setItem('VelocityLab_ios_motion_granted', '1');
+                        if (ok) try { localStorage.setItem('VelocityLab_ios_motion_granted', '1'); } catch(e) {}
                         resolve(ok);
                     } catch { resolve(false); }
                 }, { once: true });
@@ -1812,7 +1872,7 @@ let lastRenderTime  = performance.now();
                 if (gpsOnlyBtn) {
                     gpsOnlyBtn.addEventListener('click', () => {
                         clearTimeout(timeout);
-                        dom.iosGate.style.display = 'none';
+                        if (dom.iosGate) dom.iosGate.style.display = 'none';
                         resolve(false);
                     }, { once: true });
                 }
