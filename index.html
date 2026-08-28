@@ -344,6 +344,7 @@ html {
 
         /* ── circular gauge cluster ──────────────────────────────────────── */
         .gauge-wrap { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+        .gauge-wrap.large .speed-gauge { --gauge: clamp(14rem, min(85vw, 22rem), 22rem); }
 
         .speed-gauge {
             width: var(--gauge);
@@ -454,6 +455,32 @@ html {
         }
         /* No child bars needed - all in conic-gradient */
         .g-force-bars { display: none; }
+
+        /* Startup animations */
+        .g-force-ring.boot {
+            animation: g-force-boot 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes g-force-boot {
+            0% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; opacity: 0; transform: scale(0.5); }
+            15% { opacity: 1; transform: scale(1); }
+            25% { --fore-pos: 100%; --fore-neg: 100%; }
+            40% { --right-pos: 100%; --right-neg: 100%; }
+            55% { --aft-pos: 100%; --aft-neg: 100%; }
+            70% { --left-pos: 100%; --left-neg: 100%; }
+            100% { --fore-pos: 0%; --fore-neg: 0%; --right-pos: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-pos: 0%; --left-neg: 0%; }
+        }
+        .speed-gauge.boot .gauge-ticks { animation: tick-draw 1.5s ease-out forwards; }
+        .speed-gauge.boot .gauge-redline { animation: redline-draw 1.5s ease-out 0.3s forwards; }
+        .speed-gauge.boot .speed-readout { animation: fade-up 0.8s ease-out 0.6s forwards; opacity: 0; }
+        .speed-gauge.boot .g-force-ring { animation: ring-expand 1s ease-out 0.4s forwards; }
+        @keyframes tick-draw { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
+        @keyframes redline-draw { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fade-up { from { opacity: 0; transform: translateY(1em); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes ring-expand { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* Larger default gauge */
+        .gauge-wrap { --gauge: clamp(12rem, min(80vw, 20rem), 20rem); }
+        .gauge-wrap.large .speed-gauge { --gauge: clamp(14rem, min(85vw, 22rem), 22rem); }
         /* Magnitude arc at bottom */
         .g-mag-arc {
             position: absolute; inset: 0.08em; border-radius: 50%;
@@ -1698,6 +1725,16 @@ let lastRenderTime  = performance.now();
             if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
             requestWakeLock();
             requestAnimationFrame(renderLoop);
+
+            // Trigger boot animations
+            setTimeout(() => {
+                const gaugeWrap = document.querySelector('.gauge-wrap');
+                const speedGauge = document.querySelector('.speed-gauge');
+                const gForceRing = document.querySelector('.g-force-ring');
+                if (gaugeWrap) gaugeWrap.classList.add('large');
+                if (speedGauge) speedGauge.classList.add('boot');
+                if (gForceRing) gForceRing.classList.add('boot');
+            }, 100);
 
             // Auto-scale on resize/orientation change
             function updateScale() {
