@@ -745,11 +745,14 @@ html {
         .metric-group-label {
             display: flex; align-items: center; gap: 0.35rem;
             font-size: 0.46rem; font-weight: 800; letter-spacing: 0.12em; line-height: 1;
-            text-transform: uppercase; color: rgba(148,163,184,0.72);
-            margin-bottom: 0.18rem;
-            padding: 0.1rem 0;
+            text-transform: uppercase; color: rgba(250,204,21,0.88);
+            margin-bottom: 0.16rem;
+            padding: 0.14rem 0.2rem 0.08rem;
             overflow: visible;
             white-space: nowrap;
+            background: rgba(10,15,24,0.55);
+            border-left: 2px solid rgba(250,204,21,0.5);
+            position: relative; z-index: 2;
         }
         .metric-group-label::after {
             content: ""; flex: 1; height: 3px;
@@ -826,11 +829,11 @@ html {
         .t-card, .side-cell, .metric-card, .metric-grid, .metric-group, .metric-footer, .tactical, .stage { min-width: 0; }
 
         /* tactical row: shrinkable columns — compact so bottom fits 100svh */
-        .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.35rem; align-items: stretch; }
+        .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; gap: 0.30rem; align-items: start; margin-bottom: 0.08rem; }
         .t-card { 
-            padding: 0.38rem 0.5rem; gap: 0.22rem; 
+            padding: 0.32rem 0.45rem; gap: 0.18rem; 
             display: flex; flex-direction: column; 
-            height: 100%; 
+            height: auto; 
             justify-content: center;
             min-width: 0;
         }
@@ -854,12 +857,13 @@ html {
         .score-total { font-size: 1.22rem; line-height: 0.95; }
         .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.18rem; justify-content: center; }
 
-        /* metric footer — compact */
+        /* metric footer — even more compact, header lifted */
         .metric-group + .metric-group { margin-top: 0.30rem; }
-        .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.25rem; }
+        .metric-group { padding-top: 0.12rem; }
+        .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.22rem; }
         .metric-card { 
-            min-height: 2.30rem; 
-            padding: 0.26rem 0.4rem; 
+            min-height: 2.15rem; 
+            padding: 0.22rem 0.38rem; 
             display: flex; 
             flex-direction: column; 
             justify-content: center; 
