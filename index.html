@@ -391,12 +391,55 @@ html {
             box-shadow: 0 0 0.015em rgba(255,170,0,0.8);
         }
 
-        .gauge-core {
+.gauge-core {
             position: absolute; inset: 0.062em;
             border-radius: 50%;
             border: 1px solid rgba(148,163,184,0.14);
             background: radial-gradient(circle at 50% 28%, rgba(17,25,38,0.96), rgba(5,8,13,0.98) 72%);
             box-shadow: inset 0 0 0.14em rgba(0,0,0,0.85), 0 20px 50px rgba(0,0,0,0.4);
+        }
+
+        /* G-load vector: moves inside gauge showing lat/long G */
+        .g-vector {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 0.12em; height: 0.12em;
+            margin: -0.06em 0 0 -0.06em;
+            border-radius: 50%;
+            background: var(--cyan);
+            box-shadow: 
+                0 0 0.03em var(--cyan),
+                0 0 0.08em var(--cyan),
+                inset 0 0 0.02em rgba(255,255,255,0.3);
+            border: 2px solid rgba(255,255,255,0.2);
+            pointer-events: none;
+            transition: transform 50ms linear;
+            will-change: transform;
+            z-index: 2;
+        }
+        .g-vector::before {
+            content: "";
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 0.3em; height: 0.3em;
+            margin: -0.15em 0 0 -0.15em;
+            border-radius: 50%;
+            border: 1px solid rgba(0,191,255,0.2);
+        }
+        .g-vector::after {
+            content: "";
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 0.6em; height: 0.6em;
+            margin: -0.3em 0 0 -0.3em;
+            border-radius: 50%;
+            border: 1px solid rgba(0,191,255,0.1);
+        }
+        .gauge-g-mag {
+            margin-top: 0.015em;
+            font-size: 0.03em; font-weight: 700;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            opacity: 0.7;
         }
 
         .speed-readout {
@@ -756,12 +799,14 @@ html {
                 <div id="speed-ring" aria-hidden="true"></div>
                 <div class="gauge-redline" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
-                <div class="gauge-core" aria-hidden="true"></div>
+<div class="gauge-core" aria-hidden="true"></div>
+                <div id="g-vector" class="g-vector" aria-hidden="true"></div>
 <div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
                     <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
                     <span class="speed-unit">KM/H</span>
                     <span class="gauge-caption">車両速度 // VELOCITY</span>
                     <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
+                    <span id="g-magnitude" class="gauge-g-mag lcd-text clr-purple">G: 0.00</span>
                 </div>
             </div>
             <div class="speed-track" aria-hidden="true">
@@ -817,14 +862,7 @@ html {
                     <div><span>PK.LAT</span><span id="peak-lat-g" class="lcd-text">0.00</span></div>
                     <div><span>PK.LON</span><span id="peak-lon-g" class="lcd-text">0.00</span></div>
                 </div>
-            </div>
-        </div>
-
-        <div class="t-card panel run-card">
-            <span class="t-lbl">現在計測 // LIVE RUN</span>
-            <span id="live-run-name" class="run-name">STANDBY</span>
-            <span id="live-run-time" class="run-time lcd-text">--.---</span>
-            <span class="run-hint">SPRINTS ARM AUTOMATICALLY ON LAUNCH</span>
+</div>
         </div>
 
         <div class="t-card panel score-card">
@@ -974,6 +1012,7 @@ let lastRenderTime  = performance.now();
             
             // Live G-Meter
             gDot:         document.getElementById('g-dot'),
+            gVector:      document.getElementById('g-vector'),
             liveLatG:     document.getElementById('live-lat-g'),
             liveLonG:     document.getElementById('live-lon-g'),
             liveLatGMax:  document.getElementById('live-lat-g-max'),
@@ -994,14 +1033,13 @@ let lastRenderTime  = performance.now();
             peakLatGMetric: document.getElementById('peak-lat-g-metric'),
             peakLonGMetric: document.getElementById('peak-lon-g-metric'),
             peakLonGMetric: document.getElementById('peak-lon-g-metric'),
-            liveRunName:  document.getElementById('live-run-name'),
-            liveRunTime:  document.getElementById('live-run-time'),
             glitchCount:  document.getElementById('glitch-count'),
             vbarSpd:      document.getElementById('vbar-spd'),
             vbarAcc:      document.getElementById('vbar-acc'),
             vbarBrk:      document.getElementById('vbar-brk'),
             vbarHdl:      document.getElementById('vbar-hdl'),
-            maxSpeedGauge: document.getElementById('max-speed-gauge')
+            maxSpeedGauge: document.getElementById('max-speed-gauge'),
+            gMagnitude:    document.getElementById('g-magnitude')
         };
 
         const prev = {
@@ -1009,13 +1047,13 @@ let lastRenderTime  = performance.now();
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
-            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, accuracy: null,
+            liveLatG: null, liveLonG: null, liveLatGMax: null, liveLonGMax: null, brakeLiveMax: null, gDot: null, gVector: null, gMagnitude: null, accuracy: null,
             // Gundam HUD additions
             distKm: null, sessClock: null, brakeLive: null,
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatG: null, peakLonG: null, peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
-            runName: null, runTime: null, alertOn: null
+            alertOn: null
         };
 
         // Session clock anchor: set when tracking initialises.
@@ -1126,7 +1164,6 @@ let lastRenderTime  = performance.now();
             prev.accelBar = null; prev.brakeBar = null; prev.latBar = null; prev.peakDeg = null;
             prev.peakLatG = null; prev.peakLonG = null; prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
             prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
-            prev.runName = null; prev.runTime = null;
 
             timer0_60.state = T_IDLE;
             timer0_100.state = T_IDLE;
@@ -1529,6 +1566,18 @@ let lastRenderTime  = performance.now();
             const tf  = `translate(${pxX.toFixed(1)}px, ${pxY.toFixed(1)}px)`;
             if (prev.gDot !== tf) { dom.gDot.style.transform = tf; prev.gDot = tf; }
 
+            // G-vector inside gauge (em units relative to gauge size)
+            const gMax = 1.5;
+            const emX = Math.max(-0.35, Math.min(0.35, (uiLatG  / gMax) * 0.35));
+            const emY = Math.max(-0.35, Math.min(0.35, (-uiLongG / gMax) * 0.35));
+            const gv  = `translate(${emX.toFixed(3)}em, ${emY.toFixed(3)}em)`;
+            if (prev.gVector !== gv) { dom.gVector.style.transform = gv; prev.gVector = gv; }
+
+            // G-magnitude display
+            const gMag = Math.hypot(uiLatG, uiLongG);
+            const gMagStr = fmt2.format(gMag);
+            if (prev.gMagnitude !== gMagStr) { dom.gMagnitude.textContent = "G: " + gMagStr; prev.gMagnitude = gMagStr; }
+
             // ── Gundam HUD live telemetry ─────────────────────────────────────
             // Session clock (mm:ss since tracking init)
             if (sessionStartMs >= 0) {
@@ -1575,17 +1624,6 @@ let lastRenderTime  = performance.now();
             updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, now);
             updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, now);
             updateLiveBrake();
-
-            // Headline live-run card (first active sprint wins)
-            const run = timer0_60.state === T_RUNNING ? ["0-60 MPH", timer0_60]
-                      : timer0_100.state === T_RUNNING ? ["0-100 KM/H", timer0_100]
-                      : timer100_200.state === T_RUNNING ? ["100-200 KM/H", timer100_200]
-                      : timerQuarter.state === T_RUNNING ? ["1/4 MILE", timerQuarter]
-                      : null;
-            const rn = run ? run[0] : "STANDBY";
-            const rt = run ? fmt3.format(Math.max(0, now - run[1].start) / 1000) : "--.---";
-            if (prev.runName !== rn) { dom.liveRunName.textContent = rn; dom.liveRunName.classList.toggle("armed", !!run); prev.runName = rn; }
-            if (prev.runTime !== rt) { dom.liveRunTime.textContent = rt; prev.runTime = rt; }
 
             // GNSS loss banner
             if (prev.alertOn !== gnssStale) { dom.gnssAlert.classList.toggle("active", gnssStale); prev.alertOn = gnssStale; }
