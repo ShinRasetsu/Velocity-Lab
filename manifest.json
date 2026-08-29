@@ -3,7 +3,7 @@
     "short_name": "VelocityLab",
     "description": "High-fidelity kinematic GNSS and IMU dashboard for track telemetry.",
     "id": "./",
-    "start_url": "./index.html",
+    "start_url": "./",
     "scope": "./",
     "display": "standalone",
     "orientation": "any",
