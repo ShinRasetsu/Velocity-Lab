@@ -15,6 +15,9 @@
     <meta name="apple-mobile-web-app-title" content="VelocityLab">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap">
 
     <style>
         /* ═══ VELOCITY-LAB GUNDAM HUD DESIGN SYSTEM ══════════════════════════ */
@@ -100,8 +103,6 @@
         .spd-green, .spd-yellow { transition: color 120ms linear; }
 
         /* ── base / atmosphere ───────────────────────────────────────────── */
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
-
 :root {
             --line: rgba(148,163,184,0.16);
             --line-strong: rgba(148,163,184,0.30);
@@ -148,12 +149,12 @@ html {
             -webkit-overflow-scrolling: touch;
         }
 
-/* CRT scanlines over the whole cockpit */
+/* CRT scanlines — reduced opacity for GPU */
         .scanlines {
             position: fixed; inset: 0; z-index: 9990;
             pointer-events: none;
             background: repeating-linear-gradient(0deg, rgba(255,255,255,0.028) 0 1px, transparent 1px 3px);
-            opacity: 0.3;
+            opacity: 0.12;
         }
 
         /* mecha panel: hairline border + glowing corner brackets */
@@ -363,15 +364,17 @@ html {
                 repeating-conic-gradient(from -90deg, rgba(148,163,184,0.65) 0deg 0.8deg, transparent 0.8deg 30deg);
             -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.075em), #000 calc(100% - 0.068em));
             mask: radial-gradient(closest-side, transparent calc(100% - 0.075em), #000 calc(100% - 0.068em));
+            contain: paint; transform: translateZ(0);
         }
 
-        /* swept value ring: JS sets --deg (0..360) */
+        /* swept value ring: JS sets --deg (0..360) — isolated to compositor */
         #speed-ring {
             position: absolute; inset: 0; border-radius: 50%;
             background: conic-gradient(from -90deg, var(--green) calc(var(--deg, 0deg)), rgba(148,163,184,0.08) 0deg);
             -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
             mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
-            filter: drop-shadow(0 0 0.022em rgba(0,255,136,0.4));
+            filter: drop-shadow(0 0 0.012em rgba(0,255,136,0.35));
+            contain: paint; transform: translateZ(0);
         }
 
         /* redline arc: top 15% of the scale */
@@ -380,7 +383,7 @@ html {
             background: conic-gradient(from -90deg, transparent calc(306deg), rgba(255,51,102,0.75) 0deg);
             -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.055em), #000 calc(100% - 0.048em));
             mask: radial-gradient(closest-side, transparent calc(100% - 0.055em), #000 calc(100% - 0.048em));
-            filter: drop-shadow(0 0 0.02em rgba(255,51,102,0.45));
+            filter: drop-shadow(0 0 0.012em rgba(255,51,102,0.35));
         }
 
         /* peak-hold marker: amber tick rotated to session max (JS sets transform) */
@@ -429,6 +432,9 @@ html {
             pointer-events: none;
             z-index: 2;
             overflow: visible;
+            contain: paint; transform: translateZ(0);
+            /* Hidden per request — was solid red, now 4-part hidden until re-enabled */
+            display: none;
             /* 4-part G-Force Ring: Front(Top) Back(Bottom) Left/Right — RED base for ID */
             border: none;
             background:
@@ -486,7 +492,7 @@ html {
             85% { --front-pos: 100%; --back-pos: 100%; --right-pos: 100%; --left-pos: 100%; --fore-pos: 100%; --fore-neg: 100%; --right-neg: 100%; --aft-pos: 100%; --aft-neg: 100%; --left-neg: 100%; }
             100% { --front-pos: 0%; --back-pos: 0%; --right-pos: 0%; --left-pos: 0%; --fore-pos: 0%; --fore-neg: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-neg: 0%; }
         }
-        .speed-gauge .gauge-ticks { opacity: 0; filter: blur(2px); }
+        .speed-gauge .gauge-ticks { opacity: 0; filter: blur(0.6px); }
         .speed-gauge.boot .gauge-ticks { animation: tick-draw 1.2s ease-out 0.1s forwards; }
         .speed-gauge .gauge-redline { opacity: 0; transform: scale(0.8); }
         .speed-gauge.boot .gauge-redline { animation: redline-draw 1.2s ease-out 0.4s forwards; }
@@ -1071,7 +1077,7 @@ html {
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.14 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.4.17 — Velocity-Lab</div>
 </div>
 
 
@@ -1095,7 +1101,8 @@ html {
         const GPS_QUALITY_MIN        = 0.2;
         const FUSION_CORRECTION_GAIN = 0.35;
         const FUSION_GPS_WEIGHT      = 0.12;
-        const IMU_BIAS_CLAMP         = 2.0;
+        const IMU_BIAS_CLAMP         = 0.5;
+        const G_RING_VISIBLE         = false;
         const PHYSICAL_G_CLAMP_LONG  = 3.5;
 
         const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2;
@@ -1117,6 +1124,8 @@ html {
         let prevGpsSpeedMs  = 0.0;
         let lastGpsLat      = undefined;
         let lastGpsLon      = undefined;
+        let lastGpsHeading  = undefined;
+        let gpsWatchId      = null;
         
 let lastRenderTime  = performance.now();
         let lastSaveTime    = 0;
@@ -1134,6 +1143,8 @@ let lastRenderTime  = performance.now();
         let mountOffsetZ    = 0.0;
         let imuLongG        = 0.0;
         let imuLatG         = 0.0;
+        let lastImuTime     = 0;
+        let gpsLongGBuffer  = [];
 
         // Sensor Fusion State 
         let imuFusionActive   = false;  
@@ -1321,6 +1332,11 @@ let lastRenderTime  = performance.now();
             mountOffsetZ = filteredAccelZ;
             imuLongGBias = 0.0;
             imuLatGBias  = 0.0;
+            gpsLongGBuffer = [];
+            lastGpsHeading = undefined;
+            lastGpsLat = undefined;
+            lastGpsLon = undefined;
+            lastImuTime = 0;
 
             prevGpsSpeedMs     = currentSpeedMs; 
             fusedLongG         = 0.0;
@@ -1398,7 +1414,12 @@ let lastRenderTime  = performance.now();
         }
 
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+            if (document.visibilityState === 'hidden') {
+                window.removeEventListener('devicemotion', handleMotion, false);
+            } else {
+                if (!wakeLock) requestWakeLock();
+                window.addEventListener('devicemotion', handleMotion, false);
+            }
         });
 
         window.addEventListener('pagehide', () => { if (stateDirty) saveSession(); });
@@ -1407,8 +1428,13 @@ let lastRenderTime  = performance.now();
             const hasLinear = event.acceleration && typeof event.acceleration.z === 'number';
             const rawX = hasLinear ? event.acceleration.x : (event.accelerationIncludingGravity?.x ?? 0);
             const rawZ = hasLinear ? event.acceleration.z : (event.accelerationIncludingGravity?.z ?? 0);
-            filteredAccelX = IMU_ALPHA * rawX + (1 - IMU_ALPHA) * filteredAccelX;
-            filteredAccelZ = IMU_ALPHA * rawZ + (1 - IMU_ALPHA) * filteredAccelZ;
+            // Adaptive alpha: shorter dt → lower alpha (more smoothing), longer dt → higher alpha
+            const nowImu = (typeof event.timeStamp === 'number' && event.timeStamp > 0) ? event.timeStamp : performance.now();
+            const dtImu = lastImuTime ? Math.max(0.005, Math.min(0.1, (nowImu - lastImuTime)/1000)) : 0.016;
+            lastImuTime = nowImu;
+            const adaptAlpha = Math.max(0.08, Math.min(0.35, IMU_ALPHA * (0.016 / dtImu) * 0.6 + IMU_ALPHA * 0.4));
+            filteredAccelX = adaptAlpha * rawX + (1 - adaptAlpha) * filteredAccelX;
+            filteredAccelZ = adaptAlpha * rawZ + (1 - adaptAlpha) * filteredAccelZ;
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
             imuLatG  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
             imuFusionActive = true;
@@ -1590,12 +1616,14 @@ let lastRenderTime  = performance.now();
             if (lastGpsTime > 0) gpsDt = Math.min((now - lastGpsTime) / 1000.0, GPS_MAX_DT_SEC);
             lastGpsTime = now;
 
-            // GPS speed fallback: use coords.speed if available, else calculate from position delta
+            // GPS speed: prefer coords.speed only if accuracy is trusted; fallback Haversine weighted by accuracy
             let gpsSpeedMs = 0.0;
-            if (typeof c.speed === 'number' && !isNaN(c.speed)) {
-                gpsSpeedMs = Math.max(0, c.speed);
+            const rawSpeed = (typeof c.speed === 'number' && !isNaN(c.speed)) ? Math.max(0, c.speed) : null;
+            const speedAcc = (typeof c.speedAccuracy === 'number' && !isNaN(c.speedAccuracy)) ? c.speedAccuracy : null;
+            const trustSpeed = rawSpeed !== null && (speedAcc === null || speedAcc < 8) && (typeof c.accuracy !== 'number' || c.accuracy < GPS_ACC_TRUST_MAX_M);
+            if (trustSpeed) {
+                gpsSpeedMs = rawSpeed;
             } else if (lastGpsLat !== undefined && lastGpsLon !== undefined && gpsDt > 0) {
-                // Calculate speed from position delta (Haversine)
                 const R = 6371000;
                 const dLat = (c.latitude - lastGpsLat) * Math.PI / 180;
                 const dLon = (c.longitude - lastGpsLon) * Math.PI / 180;
@@ -1603,10 +1631,12 @@ let lastRenderTime  = performance.now();
                 const lat2 = c.latitude * Math.PI / 180;
                 const a = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
                 const dist = 2 * R * Math.asin(Math.sqrt(a));
-                gpsSpeedMs = dist / gpsDt;
+                // Ignore micro-jitter < acc*0.4 (skip gate if accuracy missing)
+                if (typeof c.accuracy === 'number' && dist < c.accuracy * 0.4 && gpsDt < 1.5) gpsSpeedMs = prevGpsSpeedMs;
+                else gpsSpeedMs = dist / gpsDt;
+            } else if (rawSpeed !== null) {
+                gpsSpeedMs = rawSpeed; // last resort even if untrusted
             }
-            lastGpsLat = c.latitude;
-            lastGpsLon = c.longitude;
 
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
             const conf = gpsConfidence(acc);   // 0..1 GPS quality
@@ -1614,21 +1644,43 @@ let lastRenderTime  = performance.now();
             confidenceSamples  += 1;
 
             if (gpsDt > 0) {
-                // Live GPS update rate, exponentially smoothed (survives 1 Hz
-                // phone GPS jitter while still reacting to real changes).
                 gpsHzSmooth += ((1.0 / gpsDt) - gpsHzSmooth) * 0.25;
                 setDOM(dom.updateRate, 'updateRate', "GPS: " + fmt1.format(gpsHzSmooth) + " HZ", "clr-blue neon-blue");
-                // Distances are integrated only above 0.5 m/s; this deliberately
-                // drops sub-walking creep (parking-lot shuffle, traffic-idle roll)
-                // which would otherwise inflate 1/4-mile splits and braking stops.
-                if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
-                const rawGpsLongG = ((gpsSpeedMs - prevGpsSpeedMs) / gpsDt) / GRAVITY_MS2;
-                const glitch = Math.abs(rawGpsLongG) > PHYSICAL_G_CLAMP_LONG;
-                if (glitch) gpsGlitchCount++;
-                else         updateImuFusionFromGps(rawGpsLongG, 0, conf);
+                const rawGpsLongGRaw = ((gpsSpeedMs - prevGpsSpeedMs) / gpsDt) / GRAVITY_MS2;
+                let rawGpsLatG = 0;
+                if (typeof c.heading === 'number' && !isNaN(c.heading) && typeof lastGpsHeading === 'number' && gpsDt > 0) {
+                    let dHead = c.heading - lastGpsHeading;
+                    dHead = ((dHead + 540) % 360) - 180;
+                    const yawRate = dHead * Math.PI / 180 / gpsDt;
+                    rawGpsLatG = (gpsSpeedMs * yawRate) / GRAVITY_MS2;
+                }
+                // Glitch check on raw (not median) so spikes are caught before poisoning buffer
+                const isGlitch = Math.abs(rawGpsLongGRaw) > PHYSICAL_G_CLAMP_LONG || Math.abs(rawGpsLatG) > PHYSICAL_G_CLAMP_LONG;
+                if (isGlitch) {
+                    gpsGlitchCount++;
+                } else {
+                    // Median filter only on clean samples
+                    gpsLongGBuffer.push(rawGpsLongGRaw);
+                    if (gpsLongGBuffer.length > 5) gpsLongGBuffer.shift();
+                    const sorted = gpsLongGBuffer.slice().sort(function(a,b){return a-b;});
+                    const rawGpsLongG = sorted[Math.floor(sorted.length/2)];
+                    if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
+                    updateImuFusionFromGps(rawGpsLongG, rawGpsLatG, conf);
+                    prevGpsSpeedMs = gpsSpeedMs;
+                    currentSpeedMs = gpsSpeedMs;
+                    // Only update position/heading on clean fix to avoid poisoning next Haversine/heading
+                    lastGpsLat = c.latitude;
+                    lastGpsLon = c.longitude;
+                    if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
+                }
+            } else {
+                // First fix — initialize without G estimate, but still seed position/heading
+                prevGpsSpeedMs = gpsSpeedMs;
+                currentSpeedMs = gpsSpeedMs;
+                lastGpsLat = c.latitude;
+                lastGpsLon = c.longitude;
+                if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
             }
-
-            currentSpeedMs = gpsSpeedMs;
             const gpsSpeedKmph = currentSpeedMs * MS_TO_KMPH;
 
             // Always transition GNSS status to FIX on any position fix (confidence gating only for timers/peaks)
@@ -1671,11 +1723,14 @@ let lastRenderTime  = performance.now();
             }
             setDOM(dom.status, 'status', msg, "text-red-500 neon-danger");
             
-            // Retry after delay for non-permission errors
+            // Retry after delay for non-permission errors — reuse single watch
             if (err && err.code !== err.PERMISSION_DENIED) {
                 setTimeout(() => {
-                    if ("geolocation" in navigator) navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                    if ("geolocation" in navigator) {
+                        if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
+                        gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
                         { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_RETRY_MS });
+                    }
                 }, 5000);
             }
         }
@@ -1742,6 +1797,16 @@ let lastRenderTime  = performance.now();
                 // Reset GPS position tracking but keep FIX status (don't reset lastGpsTime so we stay in FIX)
                 lastGpsLat = undefined;
                 lastGpsLon = undefined;
+                lastGpsHeading = undefined;
+                gpsLongGBuffer = [];
+                lastImuTime = 0;
+                filteredAccelX = 0; filteredAccelZ = 0;
+                imuLongG = 0; imuLatG = 0;
+                imuLongGBias = 0; imuLatGBias = 0;
+                imuFusionActive = false;
+                // Reset g-force ring CSS vars so hidden ring doesn't retain stale pos
+                const _ring = dom.gForceRing || document.querySelector('.g-force-ring');
+                if (_ring) { _ring.style.setProperty('--front-pos','0%'); _ring.style.setProperty('--back-pos','0%'); _ring.style.setProperty('--right-pos','0%'); _ring.style.setProperty('--left-pos','0%'); }
                 // Reset G bars and live readouts
                 if (dom.accelFill) dom.accelFill.style.width = "0%";
                 if (dom.brakeFill) dom.brakeFill.style.width = "0%";
@@ -1799,7 +1864,8 @@ let lastRenderTime  = performance.now();
             setDOM(dom.status, 'status', "RESTARTING GPS...", "text-yellow-500 neon-warning");
             if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
             if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
+                gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
             }
         }
@@ -1808,9 +1874,11 @@ let lastRenderTime  = performance.now();
         function renderLoop() {
             const now = performance.now();
             const dt  = now - lastRenderTime;
-            // Demo fallback: if no real GPS after 2.5s, simulate FIX so status changes within 30s even on desktop/no-permission
-            if (lastGpsTime === -1 && sessionStartMs >= 0 && (now - sessionStartMs) > 2500) {
-                lastGpsTime = now;
+            // Power save: throttle RAF when hidden or GNSS stale to 4 Hz
+            if (document.hidden) {
+                lastRenderTime = now;
+                setTimeout(function(){ requestAnimationFrame(renderLoop); }, 400);
+                return;
             }
             const gnssStale = (now - lastGpsTime) > GPS_STALE_MS;
             const gpsAcquired = lastGpsTime > 0;
@@ -1841,13 +1909,14 @@ let lastRenderTime  = performance.now();
                 }
                 if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = gnssStale ? 'flex' : 'none';
             }
-            const alpha = 1 - Math.exp(-dt * 0.008); 
+            const dtClamped = Math.min(dt, 32);
+            const alpha = 1 - Math.exp(-dtClamped * 0.008); 
             displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
             uiLongG        += (fusedLongG  - uiLongG) * alpha;
             uiLatG         += (fusedLatG   - uiLatG)  * alpha;
 
             const displaySpeedKmph = displaySpeedMs * MS_TO_KMPH;
-            setDOM(dom.speed, 'speed', fmt1.format(displaySpeedKmph), "speed-base font-extrabold lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
+            setDOM(dom.speed, 'speed', displaySpeedKmph.toFixed(1), "speed-base font-extrabold lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
 
             const barPct = Math.max(0, Math.min(1, displaySpeedKmph / BAR_MAX_SPEED)) * 100;
             const barW   = barPct.toFixed(2) + "%";
@@ -1860,8 +1929,8 @@ let lastRenderTime  = performance.now();
                 prev.ringDeg = ringDeg;
             }
 
-            const latStr = fmt2.format(uiLatG);
-            const lonStr = fmt2.format(uiLongG);
+            const latStr = uiLatG.toFixed(2);
+            const lonStr = uiLongG.toFixed(2);
             if (prev.liveLatG !== latStr) { if (dom.liveLatG) dom.liveLatG.textContent = latStr; prev.liveLatG = latStr; }
             if (prev.liveLonG !== lonStr) { if (dom.liveLonG) dom.liveLonG.textContent = lonStr; prev.liveLonG = lonStr; }
 
@@ -1873,17 +1942,17 @@ let lastRenderTime  = performance.now();
 
             // G-magnitude arc display
             const gMag = Math.hypot(uiLatG, uiLongG);
-            const gMagStr = fmt2.format(gMag);
+            const gMagStr = gMag.toFixed(2);
             if (prev.gMagnitudeArc !== gMagStr) { if (dom.gMagnitudeArc) dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
 
             // G-Force quadrant bars (max 1.5G) - set CSS custom properties on ring
+            const ring = dom.gForceRing || (dom.gForceRing = document.querySelector('.g-force-ring'));
             const frontPos = Math.round(Math.max(0, Math.min(100,  uiLongG / gMax * 100)));
             const backPos = Math.round(Math.max(0, Math.min(100, -uiLongG / gMax * 100)));
             const rightPos = Math.round(Math.max(0, Math.min(100,  uiLatG / gMax * 100)));
             const leftPos = Math.round(Math.max(0, Math.min(100, -uiLatG / gMax * 100)));
 
-            const ring = dom.gForceRing || document.querySelector('.g-force-ring');
-            if (ring) {
+            if (G_RING_VISIBLE && ring) {
                 ring.style.setProperty('--front-pos', frontPos + '%');
                 ring.style.setProperty('--back-pos', backPos + '%');
                 ring.style.setProperty('--right-pos', rightPos + '%');
@@ -1906,7 +1975,7 @@ let lastRenderTime  = performance.now();
             }
 
             // Distance travelled / logged samples / glitch filter counter
-            const distKm = fmt2.format(distanceMeters / 1000) + " KM";
+            const distKm = (distanceMeters / 1000).toFixed(2) + " KM";
             if (prev.distKm !== distKm) { if (dom.distDisplay) dom.distDisplay.textContent = distKm; prev.distKm = distKm; }
             if (prev.glitchN !== gpsGlitchCount) { if (dom.glitchCount) dom.glitchCount.textContent = String(gpsGlitchCount); prev.glitchN = gpsGlitchCount; }
 
@@ -1917,23 +1986,27 @@ let lastRenderTime  = performance.now();
             if (prev.accelBar !== accPct) { if (dom.accelFill) dom.accelFill.style.width = accPct + "%"; prev.accelBar = accPct; }
             if (prev.brakeBar !== brkPct) { if (dom.brakeFill) dom.brakeFill.style.width = brkPct + "%"; prev.brakeBar = brkPct; }
             if (prev.latBar !== latPct) { if (dom.latFill) dom.latFill.style.width = latPct + "%"; prev.latBar = latPct; }
-            const brkStr = fmt2.format(Math.max(0, -uiLongG));
+            const brkStr = Math.max(0, -uiLongG).toFixed(2);
             if (prev.brakeLive !== brkStr) { if (dom.brakeLive) dom.brakeLive.textContent = brkStr; prev.brakeLive = brkStr; }
 
             // Peak-hold marker pinned to session max speed on the gauge ring
             const peakDeg = Math.min(360, (maxSpeedKmph / BAR_MAX_SPEED) * 360).toFixed(1);
             if (prev.peakDeg !== peakDeg) { if (dom.peakMarker) dom.peakMarker.style.transform = `rotate(${peakDeg}deg)`; prev.peakDeg = peakDeg; }
 
-            // G peak readouts
-            const pkLat = fmt2.format(maxGpsLatG);
-            const pkLon = fmt2.format(maxGpsAccelG);
-            // Live G max readouts (inline with current values)
-            if (dom.liveLatGMax && prev.liveLatGMax !== pkLat) { dom.liveLatGMax.textContent = pkLat; prev.liveLatGMax = pkLat; }
-            if (dom.liveLonGMax && prev.liveLonGMax !== pkLon) { dom.liveLonGMax.textContent = pkLon; prev.liveLonGMax = pkLon; }
-            if (dom.brakeLiveMax && prev.brakeLiveMax !== pkLon) { dom.brakeLiveMax.textContent = pkLon; prev.brakeLiveMax = pkLon; }
-            // Metric footer peaks
-            if (dom.peakLatGMetric && prev.peakLatGMetric !== pkLat) { dom.peakLatGMetric.textContent = pkLat; prev.peakLatGMetric = pkLat; }
-            if (dom.peakLonGMetric && prev.peakLonGMetric !== pkLon) { dom.peakLonGMetric.textContent = pkLon; prev.peakLonGMetric = pkLon; }
+            // G peak readouts — numeric diff to avoid Intl per frame
+            if (prev.liveLatGMaxNum !== maxGpsLatG) {
+                const pkLat = maxGpsLatG.toFixed(2);
+                if (dom.liveLatGMax) dom.liveLatGMax.textContent = pkLat;
+                if (dom.peakLatGMetric) dom.peakLatGMetric.textContent = pkLat;
+                prev.liveLatGMax = pkLat; prev.peakLatGMetric = pkLat; prev.liveLatGMaxNum = maxGpsLatG;
+            }
+            if (prev.liveLonGMaxNum !== maxGpsAccelG) {
+                const pkLon = maxGpsAccelG.toFixed(2);
+                if (dom.liveLonGMax) dom.liveLonGMax.textContent = pkLon;
+                if (dom.brakeLiveMax) dom.brakeLiveMax.textContent = pkLon;
+                if (dom.peakLonGMetric) dom.peakLonGMetric.textContent = pkLon;
+                prev.liveLonGMax = pkLon; prev.brakeLiveMax = pkLon; prev.peakLonGMetric = pkLon; prev.liveLonGMaxNum = maxGpsAccelG;
+            }
 
             // Per-card live sprint elapsed + LIVE tags
             updateLiveSprint(dom.t0_60,    'live0_60',    timer0_60,    now);
@@ -1950,7 +2023,11 @@ let lastRenderTime  = performance.now();
                 if (now - lastSaveTime >= 2000) { saveSession(); lastSaveTime = now; }
             }
             lastRenderTime = now;
-            requestAnimationFrame(renderLoop);
+            if (gnssStale) {
+                setTimeout(function(){ requestAnimationFrame(renderLoop); }, 250);
+            } else {
+                requestAnimationFrame(renderLoop);
+            }
         }
 
         async function requestIOSMotion() {
@@ -2006,7 +2083,8 @@ let lastRenderTime  = performance.now();
             
             // Start GPS immediately (don't wait for motion permission)
             if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
+                gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
             } else {
                 setDOM(dom.status, 'status', "ERR: GEOLOCATION NOT SUPPORTED", "text-red-500 neon-danger");
@@ -2116,7 +2194,8 @@ let lastRenderTime  = performance.now();
                 }, 1250);
             }, 100);
 
-            // Auto-scale on resize/orientation change
+            // Auto-scale on resize/orientation change — debounced via RAF to avoid layout thrash
+            let resizeRaf = null;
             function updateScale() {
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
@@ -2127,8 +2206,12 @@ let lastRenderTime  = performance.now();
                 else scale = Math.min(vw / baseW, vh / baseH);
                 document.documentElement.style.setProperty('--scale', scale.toFixed(4));
             }
+            function debouncedUpdateScale() {
+                if (resizeRaf) cancelAnimationFrame(resizeRaf);
+                resizeRaf = requestAnimationFrame(updateScale);
+            }
             updateScale();
-            window.addEventListener('resize', updateScale);
+            window.addEventListener('resize', debouncedUpdateScale, { passive: true });
             window.addEventListener('orientationchange', () => setTimeout(updateScale, 100));
         }
 
