@@ -7,8 +7,8 @@ Single-file HUD: `index.html` (telemetry), `sw.js`, `manifest.json`. No build st
 Every live value at 60Hz, never GPS-rate stairs. See `.opencode/skills/perfection-audit/SKILL.md` 7 gates (project-matched).
 
 ## Before every commit / push
-1. `node tests/fluidity.test.js` must PASS (Gate 1) + `python tests/tests.py` if available (Gate 4).
-2. `/audit` must show `Perfection verdict: PASS` (all 7 gates). `/audit-fluidity` for quick Gate 1.
+1. `node tests/fluidity.test.js` must PASS (Gate 1) + `node tests/telemetry.test.js` must PASS (Gate 4) — `python tests/tests.py` is equivalent fallback.
+2. `/audit` must show `Perfection verdict: PASS` (all 7 gates, zero SKIP). `/audit-fluidity` for quick Gate 1.
 3. If you touched `index.html`/`sw.js`/`manifest.json`, run perfection-auditor subagent.
 
 ## Hard Rules

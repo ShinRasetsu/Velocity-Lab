@@ -45,7 +45,7 @@ Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
 - **Fusion:** `IMU_ALPHA 0.15` adapt `0.08-0.35` (`index.html:1435`), `FUSION_CORRECTION_GAIN 0.35`, `FUSION_GPS_WEIGHT 0.12`, `IMU_BIAS_CLAMP 0.5` (`index.html:1453`), `PHYSICAL_G_CLAMP_LONG 3.5` glitch check (`index.html:1663`), `gpsLongGBuffer` median 5 (`index.html:1669`)
 - **Distance:** `>0.5 m/s` gate (`index.html:1672`), Haversine fallback (`index.html:1632`), `glitchCount` inc on `>3.5G` (`index.html:1665`)
 - **Scoring:** `calculateVehicleScore` caps `20/10/15/25=70` (`index.html:1486`), `Math.round` per category allowed only there; `evaluateAndRenderScore` on `stateDirty` (`index.html:2087`)
-- **Verify:** `python tests/tests.py` must PASS (gpsConfidence, scoring, timer interpolation) — old pure-function gate.
+- **Verify:** `node tests/telemetry.test.js` must PASS (and `python tests/tests.py` if python available) — covers `gpsConfidence`, scoring, timer interpolation. No SKIP allowed: if `python` missing, `node tests/telemetry.test.js` is mandatory. `tests/telemetry.test.js` is Node port of `tests.py` via `vm` shim.
 
 ### Gate 5 — System & PWA Lifecycle
 - PWA: `<link rel="manifest" href="manifest.json":8>`, `theme-color #050505:9`, `apple-touch-icon:17`, `icon-192:16`, `mobile-web-app-capable:12`, `navigator.serviceWorker.register('./sw.js'):2128`
@@ -74,7 +74,8 @@ Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
 /audit              → full 7 gates (0-7)
 /audit-fluidity     → Gate 1 only (quick)
 /audit-fix          → auditor + auto-fix
-Verify: node tests/fluidity.test.js && python tests/tests.py (if python) && pwsh verify-deploy.ps1
+Verify: node tests/fluidity.test.js && node tests/telemetry.test.js && pwsh verify-deploy.ps1
+# python alternative: python tests/tests.py (same as node telemetry)
 ```
 
 ## Output format
