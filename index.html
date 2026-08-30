@@ -644,8 +644,9 @@ html {
             background: linear-gradient(90deg, #00ff88 0%, #ffaa00 55%, #ff3366 100%);
             box-shadow: 0 0 10px rgba(0,255,136,0.35);
             width: 0;
-            transition: width 75ms linear;
+            transition: none;
             will-change: width;
+            transform: translateZ(0);
         }
         .track-zone {
             position: absolute; top: 0; bottom: 0; width: 2px;
@@ -1119,6 +1120,7 @@ html {
         let currentSpeedMs  = 0.0;     
         let displaySpeedMs  = 0.0;     
         let distanceMeters  = 0.0;     
+        let displayDistanceM = 0.0;     
         
         let lastGpsTime     = -1;
         let prevGpsSpeedMs  = 0.0;
@@ -1130,6 +1132,8 @@ html {
 let lastRenderTime  = performance.now();
         let lastSaveTime    = 0;
         let maxSpeedKmph    = 0.0;
+        let displayMaxKmph  = 0.0;
+        let lastGpsConfidence = 0.0;
         let gpsHzSmooth     = 0.0;
 
         // UI Interpolation State (drives the live G-meter dot + readings)
@@ -1232,7 +1236,7 @@ let lastRenderTime  = performance.now();
         };
 
         const prev = {
-            speed: null, speedBar: null, ringDeg: null,
+            speed: null, speedBar: null, ringDeg: null, displayMax: null,
             peakG: null, t0_60: null, t0_100: null, t100_200: null, tQuarter: null, t100_0: null,
             brakeScore: null, updateRate: null, status: null,
             vTot: -1, vSpd: -1, vAcc: -1, vBrk: -1, vHdl: -1,
@@ -1301,6 +1305,7 @@ let lastRenderTime  = performance.now();
                 }
 
                 maxSpeedKmph    = data.maxSpeedKmph || 0.0;
+                displayMaxKmph  = maxSpeedKmph;
                 bestGpsBrakingG = data.bestGpsBrakingG || 0.0;
                 maxGpsAccelG    = data.maxGpsAccelG || 0.0;
                 maxGpsLatG      = data.maxGpsLatG || 0.0;
@@ -1322,7 +1327,10 @@ let lastRenderTime  = performance.now();
         // ─── UI CONTROLS ──────────────────────────────────────────────────────────
         function resetRun() {
             distanceMeters  = 0.0;
+            displayDistanceM = 0.0;
             maxSpeedKmph    = 0.0;
+            displayMaxKmph  = 0.0;
+            lastGpsConfidence = 0.0;
             bestGpsBrakingG = 0.0;
             maxGpsAccelG    = 0.0;
             maxGpsLatG      = 0.0;
@@ -1640,6 +1648,7 @@ let lastRenderTime  = performance.now();
 
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
             const conf = gpsConfidence(acc);   // 0..1 GPS quality
+            lastGpsConfidence  = conf;
             confidenceSum     += conf;
             confidenceSamples  += 1;
 
@@ -1691,7 +1700,7 @@ let lastRenderTime  = performance.now();
             if (conf >= GPS_QUALITY_MIN) {
                 updateTimers(gpsSpeedKmph, distanceMeters, now);
 
-                if (gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: " + fmt2.format(maxSpeedKmph); stateDirty = true; }
+                if (gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; stateDirty = true; }
                 if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
                 if (Math.abs(fusedLatG) > maxGpsLatG) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; }
                 if (fusedLongG < -0.3) {
@@ -1771,15 +1780,15 @@ let lastRenderTime  = performance.now();
                 });
                 // Reset G-meter peaks and prev caches
                 maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
-                maxSpeedKmph = 0.0;
-                prev.peakG = null; prev.brakeScore = null;
+                maxSpeedKmph = 0.0; displayMaxKmph = 0.0; lastGpsConfidence = 0.0;
+                prev.peakG = null; prev.brakeScore = null; prev.displayMax = null;
                 prev.peakLatGMetric = null; prev.peakLonGMetric = null;
                 // Reset session clock
                 sessionStartMs = performance.now();
                 if (dom.sessionTime) dom.sessionTime.textContent = "00:00";
                 prev.sessClock = null;
                 // Reset distance
-                distanceMeters = 0;
+                distanceMeters = 0; displayDistanceM = 0;
                 if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
                 prev.distKm = null;
                 // Reset speed and G
@@ -1910,13 +1919,62 @@ let lastRenderTime  = performance.now();
                 if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = gnssStale ? 'flex' : 'none';
             }
             const dtClamped = Math.min(dt, 32);
-            const alpha = 1 - Math.exp(-dtClamped * 0.008); 
-            displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alpha;
-            uiLongG        += (fusedLongG  - uiLongG) * alpha;
-            uiLatG         += (fusedLatG   - uiLatG)  * alpha;
+            const dtSec = dtClamped / 1000;
+            const timeSinceGpsSec = lastGpsTime > 0 ? (now - lastGpsTime) / 1000 : 999;
+            // ── Speed smoothing: IMU dead-reckoning + complementary GPS correction ──
+            // GPS alone at 1 Hz → old 125 ms lerp converged flat then waited (stairs).
+            // New: integrate bias-corrected IMU between fixes for true continuous slope,
+            // then gently nudge toward GPS so drift can't accumulate; fallback when IMU
+            // is unavailable spreads the step across the whole GPS interval.
+            if (imuFusionActive && !gnssStale && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG) {
+                let predAccel = fusedLongG * GRAVITY_MS2;
+                if (Math.abs(predAccel) < 0.12 && currentSpeedMs < 0.35) predAccel = 0;
+                if (currentSpeedMs < 0.25 && Math.abs(predAccel) < 0.5 && displaySpeedMs < 0.5) predAccel *= 0.25;
+                displaySpeedMs += predAccel * dtSec;
+                if (displaySpeedMs < 0) displaySpeedMs = 0;
+                if (displaySpeedMs > 75) displaySpeedMs = 75;
+                let gpsGain = 1.0 * Math.max(0.15, lastGpsConfidence);
+                if (timeSinceGpsSec > 1.2) gpsGain *= Math.min(2.5, 1 + (timeSinceGpsSec - 1.2) * 0.6);
+                if (Math.abs(fusedLongG) > 0.35) gpsGain *= 0.7;
+                const corrAlpha = 1 - Math.exp(-dtSec * gpsGain);
+                displaySpeedMs += (currentSpeedMs - displaySpeedMs) * corrAlpha;
+                if (currentSpeedMs < 0.15) {
+                    const zeroAlpha = 1 - Math.exp(-dtSec * 4.5);
+                    displaySpeedMs += (0 - displaySpeedMs) * zeroAlpha;
+                    if (displaySpeedMs < 0.04) displaySpeedMs = 0;
+                }
+            } else {
+                let smoothTime = 0.55;
+                if (gpsHzSmooth > 0.2) {
+                    const interval = 1.0 / gpsHzSmooth;
+                    smoothTime = Math.max(0.35, Math.min(0.75, interval * 0.60));
+                } else if (timeSinceGpsSec > 2) {
+                    smoothTime = 0.42;
+                }
+                const alphaSpd = 1 - Math.exp(-dtSec / smoothTime);
+                displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alphaSpd;
+                if (currentSpeedMs < 0.15 && displaySpeedMs < 0.35) {
+                    const za = 1 - Math.exp(-dtSec * 5);
+                    displaySpeedMs += (0 - displaySpeedMs) * za;
+                }
+                if (displaySpeedMs < 0.03) displaySpeedMs = 0;
+                if (displaySpeedMs < 0) displaySpeedMs = 0;
+            }
+            const gAlpha = 1 - Math.exp(-dtSec * 9.5);
+            uiLongG += (fusedLongG - uiLongG) * gAlpha;
+            uiLatG  += (fusedLatG  - uiLatG)  * gAlpha;
+            if (displayMaxKmph < maxSpeedKmph) {
+                const maxAlpha = 1 - Math.exp(-dtSec * 3.2);
+                displayMaxKmph += (maxSpeedKmph - displayMaxKmph) * maxAlpha;
+                if (maxSpeedKmph - displayMaxKmph < 0.03) displayMaxKmph = maxSpeedKmph;
+            } else if (displayMaxKmph > maxSpeedKmph + 0.01) {
+                displayMaxKmph = maxSpeedKmph;
+            }
 
             const displaySpeedKmph = displaySpeedMs * MS_TO_KMPH;
             setDOM(dom.speed, 'speed', displaySpeedKmph.toFixed(1), "speed-base font-extrabold lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
+            const maxDispStr = "MAX: " + displayMaxKmph.toFixed(1);
+            if (prev.displayMax !== maxDispStr) { if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = maxDispStr; prev.displayMax = maxDispStr; }
 
             const barPct = Math.max(0, Math.min(1, displaySpeedKmph / BAR_MAX_SPEED)) * 100;
             const barW   = barPct.toFixed(2) + "%";
@@ -1945,12 +2003,12 @@ let lastRenderTime  = performance.now();
             const gMagStr = gMag.toFixed(2);
             if (prev.gMagnitudeArc !== gMagStr) { if (dom.gMagnitudeArc) dom.gMagnitudeArc.textContent = "G: " + gMagStr; prev.gMagnitudeArc = gMagStr; }
 
-            // G-Force quadrant bars (max 1.5G) - set CSS custom properties on ring
+            // G-Force quadrant bars (max 1.5G) - set CSS custom properties on ring — 0.1% steps (was 1% stair)
             const ring = dom.gForceRing || (dom.gForceRing = document.querySelector('.g-force-ring'));
-            const frontPos = Math.round(Math.max(0, Math.min(100,  uiLongG / gMax * 100)));
-            const backPos = Math.round(Math.max(0, Math.min(100, -uiLongG / gMax * 100)));
-            const rightPos = Math.round(Math.max(0, Math.min(100,  uiLatG / gMax * 100)));
-            const leftPos = Math.round(Math.max(0, Math.min(100, -uiLatG / gMax * 100)));
+            const frontPos = (Math.max(0, Math.min(100,  uiLongG / gMax * 100))).toFixed(1);
+            const backPos = (Math.max(0, Math.min(100, -uiLongG / gMax * 100))).toFixed(1);
+            const rightPos = (Math.max(0, Math.min(100,  uiLatG / gMax * 100))).toFixed(1);
+            const leftPos = (Math.max(0, Math.min(100, -uiLatG / gMax * 100))).toFixed(1);
 
             if (G_RING_VISIBLE && ring) {
                 ring.style.setProperty('--front-pos', frontPos + '%');
@@ -1974,23 +2032,35 @@ let lastRenderTime  = performance.now();
                 if (prev.sessClock !== sessStr) { if (dom.sessionTime) dom.sessionTime.textContent = sessStr; prev.sessClock = sessStr; }
             }
 
-            // Distance travelled / logged samples / glitch filter counter
-            const distKm = (distanceMeters / 1000).toFixed(2) + " KM";
+            // Distance travelled — smooth interpolation between GPS fixes (was stair-stepping 0.01 KM)
+            if (displaySpeedMs < 0.12) {
+                displayDistanceM = distanceMeters;
+            } else if (!gnssStale) {
+                displayDistanceM += displaySpeedMs * dtSec;
+                const distErr = distanceMeters - displayDistanceM;
+                if (Math.abs(distErr) > 40) displayDistanceM = distanceMeters;
+                else displayDistanceM += distErr * (1 - Math.exp(-dtSec * 0.9));
+                if (displayDistanceM < 0) displayDistanceM = 0;
+            } else {
+                const distErr = distanceMeters - displayDistanceM;
+                displayDistanceM += distErr * (1 - Math.exp(-dtSec * 0.5));
+            }
+            const distKm = (displayDistanceM / 1000).toFixed(2) + " KM";
             if (prev.distKm !== distKm) { if (dom.distDisplay) dom.distDisplay.textContent = distKm; prev.distKm = distKm; }
             if (prev.glitchN !== gpsGlitchCount) { if (dom.glitchCount) dom.glitchCount.textContent = String(gpsGlitchCount); prev.glitchN = gpsGlitchCount; }
 
-            // Live accel / brake / lateral G bars (1.0G / 1.2G / 1.5G full-scale)
-            const accPct = Math.round(Math.max(0, Math.min(1, uiLongG)) * 100);
-            const brkPct = Math.round(Math.max(0, Math.min(1, -uiLongG / 1.2)) * 100);
-            const latPct = Math.round(Math.max(0, Math.min(1, Math.abs(uiLatG) / 1.5)) * 100);
+            // Live accel / brake / lateral G bars (1.0G / 1.2G / 1.5G full-scale) — fractional 0.1% steps to avoid 1% stair
+            const accPct = (Math.max(0, Math.min(1, uiLongG)) * 100).toFixed(1);
+            const brkPct = (Math.max(0, Math.min(1, -uiLongG / 1.2)) * 100).toFixed(1);
+            const latPct = (Math.max(0, Math.min(1, Math.abs(uiLatG) / 1.5)) * 100).toFixed(1);
             if (prev.accelBar !== accPct) { if (dom.accelFill) dom.accelFill.style.width = accPct + "%"; prev.accelBar = accPct; }
             if (prev.brakeBar !== brkPct) { if (dom.brakeFill) dom.brakeFill.style.width = brkPct + "%"; prev.brakeBar = brkPct; }
             if (prev.latBar !== latPct) { if (dom.latFill) dom.latFill.style.width = latPct + "%"; prev.latBar = latPct; }
             const brkStr = Math.max(0, -uiLongG).toFixed(2);
             if (prev.brakeLive !== brkStr) { if (dom.brakeLive) dom.brakeLive.textContent = brkStr; prev.brakeLive = brkStr; }
 
-            // Peak-hold marker pinned to session max speed on the gauge ring
-            const peakDeg = Math.min(360, (maxSpeedKmph / BAR_MAX_SPEED) * 360).toFixed(1);
+            // Peak-hold marker pinned to session max speed on the gauge ring (smoothed)
+            const peakDeg = Math.min(360, (displayMaxKmph / BAR_MAX_SPEED) * 360).toFixed(1);
             if (prev.peakDeg !== peakDeg) { if (dom.peakMarker) dom.peakMarker.style.transform = `rotate(${peakDeg}deg)`; prev.peakDeg = peakDeg; }
 
             // G peak readouts — numeric diff to avoid Intl per frame
@@ -2190,7 +2260,7 @@ let lastRenderTime  = performance.now();
                     if (dom.updateRate) { dom.updateRate.textContent = 'GPS 0.0 HZ'; dom.updateRate.style.filter=''; }
                     document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = '');
                     // restore prev caches so live updates repaint
-                    prev.speed=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null;
+                    prev.speed=null; prev.displayMax=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null;
                 }, 1250);
             }, 100);
 

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["AGENTS.md"],
+  "plugin": ["./.opencode/plugin/audit-gate.ts"],
+  "agent": {
+    "perfection-auditor": {
+      "description": "Perfection auditor for Velocity-Lab HUD — catches stair-step, jank, and obvious UX flaws before they ship",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny"
+      }
+    }
+  }
+}
