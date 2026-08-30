@@ -19,7 +19,7 @@ try {
         "Conic-gradient" = $content -match 'conic-gradient'
         "CSS custom properties" = $content -match '--fore-pos'
         "Boot animations" = $content -match 'g-force-boot|tick-draw|ring-expand'
-        "Larger gauge" = $content -match 'clamp\(12rem.*min\(80vw'
+        "Larger gauge" = $content -match 'clamp\(10\.5rem.*70vw.*18rem\)' -and $content -match 'clamp\(12\.5rem.*75vw'
         "Purge button" = $content -match 'id="purge-btn"'
         "Gauge wrap large" = $content -match 'gauge-wrap.*large'
         "JS custom properties" = $content -match 'setProperty.*fore-pos'

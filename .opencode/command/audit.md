@@ -8,7 +8,7 @@ Run the full perfection audit per `.opencode/skills/perfection-audit/SKILL.md` 7
 Steps:
 1. Read `.opencode/skills/perfection-audit/SKILL.md`
 2. Launch perfection-auditor subagent to grep `index.html`/`sw.js`/`manifest.json` for forbidden patterns and verify all interpolators/constants.
-3. Execute `node tests/fluidity.test.js` and `python tests/tests.py` (if available) and include outputs.
+3. Execute `node tests/fluidity.test.js` and `node tests/telemetry.test.js` (plus `python tests/tests.py` if python available) and include outputs. No SKIP allowed for telemetry.
 4. Report PASS/FAIL per gate with file:line and fix snippets. End with `Perfection verdict: PASS | FAIL (x stairs, y janks, z telemetry)`.
 
 $ARGUMENTS
