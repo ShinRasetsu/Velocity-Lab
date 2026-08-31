@@ -102,7 +102,7 @@
         .spd-yellow { color: var(--amber); text-shadow: 0 0 10px rgba(255,170,0,0.5); }
         .spd-green, .spd-yellow { transition: color 120ms linear; }
 
-        /* ── base / atmosphere ───────────────────────────────────────────── */
+/* ── base / atmosphere ───────────────────────────────────────────── */
 :root {
             --line: rgba(148,163,184,0.16);
             --line-strong: rgba(148,163,184,0.30);
@@ -116,6 +116,7 @@
             --vp-w: 390;
             --vp-h: 844;
             --scale: 1;
+            --text-scale: 1;
         }
 
         @media (max-width: 390px) {
@@ -124,12 +125,19 @@
         @media (min-width: 391px) and (max-width: 768px) {
             :root { --scale: calc(100vw / 390); }
         }
-        @media (min-width: 769px) {
+@media (min-width: 769px) {
             :root { --scale: calc(100vh / 844); }
         }
 
-html {
-            font-size: calc(16px * var(--scale));
+        @media (min-width: 390px) {
+            :root { --text-scale: 1.15; }
+        }
+        @media (min-width: 600px) {
+            :root { --text-scale: 1.3; }
+        }
+
+        html {
+            font-size: calc(16px * var(--scale) * var(--text-scale));
         }
         body {
             margin: 0;
@@ -386,7 +394,7 @@ html {
             filter: drop-shadow(0 0 0.012em rgba(255,51,102,0.35));
         }
 
-        /* peak-hold marker: amber tick rotated to session max (JS sets transform) */
+/* peak-hold marker: amber tick rotated to session max (JS sets transform) */
         .peak-marker { position: absolute; inset: 0; pointer-events: none; }
         .peak-marker::before {
             content: "";
@@ -394,6 +402,17 @@ html {
             width: 0.018em; height: 0.05em; margin-left: -0.009em;
             background: var(--amber);
             box-shadow: 0 0 0.015em rgba(255,170,0,0.8);
+        }
+
+        /* best-speed ghost marker: dim amber tick from previous session */
+        #best-marker { opacity: 0; transition: opacity 300ms ease; }
+        #best-marker.visible { opacity: 0.55; }
+        #best-marker::before {
+            content: "";
+            position: absolute; top: 0.028em; left: 50%;
+            width: 0.014em; height: 0.04em; margin-left: -0.007em;
+            background: var(--amber);
+            box-shadow: 0 0 0.01em rgba(255,170,0,0.4);
         }
 
 .gauge-core {
@@ -894,6 +913,17 @@ html {
             .spd-green, .spd-yellow, #speed-display { text-shadow: none !important; }
         }
 
+        @media (prefers-contrast: more) {
+            :root {
+                --line: rgba(148,163,184,0.40);
+                --line-strong: rgba(148,163,184,0.60);
+                --panel: linear-gradient(180deg, rgba(5,8,12,0.95), rgba(2,4,7,0.98));
+            }
+            .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
+            .spd-green, .spd-yellow, #speed-display { text-shadow: none !important; }
+            .panel { border-width: 2px; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             #status-indicator::before { animation: none !important; }
             .gnss-alert.active, .timer-lbl.live::after, .timer-mini.live::after, .run-name.armed { animation: none; }
@@ -962,6 +992,7 @@ html {
 <div class="cmd-sys" aria-live="polite">
             <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
+            <button id="text-scale-btn" class="action-btn gap-1.5 neon-blue" onclick="toggleTextScale()" aria-label="Toggle text scale">Aa</button>
             <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS">⟳ GPS</button>
             <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
         </div>
@@ -990,6 +1021,7 @@ html {
                 <div id="speed-ring" aria-hidden="true"></div>
                 <div class="gauge-redline" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
+                <div id="best-marker" class="peak-marker" aria-hidden="true" style="opacity: 0;"></div>
                 <!-- G-Force Ring: INSIDE speed-gauge just below peakmarker -->
                 <div class="g-force-ring" aria-hidden="true">
                     <div class="g-mag-arc"><span id="g-magnitude-arc">G: 0.00</span></div>
@@ -1233,6 +1265,8 @@ let lastRenderTime  = performance.now();
             vbarHdl:      document.getElementById('vbar-hdl'),
             maxSpeedGauge: document.getElementById('max-speed-gauge'),
             gForceRing:   document.querySelector('.g-force-ring'),
+            textScaleBtn: document.getElementById('text-scale-btn'),
+            bestMarker:   document.getElementById('best-marker'),
         };
 
         const prev = {
@@ -1246,7 +1280,8 @@ let lastRenderTime  = performance.now();
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
-            alertOn: null
+            alertOn: null,
+            bestDeg: null, textScale: 1
         };
 
         // Session clock anchor: set when tracking initialises.
@@ -1391,6 +1426,30 @@ let lastRenderTime  = performance.now();
         }
 
         if (dom.speedGaugeBtn) dom.speedGaugeBtn.addEventListener('click', resetRun);
+
+        // Text scale toggle (1.0 -> 1.25 -> 1.5 -> 1.0)
+        function toggleTextScale() {
+            const scales = [1, 1.25, 1.5];
+            const idx = scales.indexOf(prev.textScale);
+            const next = scales[(idx + 1) % scales.length];
+            prev.textScale = next;
+            document.documentElement.style.setProperty('--text-scale', next);
+            if (dom.textScaleBtn) dom.textScaleBtn.textContent = next === 1 ? 'Aa' : next === 1.25 ? 'Aa+' : 'Aa++';
+            try { localStorage.setItem('VelocityLab_text_scale', String(next)); } catch(e) {}
+        }
+
+        if (dom.textScaleBtn) dom.textScaleBtn.addEventListener('click', toggleTextScale);
+
+        // Restore text scale from localStorage
+        try {
+            const saved = localStorage.getItem('VelocityLab_text_scale');
+            if (saved) {
+                const s = parseFloat(saved);
+                prev.textScale = s;
+                document.documentElement.style.setProperty('--text-scale', s);
+                if (dom.textScaleBtn) dom.textScaleBtn.textContent = s === 1 ? 'Aa' : s === 1.25 ? 'Aa+' : 'Aa++';
+            }
+        } catch(e) {}
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -1859,6 +1918,9 @@ let lastRenderTime  = performance.now();
                 // Reset peak marker
                 if (dom.peakMarker) dom.peakMarker.style.transform = "rotate(0deg)";
                 prev.peakDeg = null;
+                // Reset best marker
+                if (dom.bestMarker) { dom.bestMarker.style.transform = "rotate(0deg)"; dom.bestMarker.classList.remove('visible'); }
+                prev.bestDeg = null;
                 // Reset glitch count
                 gpsGlitchCount = 0;
                 confidenceSum = 0; confidenceSamples = 0;
@@ -2068,6 +2130,16 @@ let lastRenderTime  = performance.now();
             // Peak-hold marker pinned to session max speed on the gauge ring (smoothed)
             const peakDeg = Math.min(360, (displayMaxKmph / BAR_MAX_SPEED) * 360).toFixed(1);
             if (prev.peakDeg !== peakDeg) { if (dom.peakMarker) dom.peakMarker.style.transform = `rotate(${peakDeg}deg)`; prev.peakDeg = peakDeg; }
+
+            // Best-speed ghost marker from previous session (dim amber)
+            const bestDeg = Math.min(360, (maxSpeedKmph / BAR_MAX_SPEED) * 360).toFixed(1);
+            if (prev.bestDeg !== bestDeg) {
+                if (dom.bestMarker) {
+                    dom.bestMarker.style.transform = `rotate(${bestDeg}deg)`;
+                    dom.bestMarker.classList.toggle('visible', maxSpeedKmph > 0);
+                }
+                prev.bestDeg = bestDeg;
+            }
 
             // G peak readouts — numeric diff to avoid Intl per frame
             if (prev.liveLatGMaxNum !== maxGpsLatG) {
