@@ -30,7 +30,7 @@ Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
 - Sim: `node tests/fluidity.test.js` 10s 0→100km/h ramp at 1Hz, sample 200ms, FAIL if `minDelta/maxDelta <0.08` or `minDelta<0.4`.
 
 ### Gate 2 — Visual Continuity
-- `toFixed(1)` speed (0.1km/h) `index.html:1975`, bar% `.toFixed(2)` `index.html:1979`, `ringDeg .toFixed(1)` `index.html:1984`, G-bars `.toFixed(1)` `index.html:2053`, G text `.toFixed(2)` `index.html:1991`, peak `.toFixed(1)` `index.html:2063`
+- `Math.round(displaySpeedKmph)` integer 3-digit `index.html:2043` (0-999, no decimal), bar% `.toFixed(2)` `index.html:2047`, `ringDeg .toFixed(1)` `index.html:2051`, G-bars `.toFixed(1)` `index.html:2121`, G text `.toFixed(2)` `index.html:2060`, peak `.toFixed(1)` `index.html:2131`
 - `barPct/ringDeg/peakDeg` from `display*` not `currentSpeedMs`/`maxSpeedKmph` raw (`index.html:1979,1984,2063`)
 - `displayMaxKmph` glide `3.2/s` monotonic snap `<0.03` (`index.html:1967`), `displayDistanceM` `+displaySpeedMs*dt` + `0.9/s` corr (`index.html:2039`)
 
