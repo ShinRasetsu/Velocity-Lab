@@ -12,8 +12,8 @@ Every live value at 60Hz, never GPS-rate stairs. See `.opencode/skills/perfectio
 3. If you touched `index.html`/`sw.js`/`manifest.json`, run perfection-auditor subagent.
 
 ## Hard Rules
-- Never assign `Geolocation.watchPosition` value directly to DOM. Use `display*` interpolator per frame (`index.html:1975`).
-- Bars: `.toFixed(1)` not `Math.round` (`index.html:2053`), `speed-bar` `transition:none` (`index.html:647`).
+- Never assign `Geolocation.watchPosition` value directly to DOM. Use `display*` interpolator per frame (`index.html:2043`).
+- Speed: `Math.round(displaySpeedKmph)` integer 3-digit (0-999, no decimal) — `index.html:2043`; Bars: `.toFixed(1)` not `Math.round` (`index.html:2121`), `speed-bar` `transition:none` (`index.html:647`).
 - Distance/MAX must interpolate (`displayDistanceM:2039`, `displayMaxKmph:1967`), not raw.
 - Timers must use `crossFraction`/`lerp` sub-sample (`index.html:1505`), gated `conf>=GPS_QUALITY_MIN` (`index.html:1696`).
 - `prev` diff guard on every DOM write, `dtClamped 32` (`index.html:1921`), `will-change/contain` (`index.html:647`).

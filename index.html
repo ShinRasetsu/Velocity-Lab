@@ -498,8 +498,8 @@
         }
         .g-force-ring.boot {
             animation:
-                ring-expand 0.85s cubic-bezier(0.4, 0, 0.2, 1) 0.12s forwards,
-                g-force-boot 2.0s cubic-bezier(0.4, 0, 0.2, 1) 0.18s forwards;
+                ring-expand 0.35s cubic-bezier(0.4, 0, 0.2, 1) 0.04s forwards,
+                g-force-boot 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.08s forwards;
         }
         @keyframes g-force-boot {
             0% { --front-pos: 0%; --back-pos: 0%; --right-pos: 0%; --left-pos: 0%; --fore-pos: 0%; --fore-neg: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-neg: 0%; }
@@ -512,16 +512,16 @@
             100% { --front-pos: 0%; --back-pos: 0%; --right-pos: 0%; --left-pos: 0%; --fore-pos: 0%; --fore-neg: 0%; --right-neg: 0%; --aft-pos: 0%; --aft-neg: 0%; --left-neg: 0%; }
         }
         .speed-gauge .gauge-ticks { opacity: 0; filter: blur(0.6px); }
-        .speed-gauge.boot .gauge-ticks { animation: tick-draw 1.2s ease-out 0.1s forwards; }
+        .speed-gauge.boot .gauge-ticks { animation: tick-draw 0.4s ease-out 0.02s forwards; }
         .speed-gauge .gauge-redline { opacity: 0; transform: scale(0.8); }
-        .speed-gauge.boot .gauge-redline { animation: redline-draw 1.2s ease-out 0.4s forwards; }
+        .speed-gauge.boot .gauge-redline { animation: redline-draw 0.35s ease-out 0.06s forwards; }
         .speed-gauge .speed-readout { opacity: 0; transform: translateY(0.8em); }
-        .speed-gauge.boot .speed-readout { animation: fade-up 0.7s ease-out 0.7s forwards; }
+        .speed-gauge.boot .speed-readout { animation: fade-up 0.3s ease-out 0.10s forwards; }
         #speed-ring { --deg: 0deg; }
-        .speed-gauge.boot #speed-ring { animation: speed-ring-sweep 1.4s cubic-bezier(0.4,0,0.2,1) 0.25s forwards; }
+        .speed-gauge.boot #speed-ring { animation: speed-ring-sweep 0.6s cubic-bezier(0.4,0,0.2,1) 0.06s forwards; }
         @keyframes speed-ring-sweep { 0% { --deg:0deg } 45% { --deg:360deg } 85% { --deg:360deg } 100% { --deg:0deg } }
         #peak-marker { transform: rotate(0deg); }
-        .speed-gauge.boot #peak-marker { animation: peak-sweep 1.4s cubic-bezier(0.4,0,0.2,1) 0.30s forwards; }
+        .speed-gauge.boot #peak-marker { animation: peak-sweep 0.6s cubic-bezier(0.4,0,0.2,1) 0.08s forwards; }
         @keyframes peak-sweep { 0% { transform: rotate(0deg)} 45% { transform: rotate(360deg)} 85% { transform: rotate(360deg)} 100% { transform: rotate(0deg)} }
         @keyframes tick-draw { to { opacity: 1; filter: blur(0); } }
         @keyframes redline-draw { to { opacity: 1; transform: scale(1); } }
@@ -549,38 +549,38 @@
             opacity: 0;
         }
 
-        /* boot animations — staggered Gundam HUD power-on */
+        /* boot animations — staggered Gundam HUD power-on (fast: total <400ms) */
         .dashboard-shell.boot .cmd-bar {
-            animation: hud-boot-bar 0.55s cubic-bezier(0.4,0,0.2,1) 0.08s forwards;
+            animation: hud-boot-bar 0.28s cubic-bezier(0.4,0,0.2,1) 0.02s forwards;
         }
         .dashboard-shell.boot .side-col:first-of-type .side-cell:nth-child(1) {
-            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.22s forwards;
+            animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.04s forwards;
         }
         .dashboard-shell.boot .side-col:first-of-type .side-cell:nth-child(2) {
-            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.28s forwards;
+            animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.06s forwards;
         }
         .dashboard-shell.boot .side-col:last-of-type .side-cell:nth-child(1) {
-            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.34s forwards;
+            animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.08s forwards;
         }
         .dashboard-shell.boot .side-col:last-of-type .side-cell:nth-child(2) {
-            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.40s forwards;
+            animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.10s forwards;
         }
         .dashboard-shell.boot .side-col:last-of-type .side-cell:nth-child(3) {
-            animation: hud-boot-card 0.5s cubic-bezier(0.4,0,0.2,1) 0.46s forwards;
+            animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.12s forwards;
         }
         .dashboard-shell.boot .speed-track {
-            animation: hud-boot-fade 0.5s ease-out 0.52s forwards;
+            animation: hud-boot-fade 0.25s ease-out 0.14s forwards;
         }
         .dashboard-shell.boot .tactical .t-card {
-            animation: hud-boot-card 0.55s cubic-bezier(0.4,0,0.2,1) 0.58s forwards;
+            animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.16s forwards;
         }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(1) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.62s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(2) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.68s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(3) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.74s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(4) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.80s forwards; }
-        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(5) { animation: hud-boot-card 0.45s cubic-bezier(0.4,0,0.2,1) 0.86s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(1) { animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.18s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(2) { animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.20s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(3) { animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.22s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(4) { animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.24s forwards; }
+        .dashboard-shell.boot .metric-group:nth-child(1) .metric-card:nth-child(5) { animation: hud-boot-card 0.28s cubic-bezier(0.4,0,0.2,1) 0.26s forwards; }
         .dashboard-shell.boot .hazard-strip {
-            animation: hud-boot-bar 0.5s cubic-bezier(0.4,0,0.2,1) 1.16s forwards;
+            animation: hud-boot-bar 0.28s cubic-bezier(0.4,0,0.2,1) 0.30s forwards;
         }
 
         @keyframes hud-boot-bar { from { opacity:0; transform: translateY(-8px); } to { opacity:1; transform: translateY(0); } }
@@ -1028,7 +1028,7 @@
                 </div>
                 <div class="gauge-core" aria-hidden="true"></div>
                 <div class="speed-readout" id="speed-gauge-btn" aria-label="Reset run">
-                    <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0.0</span>
+                    <span id="speed-display" class="speed-base font-extrabold lcd-text spd-green" aria-live="polite" aria-atomic="true">0</span>
                     <span class="speed-unit">KM/H</span>
                     <span class="gauge-caption">車両速度 // VELOCITY</span>
                     <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
@@ -1858,7 +1858,7 @@ let lastRenderTime  = performance.now();
                 displaySpeedMs = 0.0;
                 fusedLongG = 0.0; fusedLatG = 0.0; uiLongG = 0.0; uiLatG = 0.0;
                 prevGpsSpeedMs = 0.0;
-                if (dom.speed) dom.speed.textContent = "0.0";
+                if (dom.speed) dom.speed.textContent = "0";
                 prev.speed = null;
                 if (dom.speedBar) dom.speedBar.style.width = "0%";
                 prev.speedBar = null;
@@ -2040,7 +2040,7 @@ let lastRenderTime  = performance.now();
             }
 
             const displaySpeedKmph = displaySpeedMs * MS_TO_KMPH;
-            setDOM(dom.speed, 'speed', displaySpeedKmph.toFixed(1), "speed-base font-extrabold lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
+            setDOM(dom.speed, 'speed', String(Math.min(999, Math.max(0, Math.round(displaySpeedKmph)))), "speed-base font-extrabold lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
             const maxDispStr = "MAX: " + displayMaxKmph.toFixed(1);
             if (prev.displayMax !== maxDispStr) { if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = maxDispStr; prev.displayMax = maxDispStr; }
 
@@ -2180,36 +2180,44 @@ let lastRenderTime  = performance.now();
 
         async function requestIOSMotion() {
             if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
-            // iOS only grants DeviceMotion once per origin; remember the grant so a
-            // page refresh / re-install does NOT re-prompt the user every single launch.
-            try { if (localStorage.getItem('VelocityLab_ios_motion_granted') === '1') return true; } catch(e) {}
+            // Remember choice — both GRANT and GPS-ONLY — so we never re-prompt every launch.
+            try {
+                const prior = localStorage.getItem('VelocityLab_ios_motion_granted');
+                if (prior === '1') return true;
+                if (prior === '0' || prior === 'gps-only') return false;
+            } catch(e) {}
             
-            // Don't block GPS - start GPS first, show gate non-blocking
+            // Don't block GPS — show gate but auto-dismiss quickly
             if (dom.iosGate) dom.iosGate.style.display = 'flex';
             
-            // Return a promise that resolves when user grants OR after timeout
+            // Return a promise that resolves when user acts or after short timeout
             return new Promise(resolve => {
                 const timeout = setTimeout(() => {
                     if (dom.iosGate) dom.iosGate.style.display = 'none';
+                    try { localStorage.setItem('VelocityLab_ios_motion_granted', '0'); } catch(e) {}
                     resolve(false);
-                }, 10000);
+                }, 3500);
                 
                 if (dom.iosGrantBtn) dom.iosGrantBtn.addEventListener('click', async () => {
                     clearTimeout(timeout);
                     if (dom.iosGate) dom.iosGate.style.display = 'none';
                     try {
                         const ok = (await DeviceMotionEvent.requestPermission()) === 'granted';
-                        if (ok) try { localStorage.setItem('VelocityLab_ios_motion_granted', '1'); } catch(e) {}
+                        try { localStorage.setItem('VelocityLab_ios_motion_granted', ok ? '1' : '0'); } catch(e) {}
                         resolve(ok);
-                    } catch { resolve(false); }
+                    } catch {
+                        try { localStorage.setItem('VelocityLab_ios_motion_granted', '0'); } catch(e2) {}
+                        resolve(false);
+                    }
                 }, { once: true });
                 
-                // Add "Use GPS Only" button handler
+                // Add "Use GPS Only" button handler — remember choice
                 const gpsOnlyBtn = document.getElementById('ios-gps-only-btn');
                 if (gpsOnlyBtn) {
                     gpsOnlyBtn.addEventListener('click', () => {
                         clearTimeout(timeout);
                         if (dom.iosGate) dom.iosGate.style.display = 'none';
+                        try { localStorage.setItem('VelocityLab_ios_motion_granted', '0'); } catch(e) {}
                         resolve(false);
                     }, { once: true });
                 }
@@ -2267,24 +2275,24 @@ let lastRenderTime  = performance.now();
                 ];
                 demoBars.forEach((bar, i) => {
                     if (!bar) return;
-                    const go = 650 + i * 85;
-                    const back = 1250 + i * 85;
-                    setTimeout(() => { bar.style.transition = 'width 0.45s cubic-bezier(0.4,0,0.2,1)'; bar.style.width = '100%'; }, go);
+                    const go = 120 + i * 30;
+                    const back = 380 + i * 30;
+                    setTimeout(() => { bar.style.transition = 'width 0.25s cubic-bezier(0.4,0,0.2,1)'; bar.style.width = '100%'; }, go);
                     setTimeout(() => { bar.style.width = '0%'; }, back);
                     // restore JS-controlled transition after demo
-                    setTimeout(() => { bar.style.transition = ''; }, back + 500);
+                    setTimeout(() => { bar.style.transition = ''; }, back + 200);
                 });
-                // Speed readout demo — quick 0→188.8 flicker (motorcycle RPM sweep)
+                // Speed readout demo — quick 0→199 flicker (motorcycle RPM sweep) — fast, integer
                 if (dom.speed) {
                     let c = 0;
                     const iv = setInterval(() => {
-                        c += 22;
-                        if (dom.speed) dom.speed.textContent = fmt1.format(Math.min(c, 188.8));
-                        if (c >= 188.8) {
+                        c += 42;
+                        if (dom.speed) dom.speed.textContent = String(Math.min(c, 199));
+                        if (c >= 199) {
                             clearInterval(iv);
-                            setTimeout(() => { if (dom.speed) dom.speed.textContent = fmt1.format(displaySpeedMs * MS_TO_KMPH); }, 350);
+                            setTimeout(() => { if (dom.speed) dom.speed.textContent = String(Math.min(999, Math.max(0, Math.round(displaySpeedMs * MS_TO_KMPH)))); }, 180);
                         }
-                    }, 65);
+                    }, 32);
                 }
                 // --- Full LCD self-test: all segments 88 like motorcycle cluster ---
                 const lcdTest = [
@@ -2308,7 +2316,7 @@ let lastRenderTime  = performance.now();
                 // light up all metric/tactical labels briefly
                 document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = 'brightness(1.6)');
                 setTimeout(() => {
-                    // restore to live 0 state
+                    // restore to live 0 state — fast self-test
                     if (dom.distDisplay) { dom.distDisplay.textContent = fmt2.format(distanceMeters/1000) + ' KM'; dom.distDisplay.style.filter=''; }
                     if (dom.sessionTime) { dom.sessionTime.textContent = '00:00'; dom.sessionTime.style.filter=''; }
                     if (dom.liveLonG) { dom.liveLonG.textContent = '+0.00'; dom.liveLonG.style.filter=''; }
@@ -2339,8 +2347,8 @@ let lastRenderTime  = performance.now();
                     document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = '');
                     // restore prev caches so live updates repaint
                     prev.speed=null; prev.displayMax=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null;
-                }, 1250);
-            }, 100);
+                }, 450);
+            }, 20);
 
             // Auto-scale on resize/orientation change — debounced via RAF to avoid layout thrash
             let resizeRaf = null;
