@@ -73,7 +73,7 @@ self.addEventListener('fetch', event => {
 // STRATEGIES
 // ─────────────────────────────────────────────
 
-const MAX_RUNTIME = 50;
+const MAX_RUNTIME = 100;
 async function trimCache(cacheName, max) {
     const cache = await caches.open(cacheName);
     const keys = await cache.keys();

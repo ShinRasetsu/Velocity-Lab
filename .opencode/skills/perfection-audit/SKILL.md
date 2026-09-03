@@ -3,9 +3,9 @@ name: perfection-audit
 description: Use ONLY when auditing Velocity-Lab or any HUD/telemetry UI for stair-step, jank, or obvious UX regressions — triggers fluidity, interpolation, and perfection gates.
 ---
 
-# Perfection Audit — Velocity-Lab (Project-Matched, 8 Gates)
+# Perfection Audit — Velocity-Lab (Project-Matched, 9 Gates)
 
-Prevents "obvious but overlooked" bugs like KM speed / MAX stairs. This version is tuned to `index.html:1` single-file HUD — no build step — GPS+IMU 60fps `renderLoop`. For generic reuse see `ui-fluidity-audit`. Gate 8 is live Playwright if `mcp.playwright` enabled.
+Prevents "obvious but overlooked" bugs like KM speed / MAX stairs. This version is tuned to `index.html:1` single-file HUD — no build step — GPS+IMU 60fps `renderLoop`. For generic reuse see `ui-fluidity-audit`. Gate 8 is live Playwright, Gate 9 is optimization/feature/accuracy suggestions.
 
 ## When to trigger
 - Any edit to `index.html` `<script>` or `<style>` touching live telemetry, gauge, or shell
@@ -13,7 +13,7 @@ Prevents "obvious but overlooked" bugs like KM speed / MAX stairs. This version 
 - Before `git commit`, `git push`, `deploy.bat`, `verify-deploy.ps1`
 - User says `/audit`, `audit`, `perfection`, `fluidity`, `stairs`, `jank`, `smooth`
 
-## 8-Gate Flow — must pass in order, no skipping (Gate 8 live only if playwright available)
+## 9-Gate Flow — must pass in order, no skipping (Gate 8 live only if MCPs available, Gate 9 advisory)
 
 ### Gate 0 — Requirement Trace (2 min)
 Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
@@ -53,7 +53,7 @@ Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
 - WakeLock: `navigator.wakeLock.request('screen'):1405`, `visibilitychange` remove/add `devicemotion` (`index.html:1418`), `pagehide` `saveSession` (`index.html:1425`)
 - iOS gate: `#ios-gate` dialog `role=dialog` (`index.html:928`), `DeviceMotionEvent.requestPermission` (`index.html:2089`), `USE GPS ONLY` fallback (`index.html:935`), 10s timeout (`index.html:2100`)
 - Storage: `STORAGE_KEY VelocityLab_GPS_Telemetry_Data:1096`, `saveSession` on `stateDirty` 2s (`index.html:2087`), `loadSession` 24h expiry (`index.html:1300`), `purgeData`/`resetRun` clear all `display*`/`prev.*` (`index.html:1328,1788`)
-- GNSS: `GPS_STALE_MS 30000` → `currentSpeedMs=0` + `GNSS STALE` (`index.html:1889`), `GPS_MAX_DT_SEC 5.0` clamp (`index.html:1621`), `GPS_RETRY_MS` + `restartGPS` (`index.html:1869`), error `ERR: PERMISSION_DENIED/TIMEOUT` (`index.html:1721`), `gnss-alert.active` (`index.html:292,2085`)
+- GNSS: `GPS_STALE_MS 8000` → `currentSpeedMs=0` + `GNSS STALE` (`index.html:1889`), `GPS_MAX_DT_SEC 5.0` clamp (`index.html:1621`), `GPS_RETRY_MS` + `restartGPS` (`index.html:1869`), error `ERR: PERMISSION_DENIED/TIMEOUT` (`index.html:1721`), `gnss-alert.active` (`index.html:292,2085`)
 
 ### Gate 6 — Design & Layout Perfection
 - Gundam system: `--green/amber/red/cyan/purple` (`index.html:107`), `--panel` gradient, `.panel` brackets (`index.html:162`), `.scanlines` `0.12` `pointer-events:none` (`index.html:154`), `.neon-*` shadows (`index.html:94`)
@@ -82,7 +82,7 @@ Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
 
 ## How to run
 ```
-/audit              → full 8 gates (0-8, 8 is live if playwright/figma/chrome-devtools available)
+/audit              → full 9 gates (0-9, 8 live if MCPs available, 9 advisory)
 /audit-fluidity     → Gate 1 only (quick)
 /audit-fix          → auditor + auto-fix
 Verify: node tests/fluidity.test.js && node tests/telemetry.test.js && pwsh verify-deploy.ps1
@@ -94,10 +94,16 @@ Verify: node tests/fluidity.test.js && node tests/telemetry.test.js && pwsh veri
 ```
 
 ## Output format
-`PASS/FAIL` per gate with `file:line`, FAIL shows before/after snippet + `verify:` cmd. End `Perfection verdict: PASS | FAIL (x stairs, y janks, z telemetry)`.
+`PASS/FAIL` per gate with `file:line`, FAIL shows before/after snippet + `verify:` cmd. Then a **Recommendations** list (ranked, every run): `priority P0-P2` + `impact` + `effort Low/Med` + `file:line` + one-line fix. End `Perfection verdict: PASS | FAIL (x stairs, y janks, z telemetry)`.
 
 ## Advisory — UI Polish (always output, non-blocking, to catch improvements)
 Even if 0-8 PASS, auditor must suggest 2-3 lively/sharp/contrast wins: e.g., `scanlines:154` static → pulse `0.12→0.18` at 3s, `neon-* :94` `text-shadow 10px` → add `pulse 2s` on `peak-marker:390`, `hud-boot 0.28s:553` could use `spring(stiffness 500)` via `chrome-devtools` + `Figma` lively `g-force-ring 0.8s`, `prefers-contrast:more:903` `--line 0.40` could be `0.55` for sharp. List as `SUGGEST` not FAIL.
+
+### Gate 9 — Optimization & Feature & Accuracy (Advisory, must output ranked Recommendations even if PASS)
+- **Optimization:** `saveSession` idle cadence (`index.html:2240` — done 1.5s+idle), `sw.js:76` `MAX_RUNTIME` (done 100), `will-change` layers (`index.html:361` — done), font load (`index.html:20` `display=optional` vs self-host `woff2`), `peak-pulse` box-shadow paint (`index.html:419`), dead per-frame `emX/emY` (removed)
+- **Accuracy:** `GPS_STALE_MS` (`index.html:1145` — done 8000), `GPS_ACC_TRUST 4-25m` + L5/barometer altitude, `FUSION_GPS_WEIGHT` adapt >5Hz (`index.html:1550` — done), `crossFraction` linear vs quadratic (`index.html:1602`), creep gate (`index.html:1760` — done 0.3 high-conf)
+- **Features/UI:** timer ghost best (`index.html:1114` — done `BEST_KEY`), text-scale init sync (`index.html:1468` — done), landscape grid (done `orientation: landscape`), iOS re-ask expiry (`index.html:2216`), `manifest.json` shortcuts/share_target, HIG 44pt touch (`index.html:44`)
+- Rank every item `P0 (bug/risk) / P1 (real win) / P2 (polish)` with `impact` + `effort Low/Med` + `file:line`. Skip items already implemented; never re-suggest done work.
 
 ## Self-check — why stairs missed
 - Only `tests/tests.py:116` pure functions, no `renderLoop` fluidity sim
