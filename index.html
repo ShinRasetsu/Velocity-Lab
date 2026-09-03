@@ -1942,12 +1942,21 @@ let lastRenderTime  = performance.now();
                 prev.glitchN = -1;
                 // Reset localStorage
                 try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+                // Bust SW cache so updates take effect instantly (was stale-while-revalidate)
+                try {
+                    if (navigator.onLine && 'caches' in window) {
+                        caches.delete(`shell-${CACHE_VERSION}`);
+                        caches.delete(`runtime-${CACHE_VERSION}`);
+                    }
+                    if (navigator.serviceWorker) navigator.serviceWorker.getRegistration().then(r=>r && r.update()).catch(()=>{});
+                } catch(e) {}
                 stateDirty = false;
             } catch (e) {
                 console.error("purgeData error", e);
             }
             // Visual feedback - use window.alert safely
-            try { alert("Data purged. Dashboard reset to initial state."); } catch(e) { console.log("Data purged"); }
+            try { alert("Data purged. Dashboard reset — refresh to fetch latest version if online."); } catch(e) { console.log("Data purged"); }
+            try { if (navigator.onLine) location.reload(); } catch(e) {}
         }
         window.purgeData = purgeData;
 
