@@ -75,6 +75,11 @@ Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
 - **Chrome-DevTools** `mcp.chrome-devtools` — **must run**: `performance_start` → reload → `performance_stop` → `hud-boot 0.28s:553` must `<400ms` and `will-change:342,647` layer count `<12` and `CLS <0.05` else FAIL. If MCP not installed, `SKIP` does not fail 0-7, but enabled MCP not used → FAIL.
 - **Cross-check `ui-fluidity-audit`**: load `ui-fluidity-audit` skill, run its generic Gate 1 sim with project `liveIds` from `audit.config.json` (or `index.html:958-1051` inventory) — generic ratio must also `≥0.08` else FAIL. This catches faults `perfection-audit` project-specific regex misses.
 
+## Reference Library — HUDs, Motion, HIG+APCA (for Gate 6/3/7)
+- **HUDs:** `Garmin G3X` (glass avionics `--panel:114` `scanlines:154`), `AIM Solo 2` (track `timer-*:1064` `crossFraction:1505`), `MoTeC C125` (motorsport `--gauge clamp:540` `redline 306deg:383`), `F1 23`/`Gran Turismo 7` (telemetry `g-force-ring:435` `4-quadrant` `g-dot:730` trail)
+- **Motion:** `Framer Motion` `spring 500/30, damping 30` → `g-force-boot 0.8s:516` `spring(0.34,1.56)` + `hud-boot 0.28s:553` `spring`, `Lottie` `0-199` `2289` RPM sweep `32ms` `42/step`
+- **HIG+APCA:** `Apple HIG` `44pt` min `action-btn:44` `0.38×0.95rem` + `brand-mark:249` `1.15rem`, `WCAG APCA 70` vs `prefers-contrast:930` `--line 0.55` `APCA 62→75` `clr-* :68`
+
 ## How to run
 ```
 /audit              → full 8 gates (0-8, 8 is live if playwright/figma/chrome-devtools available)
@@ -85,6 +90,7 @@ Verify: node tests/fluidity.test.js && node tests/telemetry.test.js && pwsh veri
 # live: playwright → browser_navigate file://index.html + https://shinrasetsu.github.io/Velocity-Lab/index.html
 #       figma → get_design FIGMA_FILE_KEY + compare tokens 107-113,540,169
 #       chrome-devtools → performance_start + check hud-boot <400ms
+# refs: compare index.html tokens 107-113,540,169,154,94 vs Garage/F1/MoTeC Figma, motion spring, HIG 44pt, APCA 70
 ```
 
 ## Output format
