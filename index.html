@@ -17,7 +17,7 @@
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=optional">
 
     <style>
         /* ═══ VELOCITY-LAB GUNDAM HUD DESIGN SYSTEM ══════════════════════════ */
@@ -358,7 +358,7 @@
             border: 1px solid rgba(148,163,184,0.15);
             overflow: hidden;
         }
-        .g-bar-fill { height: 100%; width: 0; will-change: width; }
+        .g-bar-fill { height: 100%; width: 0; will-change: width; contain: paint; transform: translateZ(0); }
         .g-bar-fill.accel { background: linear-gradient(90deg, #00ff88, #a3ffc9); box-shadow: 0 0 8px rgba(0,255,136,0.5); }
         .g-bar-fill.brake { background: linear-gradient(90deg, #ff3366, #ff8aa8); box-shadow: 0 0 8px rgba(255,51,102,0.5); }
         .g-bar-fill.lat   { background: linear-gradient(90deg, #00bfff, #8adfff); box-shadow: 0 0 8px rgba(0,191,255,0.5); }
@@ -634,6 +634,7 @@
         #speed-display {
             font-size: 0.25em; line-height: 0.92; letter-spacing: 0.02em;
             text-shadow: 0 0 0.0375em currentColor, 0 0 0.106em currentColor;
+            font-variant-numeric: tabular-nums; display: inline-block; min-width: 3ch; text-align: center;
         }
         .speed-unit {
             margin: 0.0275em 0 0;
@@ -727,12 +728,6 @@
             position: absolute; width: 2.5rem; height: 2.5rem;
             border-radius: 9999px; border: 1px solid rgba(31,41,55,0.50);
         }
-        .g-dot {
-            position: absolute; width: 0.85rem; height: 0.85rem; border-radius: 9999px;
-            background: #00bfff; box-shadow: 0 0 10px #00bfff, 0 0 28px rgba(0,191,255,0.4);
-            will-change: transform; transition: transform 75ms linear;
-        }
-
         .g-card { flex-direction: row !important; align-items: center; gap: 0.8rem !important; }
         .g-nums { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; color: #6b7280; text-transform: uppercase; }
         .g-nums div { display: flex; justify-content: space-between; gap: 0.8rem; }
@@ -834,6 +829,9 @@
         .accent-green { border-top-color: #00ff88; }
         .accent-gray { border-top-color: #9ca3af; }
 
+        /* all-time best ghost (dim target under sprint value, reserved line = no shift) */
+        .timer-best { font-size: 0.45rem; font-weight: 700; letter-spacing: 0.1em; color: rgba(250,204,21,0.55); font-variant-numeric: tabular-nums; min-height: 0.7em; }
+
         /* LIVE tag on running sprint values (class toggled from JS) */
         .timer-lbl.live::after, .timer-mini.live::after {
             content: "LIVE";
@@ -920,6 +918,14 @@
             .stage { --gauge: clamp(5.5rem, min(42vw, 10rem, calc(100svh - 30rem)), 10rem); }
             .speed-track { margin-top: calc(var(--gauge) * 0.06); }
             .side-val { font-size: 0.8rem; }
+        }
+
+        /* landscape: gauge center, session left, G-loads right */
+        @media (orientation: landscape) and (min-width: 600px) {
+            .stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
+            .side-col:first-of-type { order: 0; grid-template-columns: minmax(0, 1fr); }
+            .gauge-wrap { order: 1; }
+            .side-col:last-of-type { order: 2; grid-template-columns: minmax(0, 1fr); }
         }
 
         @media (prefers-reduced-transparency) {
@@ -1009,15 +1015,16 @@
 <div class="cmd-sys" aria-live="polite">
             <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
-            <button id="text-scale-btn" class="action-btn gap-1.5" onclick="toggleTextScale()" aria-label="Toggle text scale" title="Text size: 100% → 125% → 150%">A 100%</button>
+            <button id="text-scale-btn" class="action-btn gap-1.5" aria-label="Toggle text scale" title="Text size: 100% → 125% → 150%">A 100%</button>
             <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS">⟳ GPS</button>
+            <button id="export-btn" class="action-btn gap-1.5 neon-blue" onclick="exportRun()" aria-label="Export run CSV" title="Download run summary CSV">CSV</button>
             <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
         </div>
         </div>
     </header>
 
-    <!-- GNSS LOSS ALERT -->
-    <div id="gnss-alert" class="gnss-alert" role="alert">⚠ GNSS SIGNAL LOST — 再取得中 // REACQUIRING</div>
+    <!-- GNSS LOSS ALERT (tap to dismiss until next signal change) -->
+    <div id="gnss-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ GNSS SIGNAL LOST — 再取得中 // REACQUIRING</div>
 
     <!-- MAIN STAGE -->
     <main class="stage" aria-label="Dashboard">
@@ -1111,11 +1118,11 @@
         <div class="metric-group" aria-label="Sprint Timers">
             <span class="metric-group-label">スプリント // SPRINT TIMERS</span>
             <div class="metric-grid">
-                <div class="metric-card accent-orange"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 MPH</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 KM/H</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 KM/H</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 MILE</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span></div>
-                <div class="metric-card accent-gray col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0M BRAKING DIST</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span></div>
+                <div class="metric-card accent-orange"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-60 MPH</span><span id="timer-0-60" class="timer-lbl text-orange-400 lcd-text" aria-live="polite">--.--- s</span><span id="best-0-60" class="timer-best" aria-hidden="true"></span></div>
+                <div class="metric-card accent-blue"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">0-100 KM/H</span><span id="timer-0-100" class="timer-lbl clr-blue lcd-text" aria-live="polite">--.--- s</span><span id="best-0-100" class="timer-best" aria-hidden="true"></span></div>
+                <div class="metric-card accent-purple"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-200 KM/H</span><span id="timer-100-200" class="timer-lbl clr-purple lcd-text" aria-live="polite">--.--- s</span><span id="best-100-200" class="timer-best" aria-hidden="true"></span></div>
+                <div class="metric-card accent-yellow"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">1/4 MILE</span><span id="timer-quarter" class="timer-lbl text-yellow-400 lcd-text" aria-live="polite">--.--- s</span><span id="best-quarter" class="timer-best" aria-hidden="true"></span></div>
+                <div class="metric-card accent-gray col-span-2"><span class="metric-caption text-gray-500 uppercase font-bold tracking-wider mb-1">100-0M BRAKING DIST</span><span id="timer-100-0" class="timer-mini text-gray-400 lcd-text" aria-live="polite">-- m</span><span id="best-100-0" class="timer-best" aria-hidden="true"></span></div>
             </div>
             <!-- hidden peaks kept for JS (already mirrored in live G // max) -->
             <div style="display:none"><span id="peak-g">0.00 G</span><span id="brake-score">0.00 G</span><span id="peak-lat-g-metric">0.00 G</span><span id="peak-lon-g-metric">0.00 G</span></div>
@@ -1140,10 +1147,11 @@
         const QUARTER_MILE_METERS  = 402.336;
         const IMU_ALPHA            = 0.15;
         const SPEED_ZERO_SNAP_KMPH = 1.5;
-        const GPS_STALE_MS         = 30000;   
+        const GPS_STALE_MS         = 8000;
         const GPS_MAX_DT_SEC       = 5.0;    
         const GPS_RETRY_MS         = 10000;
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
+        const BEST_KEY             = "VelocityLab_AllTime_Best";
 
         // -- sensor fusion / accuracy optimization --
         const GPS_ACC_TRUST_MIN_M    = 4.0;
@@ -1214,6 +1222,7 @@ let lastRenderTime  = performance.now();
         let maxGpsAccelG    = 0.0;
         let maxGpsLatG      = 0.0;
         let stateDirty      = false;
+        let allTimeBest     = {};
 
         const timer0_60    = { state: T_IDLE, start: 0, result: 0 };
         const timer0_100   = { state: T_IDLE, start: 0, result: 0 };
@@ -1284,6 +1293,12 @@ let lastRenderTime  = performance.now();
             gForceRing:   document.querySelector('.g-force-ring'),
             textScaleBtn: document.getElementById('text-scale-btn'),
             bestMarker:   document.getElementById('best-marker'),
+            exportBtn:    document.getElementById('export-btn'),
+            best060:      document.getElementById('best-0-60'),
+            best0100:     document.getElementById('best-0-100'),
+            best100200:   document.getElementById('best-100-200'),
+            bestQuarter:  document.getElementById('best-quarter'),
+            best1000:     document.getElementById('best-100-0'),
         };
 
         const prev = {
@@ -1303,6 +1318,7 @@ let lastRenderTime  = performance.now();
 
         // Session clock anchor: set when tracking initialises.
         let sessionStartMs = -1;
+        let gnssDismissed = false;
 
         // ─── HELPERS ──────────────────────────────────────────────────────────────
         function setDOM(el, key, val, baseCls = null, dynCls = null) {
@@ -1372,6 +1388,8 @@ let lastRenderTime  = performance.now();
                 if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', fmt3.format(data.tQuarter / 1000) + " s", CLS_TIMER_BASE, "text-yellow-400 neon-warning"); }
                 if (data.t100_0) { timer100_0.result = data.t100_0; setDOM(dom.t100_0, 't100_0', fmt1.format(data.t100_0) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger"); }
                 
+                loadAllTimeBest();
+                refreshTimerGhosts();
                 evaluateAndRenderScore();
             } catch (e) { console.warn("Failed to load session"); }
         }
@@ -1380,6 +1398,7 @@ let lastRenderTime  = performance.now();
         function resetRun() {
             distanceMeters  = 0.0;
             displayDistanceM = 0.0;
+            gnssDismissed = false;
             maxSpeedKmph    = 0.0;
             displayMaxKmph  = 0.0;
             lastGpsConfidence = 0.0;
@@ -1422,17 +1441,18 @@ let lastRenderTime  = performance.now();
             prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
             prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
 
-            timer0_60.state = T_IDLE;
-            timer0_100.state = T_IDLE;
-            timer100_200.state = T_IDLE;
-            timerQuarter.state = T_IDLE;
-            timer100_0.state = T_IDLE;
+            timer0_60.state = T_IDLE; timer0_60.result = 0;
+            timer0_100.state = T_IDLE; timer0_100.result = 0;
+            timer100_200.state = T_IDLE; timer100_200.result = 0;
+            timerQuarter.state = T_IDLE; timerQuarter.result = 0; timerQuarter.startDist = 0;
+            timer100_0.state = T_IDLE; timer100_0.result = 0; timer100_0.startDist = 0;
 
             setDOM(dom.t0_60, 't0_60', "--.--- s", CLS_TIMER_BASE, "text-orange-400");
             setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "clr-blue");
             setDOM(dom.t100_200, 't100_200', "--.--- s", CLS_TIMER_BASE, "clr-purple");
             setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
             setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
+            refreshTimerGhosts();
             
             if (dom.peakG) dom.peakG.textContent      = "0.00 G";
             if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.00";
@@ -1459,6 +1479,7 @@ let lastRenderTime  = performance.now();
         if (dom.textScaleBtn) dom.textScaleBtn.addEventListener('click', toggleTextScale);
 
         // Restore text scale from localStorage — survives shutdown/close/reinstall (same origin)
+        // If no saved value, sync with CSS media auto-scale so the first tap steps visibly
         try {
             const saved = localStorage.getItem('VelocityLab_text_scale');
             if (saved) {
@@ -1468,8 +1489,12 @@ let lastRenderTime  = performance.now();
                     document.documentElement.style.setProperty('--text-scale', s);
                     if (dom.textScaleBtn) dom.textScaleBtn.textContent = fmtScale(s);
                 }
-            } else if (dom.textScaleBtn) {
-                dom.textScaleBtn.textContent = fmtScale(prev.textScale);
+            } else {
+                const cs = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--text-scale')) || 1;
+                let best = 1;
+                for (const v of [1, 1.25, 1.5]) { if (Math.abs(v - cs) < Math.abs(best - cs)) best = v; }
+                prev.textScale = best;
+                if (dom.textScaleBtn) dom.textScaleBtn.textContent = fmtScale(best);
             }
         } catch(e) {}
 
@@ -1547,9 +1572,9 @@ let lastRenderTime  = performance.now();
             // 2. Nudge the live fused estimate toward the GPS-derived G sample,
             //    weighted by GPS quality. At low accuracy this is a no-op; at high
             //    accuracy it corrects short-term IMU drift and suppresses bias overshoot.
-            const w = FUSION_GPS_WEIGHT * confidence;
-            fusedLongG = (1 - w) * fusedLongG + w * gpsLongG;
-            fusedLatG  = (1 - w) * fusedLatG  + w * gpsLatG;
+            const wEff = (typeof gpsHzSmooth === 'number' && gpsHzSmooth > 5 ? 0.15 : FUSION_GPS_WEIGHT) * confidence;
+            fusedLongG = (1 - wEff) * fusedLongG + wEff * gpsLongG;
+            fusedLatG  = (1 - wEff) * fusedLatG  + wEff * gpsLatG;
         }
 
         function updateFusionStatusUI() {
@@ -1699,6 +1724,46 @@ let lastRenderTime  = performance.now();
             lastTimerSpeedKmh = speedKmh;
             lastTimerDistM    = distanceM;
             lastTimerTimeMs   = nowMs;
+
+            // All-time bests (lower wins): idempotent, only improves
+            noteTimerBest('t060', timer0_60.result, false);
+            noteTimerBest('t0100', timer0_100.result, false);
+            noteTimerBest('t100200', timer100_200.result, false);
+            noteTimerBest('tQ', timerQuarter.result, false);
+            noteTimerBest('t1000', timer100_0.result, true);
+        }
+
+        function loadAllTimeBest() {
+            try {
+                const raw = localStorage.getItem(BEST_KEY);
+                if (!raw) { allTimeBest = {}; return; }
+                const data = JSON.parse(raw);
+                allTimeBest = (data && typeof data.v === 'object' && data.v) ? data.v : {};
+            } catch (e) { allTimeBest = {}; }
+        }
+
+        function noteTimerBest(key, val, isDist) {
+            if (!(val > 0)) return;
+            const prevBest = allTimeBest[key];
+            if (typeof prevBest !== 'number' || val < prevBest) {
+                allTimeBest[key] = val;
+                try { localStorage.setItem(BEST_KEY, JSON.stringify({ v: allTimeBest, ts: Date.now() })); } catch (e) {}
+                refreshTimerGhosts();
+            }
+        }
+
+        function setGhost(el, key, result, best, isDist) {
+            let txt = "";
+            if (!(result > 0) && best > 0) txt = "BEST " + (isDist ? fmt1.format(best) + " m" : fmt3.format(best / 1000) + " s");
+            setDOM(el, key, txt);
+        }
+
+        function refreshTimerGhosts() {
+            setGhost(dom.best060, 'best060', timer0_60.result, allTimeBest.t060, false);
+            setGhost(dom.best0100, 'best0100', timer0_100.result, allTimeBest.t0100, false);
+            setGhost(dom.best100200, 'best100200', timer100_200.result, allTimeBest.t100200, false);
+            setGhost(dom.bestQuarter, 'bestQuarter', timerQuarter.result, allTimeBest.tQ, false);
+            setGhost(dom.best1000, 'best1000', timer100_0.result, allTimeBest.t1000, true);
         }
 
         function onPositionSuccess(position) {
@@ -1757,7 +1822,7 @@ let lastRenderTime  = performance.now();
                     if (gpsLongGBuffer.length > 5) gpsLongGBuffer.shift();
                     const sorted = gpsLongGBuffer.slice().sort(function(a,b){return a-b;});
                     const rawGpsLongG = sorted[Math.floor(sorted.length/2)];
-                    if (gpsSpeedMs > 0.5) distanceMeters += gpsSpeedMs * gpsDt;
+                    if (gpsSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += gpsSpeedMs * gpsDt;
                     updateImuFusionFromGps(rawGpsLongG, rawGpsLatG, conf);
                     prevGpsSpeedMs = gpsSpeedMs;
                     currentSpeedMs = gpsSpeedMs;
@@ -1865,6 +1930,7 @@ let lastRenderTime  = performance.now();
                 // Reset G-meter peaks and prev caches
                 maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
                 maxSpeedKmph = 0.0; displayMaxKmph = 0.0; lastGpsConfidence = 0.0;
+                gnssDismissed = false;
                 prev.peakG = null; prev.brakeScore = null; prev.displayMax = null;
                 prev.peakLatGMetric = null; prev.peakLonGMetric = null;
                 // Reset session clock
@@ -1948,8 +2014,11 @@ let lastRenderTime  = performance.now();
                 confidenceSum = 0; confidenceSamples = 0;
                 if (dom.glitchCount) dom.glitchCount.textContent = "0";
                 prev.glitchN = -1;
-                // Reset localStorage
+                // Reset localStorage (session + all-time bests)
                 try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+                try { localStorage.removeItem(BEST_KEY); } catch(e) {}
+                allTimeBest = {};
+                refreshTimerGhosts();
                 // Bust SW cache so updates take effect instantly (was stale-while-revalidate)
                 try {
                     if (navigator.onLine && 'caches' in window) {
@@ -1978,6 +2047,41 @@ let lastRenderTime  = performance.now();
             }
         }
         window.restartGPS = restartGPS;
+
+        function exportRun() {
+            try {
+                const score = calculateVehicleScore();
+                const rows = [
+                    ["metric", "value"],
+                    ["maxSpeedKmph", maxSpeedKmph.toFixed(1)],
+                    ["distanceKm", (distanceMeters / 1000).toFixed(2)],
+                    ["maxAccelG", maxGpsAccelG.toFixed(2)],
+                    ["maxBrakingG", bestGpsBrakingG.toFixed(2)],
+                    ["maxLatG", maxGpsLatG.toFixed(2)],
+                    ["t0_60_s", timer0_60.result ? (timer0_60.result / 1000).toFixed(3) : ""],
+                    ["t0_100_s", timer0_100.result ? (timer0_100.result / 1000).toFixed(3) : ""],
+                    ["t100_200_s", timer100_200.result ? (timer100_200.result / 1000).toFixed(3) : ""],
+                    ["tQuarter_s", timerQuarter.result ? (timerQuarter.result / 1000).toFixed(3) : ""],
+                    ["t100_0_m", timer100_0.result ? timer100_0.result.toFixed(1) : ""],
+                    ["vScore", score.total + "/70"],
+                    ["glitches", String(gpsGlitchCount)]
+                ];
+                const csv = rows.map(function(r){ return r.join(","); }).join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "velocity-lab-run.csv";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function(){ try { URL.revokeObjectURL(a.href); a.remove(); } catch(e) {} }, 500);
+            } catch (e) { console.warn("export failed", e); }
+        }
+        window.exportRun = exportRun;
+
+        if (dom.gnssAlert) dom.gnssAlert.addEventListener('click', function() {
+            gnssDismissed = true;
+            try { dom.gnssAlert.classList.remove("active"); dom.gnssAlert.style.display = "none"; } catch (e) {}
+        });
 
         function renderLoop() {
             const now = performance.now();
@@ -2091,11 +2195,7 @@ let lastRenderTime  = performance.now();
             if (prev.liveLatG !== latStr) { if (dom.liveLatG) dom.liveLatG.textContent = latStr; prev.liveLatG = latStr; }
             if (prev.liveLonG !== lonStr) { if (dom.liveLonG) dom.liveLonG.textContent = lonStr; prev.liveLonG = lonStr; }
 
-            // G-vector inside gauge (em units relative to gauge size)
             const gMax = 1.5;
-            const emX = Math.max(-0.35, Math.min(0.35, (uiLatG  / gMax) * 0.35));
-            const emY = Math.max(-0.35, Math.min(0.35, (-uiLongG / gMax) * 0.35));
-            const gv  = `translate(${emX.toFixed(3)}em, ${emY.toFixed(3)}em)`;
 
             // G-magnitude arc display
             const gMag = Math.hypot(uiLatG, uiLongG);
@@ -2194,12 +2294,21 @@ let lastRenderTime  = performance.now();
             updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, now);
             updateLiveBrake();
 
-            // GNSS loss banner
-            if (prev.alertOn !== gnssStale) { if (dom.gnssAlert) dom.gnssAlert.classList.toggle("active", gnssStale); prev.alertOn = gnssStale; }
+            // GNSS loss banner (tap to dismiss until next signal change)
+            if (prev.alertOn !== gnssStale) {
+                if (!gnssStale) { gnssDismissed = false; if (dom.gnssAlert) dom.gnssAlert.style.display = ""; }
+                if (dom.gnssAlert && !(gnssStale && gnssDismissed)) dom.gnssAlert.classList.toggle("active", gnssStale);
+                prev.alertOn = gnssStale;
+            }
 
             if (stateDirty) {
                 evaluateAndRenderScore();
-                if (now - lastSaveTime >= 2000) { saveSession(); lastSaveTime = now; }
+                refreshTimerGhosts();
+                if (now - lastSaveTime >= 1500) {
+                    lastSaveTime = now;
+                    if (typeof requestIdleCallback === 'function') { try { requestIdleCallback(function(){ saveSession(); }, { timeout: 1000 }); } catch(e) { saveSession(); } }
+                    else { saveSession(); }
+                }
             }
             lastRenderTime = now;
             if (gnssStale) {
@@ -2259,6 +2368,8 @@ let lastRenderTime  = performance.now();
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
             sessionStartMs = performance.now();
             loadSession();
+            loadAllTimeBest();
+            refreshTimerGhosts();
             
             // Check GPS permission status first (non-blocking)
             try {
