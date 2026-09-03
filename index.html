@@ -89,7 +89,7 @@
         .tile-lbl { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .score-total { font-size: 1.7rem; font-weight: 800; line-height: 1; }
         .score-rdout { font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .metric-caption { font-size: 0.58rem; }
+        .metric-caption { font-size: 0.65rem; }
 
         .neon-accent { text-shadow: 0 0 10px rgba(0,255,136,0.5); }
         .neon-warning { text-shadow: 0 0 10px rgba(255,170,0,0.5); }
@@ -172,12 +172,12 @@
         .panel { position: relative; background: var(--panel); border: 1px solid var(--line); }
         .panel::before, .panel::after {
             content: "";
-            position: absolute; width: 0.7rem; height: 0.7rem;
-            border-color: rgba(0,255,136,0.6); border-style: solid;
+            position: absolute; width: 0.9rem; height: 0.9rem;
+            border-color: rgba(0,255,136,0.65); border-style: solid;
             pointer-events: none;
         }
-        .panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-        .panel::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+        .panel::before { top: -1px; left: -1px; border-width: 2.5px 0 0 2.5px; }
+        .panel::after  { bottom: -1px; right: -1px; border-width: 0 2.5px 2.5px 0; }
 
         /* amber section tag, e.g. "計測中 // LIVE RUN" */
         .t-lbl {
@@ -227,7 +227,7 @@
             display: flex;
             flex-direction: column;
             align-items: stretch;
-            gap: 0.15rem;
+            gap: 0.25rem;
             padding: 0.25rem 0.5rem;
         }
         .cmd-bar::after { display: none; }
@@ -259,7 +259,7 @@
 
         .action-rail {
             display: flex; flex-direction: row; flex-wrap: nowrap;
-            align-items: center; gap: 0.2rem;
+            align-items: center; gap: 0.35rem;
         }
         .action-rail button {
             min-height: 1.3rem;
@@ -324,7 +324,7 @@
             order: 1;
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.35rem;
+            gap: 0.5rem;
         }
         .gauge-wrap { order: 2; align-self: center; }
         .speed-track { width: 100%; margin-top: 0.55rem; }
@@ -338,13 +338,13 @@
             padding: 0.32rem 0.35rem;
             background: var(--panel);
             border: 1px solid var(--line);
-            border-top: 2px solid rgba(0,255,136,0.45);
+            border-top: 3px solid rgba(0,255,136,0.65);
             text-align: center;
         }
-        .side-col:last-of-type .side-cell { border-top-color: rgba(0,191,255,0.45); }
+        .side-col:last-of-type .side-cell { border-top-color: rgba(0,191,255,0.65); }
 .side-lbl {
-            display: block; font-size: 0.45rem; font-weight: 800;
-            letter-spacing: 0.1em; text-transform: uppercase; color: #6b7280;
+            display: block; font-size: 0.5rem; font-weight: 800;
+            letter-spacing: 0.12em; text-transform: uppercase; color: #6b7280;
             margin-bottom: 0.12rem;
         }
         .side-val { display: block; font-size: 0.88rem; font-weight: 800; }
@@ -375,12 +375,12 @@
             display: flex; align-items: center; justify-content: center;
         }
 
-        /* tick ring: fine marks every 6deg, heavy marks every 30deg */
+        /* tick ring: fine marks every 6deg, heavy marks every 30deg — sharper per Figma */
         .gauge-ticks {
             position: absolute; inset: 0; border-radius: 50%;
             background:
-                repeating-conic-gradient(from -90deg, rgba(148,163,184,0.4) 0deg 0.4deg, transparent 0.4deg 6deg),
-                repeating-conic-gradient(from -90deg, rgba(148,163,184,0.65) 0deg 0.8deg, transparent 0.8deg 30deg);
+                repeating-conic-gradient(from -90deg, rgba(148,163,184,0.55) 0deg 0.4deg, transparent 0.4deg 6deg),
+                repeating-conic-gradient(from -90deg, rgba(148,163,184,0.75) 0deg 0.8deg, transparent 0.8deg 30deg);
             -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.075em), #000 calc(100% - 0.068em));
             mask: radial-gradient(closest-side, transparent calc(100% - 0.075em), #000 calc(100% - 0.068em));
             contain: paint; transform: translateZ(0);
@@ -660,8 +660,8 @@
 
         /* linear speed track with threshold zone marks (60mph / 100kmh) */
         .speed-track {
-            width: min(100%, calc(var(--gauge) * 1.3));
-            height: 0.5rem;
+            width: min(100%, calc(var(--gauge) * 1.4));
+            height: 0.6rem;
             margin-top: calc(var(--gauge) * 0.05);
             overflow: hidden;
             position: relative;
@@ -670,7 +670,7 @@
             background:
                 repeating-linear-gradient(90deg, rgba(148,163,184,0.13) 0 1px, transparent 1px 25%),
                 rgba(15,23,42,0.82);
-            box-shadow: inset 0 1px 4px rgba(0,0,0,0.65);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.65);
         }
         .speed-bar-fill {
             position: absolute; top: 0; left: 0; height: 100%;
@@ -707,7 +707,7 @@
             position: relative;
             width: 4.9rem; height: 4.9rem;
             border-radius: 999px;
-            border: 2px solid rgba(148,163,184,0.34);
+            border: 2.5px solid rgba(148,163,184,0.38);
             background:
                 repeating-conic-gradient(from 0deg, rgba(148,163,184,0.16) 0deg 1deg, transparent 1deg 15deg),
                 radial-gradient(circle at 50% 42%, rgba(0,191,255,0.09), #000 68%);
@@ -728,8 +728,8 @@
             border-radius: 9999px; border: 1px solid rgba(31,41,55,0.50);
         }
         .g-dot {
-            position: absolute; width: 0.75rem; height: 0.75rem; border-radius: 9999px;
-            background: #00bfff; box-shadow: 0 0 8px #00bfff, 0 0 22px rgba(0,191,255,0.35);
+            position: absolute; width: 0.85rem; height: 0.85rem; border-radius: 9999px;
+            background: #00bfff; box-shadow: 0 0 10px #00bfff, 0 0 28px rgba(0,191,255,0.4);
             will-change: transform; transition: transform 75ms linear;
         }
 
@@ -763,7 +763,7 @@
         }
         .v-row .score-rdout { text-align: right; font-size: 0.7rem; }
         .v-bar { height: 0.3rem; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.15); overflow: hidden; }
-        .v-bar-fill { height: 100%; width: 0; transition: width 300ms ease-out; }
+        .v-bar-fill { height: 100%; width: 0; transition: width 450ms cubic-bezier(0.34, 1.56, 0.64, 1); }
         .v-spd { background: var(--green); box-shadow: 0 0 6px rgba(0,255,136,0.5); }
         .v-acc { background: var(--cyan); box-shadow: 0 0 6px rgba(0,191,255,0.5); }
         .v-brk { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.5); }
@@ -848,19 +848,19 @@
         .hazard-strip {
             display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
             padding-top: 0.22rem;
-            border-top: 3px solid transparent;
-            border-image: repeating-linear-gradient(45deg, rgba(250,204,21,0.5) 0 8px, rgba(10,10,10,0.9) 8px 16px) 3;
+            border-top: 4px solid transparent;
+            border-image: repeating-linear-gradient(45deg, rgba(250,204,21,0.6) 0 8px, rgba(10,10,10,0.9) 8px 16px) 4;
             font-size: 0.46rem; font-weight: 700; letter-spacing: 0.16em;
-            text-transform: uppercase; color: rgba(148,163,184,0.5);
+            text-transform: uppercase; color: rgba(148,163,184,0.55);
         }
-        .hazard-right { color: rgba(255,170,0,0.7); }
+        .hazard-right { color: rgba(255,170,0,0.8); }
 
         .version-tag {
             text-align: center;
-            font-size: 0.38rem;
+            font-size: 0.45rem;
             font-weight: 700;
             letter-spacing: 0.14em;
-            color: rgba(148,163,184,0.35);
+            color: rgba(148,163,184,0.45);
             padding: 0.12rem 0 0;
             text-transform: uppercase;
             line-height: 1;
@@ -870,7 +870,7 @@
         /* tactical row: shrinkable columns — compact so bottom fits 100svh */
         .tactical { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; gap: 0.30rem; align-items: start; margin-bottom: 0.08rem; }
         .t-card { 
-            padding: 0.32rem 0.45rem; gap: 0.18rem; 
+            padding: 0.45rem 0.6rem; gap: 0.28rem; 
             display: flex; flex-direction: column; 
             height: auto; 
             justify-content: center;
@@ -881,7 +881,7 @@
             justify-content: center; align-items: center;
             flex-wrap: wrap;
         }
-        .g-meter-dial { width: 3.8rem; height: 3.8rem; margin: 0 auto; flex-shrink: 0; }
+        .g-meter-dial { width: 4.0rem; height: 4.0rem; margin: 0 auto; flex-shrink: 0; }
         .g-meter-dial::after { width: 2.6rem; height: 2.6rem; }
         .g-nums { font-size: 0.52rem; gap: 0.2rem; margin-top: auto; text-align: center; min-width: 0; width: 100%; }
         .g-nums div { gap: 0.5rem; }
@@ -893,7 +893,7 @@
         .run-name { font-size: 0.7rem; }
         .run-hint { display: none; }
         .score-card { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; }
-        .score-total { font-size: 1.22rem; line-height: 0.95; }
+        .score-total { font-size: 1.35rem; line-height: 0.95; }
         .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.18rem; justify-content: center; }
 
         /* metric footer — even more compact, header lifted */
