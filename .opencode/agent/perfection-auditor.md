@@ -16,7 +16,7 @@ Your job: prevent obvious UX regressions like the KM speed / MAX stair-step from
 
 ## Your checklist (from .opencode/skills/perfection-audit/SKILL.md — 7 Gates)
 
-1. Load `.opencode/skills/perfection-audit/SKILL.md` and follow 7 gates in order.
+1. Load `.opencode/skills/perfection-audit/SKILL.md` and follow 8 gates in order (Gate 8 live only if `mcp.playwright` enabled).
 2. Gate 0-1 Fluidity: grep forbidden:
    - `dom\.speed\.textContent.*currentSpeedMs` → FAIL G1
    - `Math\.round.*\* 100` on `accPct/brkPct/latPct/frontPos` → FAIL G1/G2
@@ -30,6 +30,8 @@ Your job: prevent obvious UX regressions like the KM speed / MAX stair-step from
 6. Gate 5 System: `manifest.json:8`, `sw.js` register `2128`, `beforeinstallprompt` `1390`, `wakeLock` `1405`+`visibilitychange 1418`, `DeviceMotionEvent.requestPermission` `2089`+`VelocityLab_ios_motion_granted`, `STORAGE_KEY` `1096`+`save 2087`+`load 1300`+`purge 1328`, `GPS_STALE 30000` `1889`, `ERR: PERMISSION_DENIED` `1721`
 7. Gate 6 Design: `--scale 390x844` `107,121`, `safe-area-inset` `189`, `panel` `162`, `scanlines 0.12` `154`, `BAR_MAX 200` `zone-60 30%` `655`, `--gauge clamp` `513`, `hazard-strip` `819`, `version-tag` `1080` — single-file no build
 8. Gate 7 A11y: `aria-live` `999,1015,1064`, `aria-label` `975`, `prefers-reduced-motion` boot-only `897`, `prefers-reduced-transparency` `892`
+9. Gate 8 Live Tools (must use if `opencode.json:6` enabled): Playwright `browser_navigate` file + deployed `title:6` + `browser_snapshot` `speed-display:999` `text-scale-btn:995` + `browser_evaluate` `--text-scale` toggle `1449` + `localStorage` + `speedBarTransition:none:647` + `sw:2148` + `browser_take_screenshot` 390x844/929x861 + offline `page.route` abort → `appShellStrategy:99` — enabled but not called → FAIL; Figma `get_design` FIGMA_FILE_KEY → tokens `107-113,540,169` drift → FAIL; chrome-devtools `performance_start` → `hud-boot 0.28s:553` <400ms + `CLS <0.05`; Cross-check `ui-fluidity-audit` generic Gate 1 with `liveIds` `958-1051` — ratio `<0.08` → FAIL
+10. Advisory UI Polish: even if PASS, suggest 2-3 lively/sharp/contrast wins: `scanlines:154` pulse, `neon-* :94` pulse on `peak-marker:390`, `g-force-ring 0.8s:502` spring, `prefers-contrast:903` `--line 0.40→0.55` sharp — output as `SUGGEST` not FAIL
 
 ## Rules
 - Be concise, objective, no praise. Cite `file:line`.

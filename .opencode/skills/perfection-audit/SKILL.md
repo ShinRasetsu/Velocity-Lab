@@ -3,9 +3,9 @@ name: perfection-audit
 description: Use ONLY when auditing Velocity-Lab or any HUD/telemetry UI for stair-step, jank, or obvious UX regressions — triggers fluidity, interpolation, and perfection gates.
 ---
 
-# Perfection Audit — Velocity-Lab (Project-Matched, 7 Gates)
+# Perfection Audit — Velocity-Lab (Project-Matched, 8 Gates)
 
-Prevents "obvious but overlooked" bugs like KM speed / MAX stairs. This version is tuned to `index.html:1` single-file HUD — no build step — GPS+IMU 60fps `renderLoop`. For generic reuse see `ui-fluidity-audit`.
+Prevents "obvious but overlooked" bugs like KM speed / MAX stairs. This version is tuned to `index.html:1` single-file HUD — no build step — GPS+IMU 60fps `renderLoop`. For generic reuse see `ui-fluidity-audit`. Gate 8 is live Playwright if `mcp.playwright` enabled.
 
 ## When to trigger
 - Any edit to `index.html` `<script>` or `<style>` touching live telemetry, gauge, or shell
@@ -13,7 +13,7 @@ Prevents "obvious but overlooked" bugs like KM speed / MAX stairs. This version 
 - Before `git commit`, `git push`, `deploy.bat`, `verify-deploy.ps1`
 - User says `/audit`, `audit`, `perfection`, `fluidity`, `stairs`, `jank`, `smooth`
 
-## 7-Gate Flow — must pass in order, no skipping
+## 8-Gate Flow — must pass in order, no skipping (Gate 8 live only if playwright available)
 
 ### Gate 0 — Requirement Trace (2 min)
 Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
@@ -69,17 +69,29 @@ Map every live DOM id to source Hz. GPS-rate (1-10Hz) must not hit DOM directly.
 - `prefers-reduced-transparency` disables `text-shadow` (`index.html:892`)
 - `focus-visible` outline `var(--green)` (`index.html:54`), `touch-action: pan-y` `overscroll:none` (`index.html:144`), `color-contrast` `clr-*` utilities stable (`index.html:68`)
 
+### Gate 8 — Live Tools (must use MCPs if `opencode.json:6` enabled — finds faults static can't)
+- **Playwright** `mcp.playwright` — **must run**: `browser_navigate` `file://.../index.html` + `https://shinrasetsu.github.io/Velocity-Lab/index.html` `index.html:8` must both `title: Velocity-Lab Telemetry` `index.html:6` else FAIL; `browser_snapshot` must show `speed-display:999` `0` integer + `text-scale-btn:995` `A 100%` amber `289` + `hasBestMarker:1032` else FAIL; `browser_evaluate` must toggle `A 100%→A 150%` `140` persists `localStorage:VelocityLab_text_scale` `960` and `speedBarTransition:none:647` `will-change:width:648` and `sw.controller:2148` true else FAIL; `browser_take_screenshot` `390×844` + `929×861` must show `panel:169` brackets + `hazard:819` + `scanlines:154` else FAIL; offline `page.route` abort → must still render `appShellStrategy:99` else FAIL. If MCP enabled but not called → FAIL Gate 8.
+- **Figma** `mcp.figma` `FIGMA_KEY` — **must run** if `FIGMA_FILE_KEY` set: `get_design`/`get_code` → tokens `--green/amber/red/cyan/purple:107-113`, `--panel:114`, `--gauge clamp:540`, `panel brackets:169`, `neon-* :94` must exactly match `index.html` — drift `>2%` → FAIL `file:line` diff; if no `FIGMA_FILE_KEY`, `SKIP` with `set FIGMA_FILE_KEY` hint.
+- **Chrome-DevTools** `mcp.chrome-devtools` — **must run**: `performance_start` → reload → `performance_stop` → `hud-boot 0.28s:553` must `<400ms` and `will-change:342,647` layer count `<12` and `CLS <0.05` else FAIL. If MCP not installed, `SKIP` does not fail 0-7, but enabled MCP not used → FAIL.
+- **Cross-check `ui-fluidity-audit`**: load `ui-fluidity-audit` skill, run its generic Gate 1 sim with project `liveIds` from `audit.config.json` (or `index.html:958-1051` inventory) — generic ratio must also `≥0.08` else FAIL. This catches faults `perfection-audit` project-specific regex misses.
+
 ## How to run
 ```
-/audit              → full 7 gates (0-7)
+/audit              → full 8 gates (0-8, 8 is live if playwright/figma/chrome-devtools available)
 /audit-fluidity     → Gate 1 only (quick)
 /audit-fix          → auditor + auto-fix
 Verify: node tests/fluidity.test.js && node tests/telemetry.test.js && pwsh verify-deploy.ps1
 # python alternative: python tests/tests.py (same as node telemetry)
+# live: playwright → browser_navigate file://index.html + https://shinrasetsu.github.io/Velocity-Lab/index.html
+#       figma → get_design FIGMA_FILE_KEY + compare tokens 107-113,540,169
+#       chrome-devtools → performance_start + check hud-boot <400ms
 ```
 
 ## Output format
 `PASS/FAIL` per gate with `file:line`, FAIL shows before/after snippet + `verify:` cmd. End `Perfection verdict: PASS | FAIL (x stairs, y janks, z telemetry)`.
+
+## Advisory — UI Polish (always output, non-blocking, to catch improvements)
+Even if 0-8 PASS, auditor must suggest 2-3 lively/sharp/contrast wins: e.g., `scanlines:154` static → pulse `0.12→0.18` at 3s, `neon-* :94` `text-shadow 10px` → add `pulse 2s` on `peak-marker:390`, `hud-boot 0.28s:553` could use `spring(stiffness 500)` via `chrome-devtools` + `Figma` lively `g-force-ring 0.8s`, `prefers-contrast:more:903` `--line 0.40` could be `0.55` for sharp. List as `SUGGEST` not FAIL.
 
 ## Self-check — why stairs missed
 - Only `tests/tests.py:116` pure functions, no `renderLoop` fluidity sim
