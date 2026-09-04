@@ -2472,22 +2472,45 @@ let lastRenderTime  = performance.now();
                 } // end boot self-test demo (skipped under prefers-reduced-motion)
             }, 20);
 
-            // Auto-scale on resize/orientation change — debounced via RAF to avoid layout thrash
+            // Auto-scale: uniform --ui = min(vw/390, vh/844), then shrink-to-fit
+            // content height (content scales ~linearly with --ui, so one pass
+            // converges). Hysteresis ignores URL-bar height jitter (<80 px) so
+            // scrolling never triggers a rescale loop. Floor 0.65 keeps the
+            // hero numerals huge while body text stays legible; below it the
+            // shell scrolls instead of clipping.
+            let lastScaleW = 0, lastScaleH = 0;
             let resizeRaf = null;
-            function updateScale() {
+            function updateScale(force) {
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
+                if (!force && Math.abs(vw - lastScaleW) < 1 && Math.abs(vh - lastScaleH) < 80) return;
+                lastScaleW = vw; lastScaleH = vh;
                 const baseW = 390, baseH = 844;
-                const scale = Math.max(0.7, Math.min(2.5, Math.min(vw / baseW, vh / baseH)));
+                let scale = Math.min(vw / baseW, vh / baseH);
+                try {
+                    const doc = document.documentElement;
+                    const cur = parseFloat(getComputedStyle(doc).getPropertyValue('--ui')) || scale || 1;
+                    const contentH = doc.scrollHeight;
+                    // 10 px slack for fixed-px leftovers (borders) + rounding
+                    if (contentH > vh && cur > 0 && isFinite(contentH)) {
+                        scale = Math.min(scale, cur * (vh - 10) / contentH);
+                    }
+                } catch (e) {}
+                scale = Math.max(0.65, Math.min(2.5, scale));
                 document.documentElement.style.setProperty('--ui', scale.toFixed(4));
             }
             function debouncedUpdateScale() {
                 if (resizeRaf) cancelAnimationFrame(resizeRaf);
-                resizeRaf = requestAnimationFrame(updateScale);
+                resizeRaf = requestAnimationFrame(function(){ updateScale(false); });
             }
-            updateScale();
+            updateScale(true);
             window.addEventListener('resize', debouncedUpdateScale, { passive: true });
-            window.addEventListener('orientationchange', () => setTimeout(updateScale, 100));
+            window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true); }, 100));
+            // Single final pass after boot settles (gauge 0.7s). Bounded passes
+            // only — extra passes (e.g. on fonts.ready) can measure mid-flight
+            // layout and undo a correct fit, causing visible pulsing. Font swap
+            // is size-neutral here (em line-heights + display=optional).
+            setTimeout(function(){ updateScale(true); }, 900);
         }
 
         window.addEventListener('load', checkPermissionsAndInit);
