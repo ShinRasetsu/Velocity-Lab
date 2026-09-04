@@ -351,7 +351,6 @@
 
         /* ── circular gauge cluster ──────────────────────────────────────── */
         .gauge-wrap { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; }
-        .gauge-wrap.large .speed-gauge { --gauge: clamp(14rem, min(85vw, 22rem), 22rem); }
 
         .speed-gauge {
             width: var(--gauge);
@@ -1315,11 +1314,17 @@ let lastRenderTime  = performance.now();
             }
         }
 
-        function gpsConfidence(accuracyMeters) {
+        function gpsConfidence(accuracyMeters, altitudeAccuracy) {
             if (typeof accuracyMeters !== 'number' || isNaN(accuracyMeters)) return 0.0;
-            if (accuracyMeters <= GPS_ACC_TRUST_MIN_M) return 1.0;
-            if (accuracyMeters >= GPS_ACC_TRUST_MAX_M) return 0.0;
-            return 1.0 - (accuracyMeters - GPS_ACC_TRUST_MIN_M) / (GPS_ACC_TRUST_MAX_M - GPS_ACC_TRUST_MIN_M);
+            let conf;
+            if (accuracyMeters <= GPS_ACC_TRUST_MIN_M) conf = 1.0;
+            else if (accuracyMeters >= GPS_ACC_TRUST_MAX_M) conf = 0.0;
+            else conf = 1.0 - (accuracyMeters - GPS_ACC_TRUST_MIN_M) / (GPS_ACC_TRUST_MAX_M - GPS_ACC_TRUST_MIN_M);
+            // L5-grade / barometer-assisted vertical fix lifts trust (capped, never masks bad horizontal)
+            if (conf > 0 && typeof altitudeAccuracy === 'number' && isFinite(altitudeAccuracy) && altitudeAccuracy < 12) {
+                conf = Math.min(1.0, conf + 0.15);
+            }
+            return conf;
         }
 
         // ─── PERSISTENCE LAYER ────────────────────────────────────────────────────
@@ -1550,7 +1555,7 @@ let lastRenderTime  = performance.now();
             setDOM(dom.vScoreHdl, 'vHdl', score.hdl);
             // category progress bars to their ceilings (SPD 20 / ACC 10 / BRK 15 / HDL 25)
             const bars = [[dom.vbarSpd, score.spd, 20], [dom.vbarAcc, score.acc, 10], [dom.vbarBrk, score.brk, 15], [dom.vbarHdl, score.hdl, 25]];
-            for (const [el, val, max] of bars) el.style.width = Math.round((val / max) * 100) + "%";
+            for (const [el, val, max] of bars) el.style.width = ((val / max) * 100).toFixed(1) + "%";
         }
 
         // ─── SUB-SAMPLE INTERPOLATION ─────────────────────────────────────────────
@@ -1742,7 +1747,8 @@ let lastRenderTime  = performance.now();
             }
 
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
-            const conf = gpsConfidence(acc);   // 0..1 GPS quality
+            const altAcc = (typeof c.altitudeAccuracy === 'number' && !isNaN(c.altitudeAccuracy)) ? c.altitudeAccuracy : null;
+            const conf = gpsConfidence(acc, altAcc);   // 0..1 GPS quality
             lastGpsConfidence  = conf;
             confidenceSum     += conf;
             confidenceSamples  += 1;
@@ -2379,6 +2385,9 @@ let lastRenderTime  = performance.now();
                 if (speedGauge) speedGauge.classList.add('boot');
                 if (gForceRing) gForceRing.classList.add('boot');
 
+                // Motion-sensitive users skip the flashing self-test (CSS already kills boot anims)
+                const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                if (!reduceMotion) {
                 // Bar demo sweep — every bar fills 0→100→0 so you can verify
                 const demoBars = [
                     dom.accelFill, dom.brakeFill, dom.latFill,
@@ -2460,6 +2469,7 @@ let lastRenderTime  = performance.now();
                     // restore prev caches so live updates repaint
                     prev.speed=null; prev.displayMax=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null;
                 }, 450);
+                } // end boot self-test demo (skipped under prefers-reduced-motion)
             }, 20);
 
             // Auto-scale on resize/orientation change — debounced via RAF to avoid layout thrash
