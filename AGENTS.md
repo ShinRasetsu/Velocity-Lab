@@ -16,6 +16,7 @@ Every live value at 60Hz, never GPS-rate stairs. See `.opencode/skills/perfectio
 - Speed: `Math.round(displaySpeedKmph)` integer 3-digit (0-999, no decimal) — `index.html:2043`; Bars: `.toFixed(1)` not `Math.round` (`index.html:2121`), `speed-bar` `transition:none` (`index.html:647`).
 - Distance/MAX must interpolate (`displayDistanceM:2039`, `displayMaxKmph:1967`), not raw.
 - Timers must use `crossFraction`/`lerp` sub-sample (`index.html:1505`), gated `conf>=GPS_QUALITY_MIN` (`index.html:1696`).
+- Weak fixes (`!trustSpeed && conf<MIN`) refresh anchor only — never speed/distance/fusion/heading; status tiers `FIX/WEAK/COAST/STALE`, IMU coasts <20 s with zero GPS correction.
 - `prev` diff guard on every DOM write, `dtClamped 32` (`index.html:1921`), `will-change/contain` (`index.html:647`).
 - `prefers-reduced-motion` disables boot only, not telemetry (`index.html:897`).
 

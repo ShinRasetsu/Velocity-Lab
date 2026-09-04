@@ -1801,48 +1801,60 @@ let lastRenderTime  = performance.now();
             confidenceSum     += conf;
             confidenceSamples  += 1;
 
+            // Weak-fix gate: at 200 m accuracy the Haversine delta between two
+            // noisy anchors is garbage speed/G. Only trusted Doppler speed or
+            // conf>=MIN may drive speed, distance, fusion and heading. Weak
+            // fixes still refresh the Lat/Lon anchor so recovery stays smooth.
+            const usable = trustSpeed || conf >= GPS_QUALITY_MIN;
+
             if (gpsDt > 0) {
                 gpsHzSmooth += ((1.0 / gpsDt) - gpsHzSmooth) * 0.25;
                 setDOM(dom.updateRate, 'updateRate', "GPS: " + fmt1.format(gpsHzSmooth) + " HZ", "clr-blue neon-blue");
-                const rawGpsLongGRaw = ((gpsSpeedMs - prevGpsSpeedMs) / gpsDt) / GRAVITY_MS2;
-                let rawGpsLatG = 0;
-                if (typeof c.heading === 'number' && !isNaN(c.heading) && typeof lastGpsHeading === 'number' && gpsDt > 0) {
-                    let dHead = c.heading - lastGpsHeading;
-                    dHead = ((dHead + 540) % 360) - 180;
-                    const yawRate = dHead * Math.PI / 180 / gpsDt;
-                    rawGpsLatG = (gpsSpeedMs * yawRate) / GRAVITY_MS2;
-                }
-                // Glitch check on raw (not median) so spikes are caught before poisoning buffer
-                const isGlitch = Math.abs(rawGpsLongGRaw) > PHYSICAL_G_CLAMP_LONG || Math.abs(rawGpsLatG) > PHYSICAL_G_CLAMP_LONG;
-                if (isGlitch) {
-                    gpsGlitchCount++;
-                } else {
-                    // Median filter only on clean samples
-                    gpsLongGBuffer.push(rawGpsLongGRaw);
-                    if (gpsLongGBuffer.length > 5) gpsLongGBuffer.shift();
-                    const sorted = gpsLongGBuffer.slice().sort(function(a,b){return a-b;});
-                    const rawGpsLongG = sorted[Math.floor(sorted.length/2)];
-                    if (gpsSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += gpsSpeedMs * gpsDt;
-                    updateImuFusionFromGps(rawGpsLongG, rawGpsLatG, conf);
-                    prevGpsSpeedMs = gpsSpeedMs;
-                    currentSpeedMs = gpsSpeedMs;
-                    // Only update position/heading on clean fix to avoid poisoning next Haversine/heading
+                if (!usable) {
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
-                    if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
+                } else {
+                    const rawGpsLongGRaw = ((gpsSpeedMs - prevGpsSpeedMs) / gpsDt) / GRAVITY_MS2;
+                    let rawGpsLatG = 0;
+                    if (typeof c.heading === 'number' && !isNaN(c.heading) && typeof lastGpsHeading === 'number' && gpsDt > 0) {
+                        let dHead = c.heading - lastGpsHeading;
+                        dHead = ((dHead + 540) % 360) - 180;
+                        const yawRate = dHead * Math.PI / 180 / gpsDt;
+                        rawGpsLatG = (gpsSpeedMs * yawRate) / GRAVITY_MS2;
+                    }
+                    // Glitch check on raw (not median) so spikes are caught before poisoning buffer
+                    const isGlitch = Math.abs(rawGpsLongGRaw) > PHYSICAL_G_CLAMP_LONG || Math.abs(rawGpsLatG) > PHYSICAL_G_CLAMP_LONG;
+                    if (isGlitch) {
+                        gpsGlitchCount++;
+                    } else {
+                        // Median filter only on clean samples
+                        gpsLongGBuffer.push(rawGpsLongGRaw);
+                        if (gpsLongGBuffer.length > 5) gpsLongGBuffer.shift();
+                        const sorted = gpsLongGBuffer.slice().sort(function(a,b){return a-b;});
+                        const rawGpsLongG = sorted[Math.floor(sorted.length/2)];
+                        if (gpsSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += gpsSpeedMs * gpsDt;
+                        updateImuFusionFromGps(rawGpsLongG, rawGpsLatG, conf);
+                        prevGpsSpeedMs = gpsSpeedMs;
+                        currentSpeedMs = gpsSpeedMs;
+                        // Only update position/heading on clean fix to avoid poisoning next Haversine/heading
+                        lastGpsLat = c.latitude;
+                        lastGpsLon = c.longitude;
+                        if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
+                    }
                 }
             } else {
-                // First fix — initialize without G estimate, but still seed position/heading
-                prevGpsSpeedMs = gpsSpeedMs;
-                currentSpeedMs = gpsSpeedMs;
+                // First fix — seed speed only if usable, anchor always
+                prevGpsSpeedMs = usable ? gpsSpeedMs : 0.0;
+                currentSpeedMs = usable ? gpsSpeedMs : 0.0;
                 lastGpsLat = c.latitude;
                 lastGpsLon = c.longitude;
-                if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
+                if (usable && typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
             }
             const gpsSpeedKmph = currentSpeedMs * MS_TO_KMPH;
 
-            // Always transition GNSS status to FIX on any position fix (confidence gating only for timers/peaks)
-            setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+            // Honest tier here; renderLoop re-evaluates per frame (timers/peaks stay conf-gated)
+            if (usable) setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+            else setDOM(dom.status, 'status', "GNSS WEAK", "text-yellow-500 neon-warning");
 
             // Accuracy guard: only high-quality GPS samples drive timers, peaks and the CSV log
             // so a 25 m fix on a parking ramp can't write a bogus 0-100 time or inflate max G.
@@ -1881,9 +1893,11 @@ let lastRenderTime  = performance.now();
             }
             setDOM(dom.status, 'status', msg, "text-red-500 neon-danger");
             
-            // Retry after delay for non-permission errors — reuse single watch
+            // Retry after delay for non-permission errors — reuse single watch.
+            // Skip the churn if fixes resumed while waiting (common in flaky signal).
             if (err && err.code !== err.PERMISSION_DENIED) {
                 setTimeout(() => {
+                    if (performance.now() - lastGpsTime < 4000) return;
                     if ("geolocation" in navigator) {
                         if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
                         gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
@@ -2098,17 +2112,23 @@ let lastRenderTime  = performance.now();
             // Don't clobber explicit error states set by onPositionError
             const currentStatus = dom.status ? dom.status.textContent : "";
             const isErrorState = currentStatus.indexOf("ERR:") === 0;
+            // Tunnel mode: hold last target and dead-reckon on IMU for short
+            // outages (<20 s) instead of snapping to 0 at the 8 s stale mark.
+            const imuCoast = imuFusionActive && (now - lastGpsTime) / 1000 < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG;
             if (!isErrorState) {
                 if (gnssStale) {
-                    currentSpeedMs = 0.0;
                     if (!gpsAcquired) {
                         setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
+                    } else if (imuCoast) {
+                        setDOM(dom.status, 'status', "GNSS COAST", "text-yellow-500 neon-warning");
                     } else {
+                        currentSpeedMs = 0.0;
                         setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
                     }
                     if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
                 } else if (gpsAcquired) {
-                    setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+                    if (lastGpsConfidence >= GPS_QUALITY_MIN) setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+                    else setDOM(dom.status, 'status', "GNSS WEAK", "text-yellow-500 neon-warning");
                     if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
                 } else {
                     setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
@@ -2117,7 +2137,8 @@ let lastRenderTime  = performance.now();
             } else {
                 if (!gnssStale && gpsAcquired) {
                     // Real fix recovers from error
-                    setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+                    if (lastGpsConfidence >= GPS_QUALITY_MIN) setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
+                    else setDOM(dom.status, 'status', "GNSS WEAK", "text-yellow-500 neon-warning");
                 }
                 if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = gnssStale ? 'flex' : 'none';
             }
@@ -2129,14 +2150,16 @@ let lastRenderTime  = performance.now();
             // New: integrate bias-corrected IMU between fixes for true continuous slope,
             // then gently nudge toward GPS so drift can't accumulate; fallback when IMU
             // is unavailable spreads the step across the whole GPS interval.
-            if (imuFusionActive && !gnssStale && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG) {
+            // Tunnel coast: same integrator runs up to 20 s without fixes with zero
+            // GPS correction (pure dead-reckoning); the 20 s cap bounds drift.
+            if (imuFusionActive && timeSinceGpsSec < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG) {
                 let predAccel = fusedLongG * GRAVITY_MS2;
                 if (Math.abs(predAccel) < 0.12 && currentSpeedMs < 0.35) predAccel = 0;
                 if (currentSpeedMs < 0.25 && Math.abs(predAccel) < 0.5 && displaySpeedMs < 0.5) predAccel *= 0.25;
                 displaySpeedMs += predAccel * dtSec;
                 if (displaySpeedMs < 0) displaySpeedMs = 0;
                 if (displaySpeedMs > 75) displaySpeedMs = 75;
-                let gpsGain = 1.0 * Math.max(0.15, lastGpsConfidence);
+                let gpsGain = 1.0 * (gnssStale ? 0 : Math.max(0.15, lastGpsConfidence));
                 if (timeSinceGpsSec > 1.2) gpsGain *= Math.min(2.5, 1 + (timeSinceGpsSec - 1.2) * 0.6);
                 if (Math.abs(fusedLongG) > 0.35) gpsGain *= 0.7;
                 const corrAlpha = 1 - Math.exp(-dtSec * gpsGain);
