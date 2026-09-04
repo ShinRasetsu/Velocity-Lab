@@ -112,32 +112,23 @@
             --cyan: #00bfff;
             --purple: #bb86fc;
             --panel: linear-gradient(180deg, rgba(10,15,24,0.88), rgba(4,7,12,0.92));
-            /* Base viewport reference: 390×844 (iPhone 12/13/14 Pro) */
+            /* Base viewport reference: 390×844 (iPhone 12/13/14 Pro)
+               Unified proportional scale: JS sets --ui = min(vw/390, vh/844).
+               rem units scale with --ui automatically via root font-size;
+               px-base × dial calcs below stay linear (never rem × dial).
+               Per-element dials all default to --ui — retune one var to
+               rebalance a group without touching the rest. */
             --vp-w: 390;
             --vp-h: 844;
-            --scale: 1;
-            --text-scale: 1;
-        }
-
-        @media (max-width: 390px) {
-            :root { --scale: calc(100vw / 390); }
-        }
-        @media (min-width: 391px) and (max-width: 768px) {
-            :root { --scale: calc(100vw / 390); }
-        }
-@media (min-width: 769px) {
-            :root { --scale: calc(100vh / 844); }
-        }
-
-        @media (min-width: 390px) {
-            :root { --text-scale: 1.15; }
-        }
-        @media (min-width: 600px) {
-            :root { --text-scale: 1.3; }
+            --ui: 1;
+            --s-text: var(--ui);
+            --s-gauge: var(--ui);
+            --s-card: var(--ui);
+            --s-gap: var(--ui);
         }
 
         html {
-            font-size: calc(16px * var(--scale) * var(--text-scale));
+            font-size: calc(16px * var(--s-text));
         }
         body {
             margin: 0;
@@ -196,6 +187,9 @@
 /* ── shell ───────────────────────────────────────────────────────── */
         .dashboard-shell {
             width: 100%;
+            max-width: calc(430px * var(--ui));
+            margin-left: auto;
+            margin-right: auto;
             min-height: 100svh;
             min-height: 100dvh;
             padding: calc(0.4rem + env(safe-area-inset-top)) 0.6rem calc(0.4rem + env(safe-area-inset-bottom)) 0.6rem;
@@ -227,7 +221,7 @@
             display: flex;
             flex-direction: column;
             align-items: stretch;
-            gap: 0.25rem;
+            gap: calc(4px * var(--s-gap));
             padding: 0.25rem 0.5rem;
         }
         .cmd-bar::after { display: none; }
@@ -303,13 +297,13 @@
         .gnss-alert.active { display: flex; animation: alert-blink 0.9s steps(2, jump-none) infinite; }
         @keyframes alert-blink { 50% { filter: brightness(1.6); } }
 
-/* ── main stage: mobile portrait stack ───────────────────────────── */
+/* ── main stage: mobile portrait stack — grows to fill viewport, never shrinks ── */
         .stage {
             display: flex;
             flex-direction: column;
-            gap: 0.35rem;
-            --gauge: clamp(10.5rem, min(70vw, 16rem), 16rem);
-            flex: none;
+            justify-content: center;
+            gap: calc(5.6px * var(--s-gap));
+            flex: 1 0 auto;
             align-items: stretch;
         }
         .side-col:first-of-type {
@@ -534,10 +528,11 @@
         @keyframes fade-up { to { opacity: 1; transform: translateY(0); } }
         @keyframes ring-expand { to { transform: scale(1); opacity: 1; } }
 
-        /* Larger default gauge — compact so 100svh fits (core unchanged per request) */
-        .gauge-wrap { --gauge: clamp(10.5rem, min(70vw, 18rem), 18rem); }
+        /* Gauge sized from the uniform dial: 273px base / 292px large at 390×844.
+           px-base × dial stays linear (rem would double-count via root). */
+        .gauge-wrap { --gauge: calc(273px * var(--s-gauge)); }
         .speed-gauge { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1), font-size 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
-        .gauge-wrap.large .speed-gauge { --gauge: clamp(12.5rem, min(75vw, 20rem), 20rem); }
+        .gauge-wrap.large .speed-gauge { --gauge: calc(292px * var(--s-gauge)); }
 
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
@@ -891,7 +886,7 @@
         .metric-group { padding-top: 0.12rem; }
         .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.22rem; }
         .metric-card { 
-            min-height: 2.3rem; 
+            min-height: calc(36.8px * var(--s-card)); 
             padding: 0.28rem 0.45rem; 
             display: flex; 
             flex-direction: column; 
@@ -906,15 +901,11 @@
         .timer-mini { font-size: 0.80rem; }
         .hazard-strip { font-size: 0.48rem; letter-spacing: 0.12em; }
 
-        @media (max-height: 620px) {
-            .stage { --gauge: clamp(5.5rem, min(42vw, 10rem, calc(100svh - 30rem)), 10rem); }
-            .speed-track { margin-top: calc(var(--gauge) * 0.06); }
-            .side-val { font-size: 0.8rem; }
-        }
+        .speed-track { margin-top: calc(var(--gauge) * 0.06); }
 
         /* landscape: gauge center, session left, G-loads right */
         @media (orientation: landscape) and (min-width: 600px) {
-            .stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
+            .stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; align-content: center; }
             .side-col:first-of-type { order: 0; grid-template-columns: minmax(0, 1fr); }
             .gauge-wrap { order: 1; }
             .side-col:last-of-type { order: 2; grid-template-columns: minmax(0, 1fr); }
@@ -2477,11 +2468,8 @@ let lastRenderTime  = performance.now();
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
                 const baseW = 390, baseH = 844;
-                let scale = 1;
-                if (vw <= baseW) scale = vw / baseW;
-                else if (vh <= baseH) scale = vh / baseH;
-                else scale = Math.min(vw / baseW, vh / baseH);
-                document.documentElement.style.setProperty('--scale', scale.toFixed(4));
+                const scale = Math.max(0.7, Math.min(2.5, Math.min(vw / baseW, vh / baseH)));
+                document.documentElement.style.setProperty('--ui', scale.toFixed(4));
             }
             function debouncedUpdateScale() {
                 if (resizeRaf) cancelAnimationFrame(resizeRaf);
