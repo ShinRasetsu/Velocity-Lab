@@ -290,14 +290,6 @@
             background: currentColor; box-shadow: 0 0 3px currentColor; flex: none;
         }
         .cmd-sys .action-btn { padding: 0.12rem 0.3rem; font-size: 0.4rem; min-height: 1.2rem; }
-        #text-scale-btn {
-            font-size: 0.55rem; padding: 0.18rem 0.45rem; min-height: 1.35rem;
-            color: #facc15; border-color: rgba(250,204,21,0.65); background: rgba(250,204,21,0.16);
-            letter-spacing: 0.08em; font-weight: 800;
-            box-shadow: 0 0 8px rgba(250,204,21,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
-        }
-        #text-scale-btn:hover { background: rgba(250,204,21,0.26); }
-        #text-scale-btn:active { background: rgba(250,204,21,0.35); transform: translateY(1px); }
 
         /* ── GNSS loss banner ────────────────────────────────────────────── */
         .gnss-alert {
@@ -971,8 +963,7 @@
             .speed-gauge { transition: none !important; }
         }
     </style>
-    <script id="early-scale">try{var s=localStorage.getItem('VelocityLab_text_scale');if(s&&[1,1.25,1.5].indexOf(parseFloat(s))!==-1)document.documentElement.style.setProperty('--text-scale',s);}catch(e){}</script>
-</head>
+    </head>
 <body>
 <div class="scanlines" aria-hidden="true"></div>
 <div class="dashboard-shell">
@@ -1015,7 +1006,6 @@
 <div class="cmd-sys" aria-live="polite">
             <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
             <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
-            <button id="text-scale-btn" class="action-btn gap-1.5" aria-label="Toggle text scale" title="Text size: 100% → 125% → 150%">A 100%</button>
             <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS">⟳ GPS</button>
             <button id="export-btn" class="action-btn gap-1.5 neon-blue" onclick="exportRun()" aria-label="Export run CSV" title="Download run summary CSV">CSV</button>
             <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
@@ -1291,7 +1281,6 @@ let lastRenderTime  = performance.now();
             vbarHdl:      document.getElementById('vbar-hdl'),
             maxSpeedGauge: document.getElementById('max-speed-gauge'),
             gForceRing:   document.querySelector('.g-force-ring'),
-            textScaleBtn: document.getElementById('text-scale-btn'),
             bestMarker:   document.getElementById('best-marker'),
             exportBtn:    document.getElementById('export-btn'),
             best060:      document.getElementById('best-0-60'),
@@ -1313,7 +1302,7 @@ let lastRenderTime  = performance.now();
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
             alertOn: null,
-            bestDeg: null, textScale: 1
+            bestDeg: null
         };
 
         // Session clock anchor: set when tracking initialises.
@@ -1463,40 +1452,6 @@ let lastRenderTime  = performance.now();
         }
 
         if (dom.speedGaugeBtn) dom.speedGaugeBtn.addEventListener('click', resetRun);
-
-        // Text scale toggle (1.0 -> 1.25 -> 1.5 -> 1.0) — persists via localStorage
-        function fmtScale(s){ return s === 1 ? 'A 100%' : s === 1.25 ? 'A 125%' : 'A 150%'; }
-        function toggleTextScale() {
-            const scales = [1, 1.25, 1.5];
-            const idx = scales.indexOf(prev.textScale);
-            const next = scales[(idx + 1) % scales.length];
-            prev.textScale = next;
-            document.documentElement.style.setProperty('--text-scale', next);
-            if (dom.textScaleBtn) dom.textScaleBtn.textContent = fmtScale(next);
-            try { localStorage.setItem('VelocityLab_text_scale', String(next)); } catch(e) {}
-        }
-
-        if (dom.textScaleBtn) dom.textScaleBtn.addEventListener('click', toggleTextScale);
-
-        // Restore text scale from localStorage — survives shutdown/close/reinstall (same origin)
-        // If no saved value, sync with CSS media auto-scale so the first tap steps visibly
-        try {
-            const saved = localStorage.getItem('VelocityLab_text_scale');
-            if (saved) {
-                const s = parseFloat(saved);
-                if ([1,1.25,1.5].includes(s)) {
-                    prev.textScale = s;
-                    document.documentElement.style.setProperty('--text-scale', s);
-                    if (dom.textScaleBtn) dom.textScaleBtn.textContent = fmtScale(s);
-                }
-            } else {
-                const cs = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--text-scale')) || 1;
-                let best = 1;
-                for (const v of [1, 1.25, 1.5]) { if (Math.abs(v - cs) < Math.abs(best - cs)) best = v; }
-                prev.textScale = best;
-                if (dom.textScaleBtn) dom.textScaleBtn.textContent = fmtScale(best);
-            }
-        } catch(e) {}
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -2028,9 +1983,10 @@ let lastRenderTime  = performance.now();
                 confidenceSum = 0; confidenceSamples = 0;
                 if (dom.glitchCount) dom.glitchCount.textContent = "0";
                 prev.glitchN = -1;
-                // Reset localStorage (session + all-time bests)
+                // Reset localStorage (session + all-time bests + retired text-scale pref)
                 try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
                 try { localStorage.removeItem(BEST_KEY); } catch(e) {}
+                try { localStorage.removeItem('VelocityLab_text_scale'); } catch(e) {}
                 allTimeBest = {};
                 refreshTimerGhosts();
                 // Bust SW cache so updates take effect instantly (was stale-while-revalidate)
