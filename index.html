@@ -902,19 +902,13 @@
 
         .speed-track { margin-top: calc(var(--gauge) * 0.06); }
 
-        /* landscape: gauge center, session left, G-loads right */
+        /* landscape cockpit (phones 800×360 through 2400×1080 ultrawide):
+           full-screen 3 zones — session+G left rail, gauge center (dial
+           boosted for presence), score+timers right rail. display:contents
+           flattens .stage so its children join the shell grid directly.
+           Rail grids self-fit via auto-fit: single column on narrow rails,
+           multi-column when room allows — no breakpoint tuning per device. */
         @media (orientation: landscape) and (min-width: 600px) {
-            .stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; align-content: center; }
-            .side-col:first-of-type { order: 0; grid-template-columns: minmax(0, 1fr); }
-            .gauge-wrap { order: 1; }
-            .side-col:last-of-type { order: 2; grid-template-columns: minmax(0, 1fr); }
-        }
-
-        /* wide landscape cockpit (2400×1080 class): full-screen 3 zones —
-           session+G left rail, gauge center (dial boosted for presence),
-           score+timers right rail. display:contents flattens .stage so its
-           children join the shell grid directly. */
-        @media (min-width: 1100px) and (orientation: landscape) {
             .dashboard-shell {
                 display: grid; max-width: none; height: 100dvh; overflow: hidden;
                 grid-template-columns: minmax(0, 0.9fr) auto minmax(0, 1.1fr);
@@ -923,11 +917,12 @@
             .cmd-bar { grid-column: 1 / -1; grid-row: 1; }
             .gnss-alert { grid-column: 1 / -1; grid-row: 2; }
             .stage { display: contents; }
-            .side-col:first-of-type { grid-column: 1; grid-row: 3; align-self: start; }
-            .side-col:last-of-type { grid-column: 1; grid-row: 4; align-self: start; }
+            .side-col:first-of-type { grid-column: 1; grid-row: 3; align-self: start; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+            .side-col:last-of-type { grid-column: 1; grid-row: 4; align-self: start; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
             .gauge-wrap { grid-column: 2; grid-row: 3 / 5; align-self: center; --s-gauge: calc(var(--ui) * 1.35); }
-            .tactical { grid-column: 3; grid-row: 3; align-self: start; min-height: 0; }
+            .tactical { grid-column: 3; grid-row: 3; align-self: start; min-height: 0; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
             .metric-footer { grid-column: 3; grid-row: 4; min-height: 0; overflow-y: auto; }
+            .metric-footer .metric-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
             .hazard-strip { grid-column: 1 / -1; grid-row: 5; }
             .version-tag { grid-column: 1 / -1; grid-row: 6; }
         }
@@ -1136,7 +1131,7 @@
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.4.17 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.5.0 — Velocity-Lab</div>
 </div>
 
 
