@@ -1140,7 +1140,7 @@
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.5.3 — Velocity-Lab <span id="scale-debug"></span></div>
+    <div id="app-version" class="version-tag">VER 1.5.4 — Velocity-Lab <span id="scale-debug"></span></div>
 </div>
 
 
@@ -1154,8 +1154,14 @@
         const IMU_ALPHA            = 0.15;
         const SPEED_ZERO_SNAP_KMPH = 1.5;
         const GPS_STALE_MS         = 8000;
-        const GPS_MAX_DT_SEC       = 5.0;    
-        const GPS_RETRY_MS         = 10000;
+        const GPS_MAX_DT_SEC       = 5.0;
+        // Session-preservation policy: ONE persistent watch per session.
+        // A TIMEOUT only means "no fix yet" — the platform session stays warm
+        // and delivers on its own when signal returns, so it is never torn
+        // down. Re-watch happens ONLY on POSITION_UNAVAILABLE (provider dead),
+        // once at a time, with exponential backoff (cap 30 s).
+        const GPS_WATCH_TIMEOUT_MS   = 30000;
+        const GPS_RETRY_BACKOFF_MS   = [5000, 10000, 20000, 30000];
         const STORAGE_KEY          = "VelocityLab_GPS_Telemetry_Data";
         const BEST_KEY             = "VelocityLab_AllTime_Best";
 
@@ -1203,6 +1209,8 @@
         let lastGpsLon      = undefined;
         let lastGpsHeading  = undefined;
         let gpsWatchId      = null;
+        let gpsRetryPending = false;
+        let gpsFailCount    = 0;
         
 let lastRenderTime  = performance.now();
         let lastSaveTime    = 0;
@@ -1369,6 +1377,14 @@ let lastRenderTime  = performance.now();
                 conf = Math.min(1.0, conf + 0.15);
             }
             return conf;
+        }
+
+        // Pure retry schedule: exponential backoff, capped. A healthy fix
+        // resets gpsFailCount (see onPositionSuccess), so isolated blips
+        // retry fast and a dead provider backs off instead of churning.
+        function gpsBackoffDelay(fails) {
+            const i = Math.max(0, Math.min(GPS_RETRY_BACKOFF_MS.length - 1, fails | 0));
+            return GPS_RETRY_BACKOFF_MS[i];
         }
 
         // ─── PERSISTENCE LAYER ────────────────────────────────────────────────────
@@ -1829,6 +1845,10 @@ let lastRenderTime  = performance.now();
             let rawDt = 0;
             if (lastGpsTime > 0) { rawDt = (now - lastGpsTime) / 1000.0; gpsDt = Math.min(rawDt, GPS_MAX_DT_SEC); }
             lastGpsTime = now;
+            // Healthy fix: a dead provider is back, drop back to fast retry.
+            // (gpsRetryPending stays owned by the queued timer, which stands
+            // down on recency when it fires — keeps one recovery max.)
+            gpsFailCount = 0;
 
             // GPS speed: prefer coords.speed only if accuracy is trusted; fallback Haversine weighted by accuracy
             let gpsSpeedMs = 0.0;
@@ -2069,29 +2089,45 @@ let lastRenderTime  = performance.now();
             if (prev.accuracy !== accStr) { if (dom.accuracy) dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
         }
 
+        // One guarded recovery slot: replaces a dead watch, never stacks.
+        function scheduleGpsRewatch(delayMs) {
+            if (gpsRetryPending) return;
+            if (!("geolocation" in navigator)) return;
+            gpsRetryPending = true;
+            setTimeout(function() {
+                gpsRetryPending = false;
+                // Fixes resumed while waiting (common in flaky signal) — stand down.
+                if (performance.now() - lastGpsTime < 4000) return;
+                if (!("geolocation" in navigator)) return;
+                try {
+                    if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch (e) {}
+                    gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
+                        { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_WATCH_TIMEOUT_MS });
+                } catch (e2) {}
+            }, delayMs);
+        }
+
         function onPositionError(err) {
+            // Spec codes 1/2/3; read off the error when present (test doubles
+            // pass bare {code} objects without the constants attached).
+            const cDenied = (err && err.PERMISSION_DENIED) || 1;
+            const cUnavail = (err && err.POSITION_UNAVAILABLE) || 2;
+            const cTimeout = (err && err.TIMEOUT) || 3;
+            const code = (err && typeof err.code === 'number') ? err.code : 0;
             let msg = "ERR: NO SIGNAL";
-            if (err && err.code) {
-                switch (err.code) {
-                    case err.PERMISSION_DENIED: msg = "ERR: GPS PERMISSION DENIED"; break;
-                    case err.POSITION_UNAVAILABLE: msg = "ERR: POSITION UNAVAILABLE"; break;
-                    case err.TIMEOUT: msg = "ERR: GPS TIMEOUT"; break;
-                }
-            }
+            if (code === cDenied) msg = "ERR: GPS PERMISSION DENIED";
+            else if (code === cUnavail) msg = "ERR: POSITION UNAVAILABLE";
+            else if (code === cTimeout) msg = "ERR: GPS TIMEOUT";
             setDOM(dom.status, 'status', msg, "text-red-500 neon-danger");
-            
-            // Retry after delay for non-permission errors — reuse single watch.
-            // Skip the churn if fixes resumed while waiting (common in flaky signal).
-            if (err && err.code !== err.PERMISSION_DENIED) {
-                setTimeout(() => {
-                    if (performance.now() - lastGpsTime < 4000) return;
-                    if ("geolocation" in navigator) {
-                        if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
-                        gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
-                        { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_RETRY_MS });
-                    }
-                }, 5000);
-            }
+
+            // Never tear down the watch on TIMEOUT: it only means "no fix
+            // yet" — the warm platform session recovers by itself, while a
+            // clearWatch + fresh watchPosition forces a cold re-acquisition
+            // that gaps lastGpsTime past GPS_STALE_MS and trips SIGNAL LOST +
+            // speed snap + estimator wipe. Re-watch ONLY a dead provider.
+            if (code === cDenied || code === cTimeout || code === 0) return;
+            scheduleGpsRewatch(gpsBackoffDelay(gpsFailCount));
+            gpsFailCount++;
         }
 
         // ─── GUNDAM HUD LIVE TELEMETRY ────────────────────────────────────────────
@@ -2248,7 +2284,7 @@ let lastRenderTime  = performance.now();
             if ("geolocation" in navigator) {
                 if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
                 gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
-                    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_WATCH_TIMEOUT_MS });
             }
         }
         window.restartGPS = restartGPS;
@@ -2619,7 +2655,7 @@ let lastRenderTime  = performance.now();
             if ("geolocation" in navigator) {
                 if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
                 gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,
-                    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_WATCH_TIMEOUT_MS });
             } else {
                 setDOM(dom.status, 'status', "ERR: GEOLOCATION NOT SUPPORTED", "text-red-500 neon-danger");
             }

@@ -47,6 +47,30 @@ __resetTimers(); updateTimers(99,5,1000); __ok('t100_200: stays IDLE below 100',
 __resetTimers(); updateTimers(5,0,1000); __ok('tQuarter: arm from rest sets start AND startDist', timerQuarter.state===T_RUNNING && nearly(timerQuarter.start,1000,1e-6) && timerQuarter.startDist===0, 'state='+timerQuarter.state+' start='+timerQuarter.start+' startDist='+timerQuarter.startDist); updateTimers(50,300,4000); __ok('tQuarter: distance < quarter mile -> still RUNNING', timerQuarter.state===T_RUNNING, 'state='+timerQuarter.state); var __expQ=(4000+7000*(402.336-300)/200)-1000; updateTimers(120,500,11000); __ok('tQuarter: once distance delta >= 402.336 m -> DONE with interpolated elapsed', timerQuarter.state===T_DONE && nearly(timerQuarter.result,__expQ,1e-6), 'state='+timerQuarter.state+' result='+timerQuarter.result+' expected='+__expQ);
 __resetTimers(); updateTimers(80,0,1000); __ok('t100_0: below 100 -> stays IDLE', timer100_0.state===T_IDLE, 'state='+timer100_0.state); updateTimers(110,50,2000); __ok('t100_0: cruise >= 100 arms RUNNING with startDist', timer100_0.state===T_RUNNING && timer100_0.startDist===50 && timer100_0.start===2000, 'state='+timer100_0.state+' startDist='+timer100_0.startDist); var __expBrake=(50+370*(110-SPEED_ZERO_SNAP_KMPH)/110)-50; updateTimers(0,420,30000); __ok('t100_0: stop -> DONE with interpolated positive braking distance', timer100_0.state===T_DONE && nearly(timer100_0.result,__expBrake,1e-6), 'state='+timer100_0.state+' result='+timer100_0.result+' expected='+__expBrake);
 __resetTimers(); updateTimers(1,0,5000); updateTimers(51,5,7000); updateTimers(101,40,9000); __ok('interpolation: threshold crossings land between fixes (3940ms, not 2000ms)', timer0_100.state===T_DONE && nearly(timer0_100.result,3940,1e-6), 'result='+timer0_100.result);
+// === Tests: GPS session preservation (frequent SIGNAL LOSS fix) ===
+// ES5-only: mirrored verbatim in tests/tests.py (dukpy fallback).
+var __pendingTimers = [];
+setTimeout = function(fn, ms) { __pendingTimers.push({ fn: fn, ms: ms }); return __pendingTimers.length; };
+var __geoSpy = { watch: 0, clear: 0 };
+navigator.geolocation = {
+  watchPosition: function() { __geoSpy.watch++; return 1000 + __geoSpy.watch; },
+  clearWatch: function() { __geoSpy.clear++; }
+};
+function __mkErr(code) { return { code: code, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 }; }
+function __resetGeo() { __geoSpy.watch = 0; __geoSpy.clear = 0; __pendingTimers.length = 0; gpsRetryPending = false; gpsFailCount = 0; lastGpsTime = -1; }
+__ok('gpsBackoff: 5s,10s,20s,30s cap', gpsBackoffDelay(0)===5000 && gpsBackoffDelay(1)===10000 && gpsBackoffDelay(2)===20000 && gpsBackoffDelay(3)===30000 && gpsBackoffDelay(99)===30000 && gpsBackoffDelay(-5)===5000, 'got '+gpsBackoffDelay(0)+','+gpsBackoffDelay(1)+','+gpsBackoffDelay(2)+','+gpsBackoffDelay(3));
+__resetGeo(); onPositionError(__mkErr(3));
+__ok('gpsErr: TIMEOUT never tears down the warm watch', __geoSpy.clear===0 && __geoSpy.watch===0 && __pendingTimers.length===0, 'clear='+__geoSpy.clear+' watch='+__geoSpy.watch+' pending='+__pendingTimers.length);
+__ok('gpsErr: TIMEOUT still surfaces status', String(prev.status).indexOf('TIMEOUT') !== -1, 'status='+prev.status);
+__resetGeo(); onPositionError(__mkErr(2)); onPositionError(__mkErr(2)); onPositionError(__mkErr(2));
+__ok('gpsErr: repeat UNAVAILABLE schedules exactly one recovery', __pendingTimers.length===1 && __geoSpy.clear===0 && __geoSpy.watch===0, 'pending='+__pendingTimers.length);
+__ok('gpsErr: first retry is fast (5s)', __pendingTimers[0].ms===5000, 'ms='+(__pendingTimers[0] && __pendingTimers[0].ms));
+lastGpsTime = -99999; gpsWatchId = 7; var __recFn = __pendingTimers[0].fn; __recFn();
+__ok('gpsErr: recovery replaces watch once and frees the slot', __geoSpy.watch===1 && __geoSpy.clear===1 && gpsRetryPending===false, 'watch='+__geoSpy.watch+' clear='+__geoSpy.clear);
+__resetGeo(); onPositionError(__mkErr(1));
+__ok('gpsErr: PERMISSION_DENIED schedules nothing, kills nothing', __pendingTimers.length===0 && __geoSpy.clear===0 && __geoSpy.watch===0, 'pending='+__pendingTimers.length);
+__resetGeo(); onPositionError({}); onPositionError(null); onPositionError(undefined);
+__ok('gpsErr: malformed errors are inert', __pendingTimers.length===0 && __geoSpy.clear===0, 'pending='+__pendingTimers.length);
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";

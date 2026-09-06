@@ -294,6 +294,47 @@ updateTimers(101, 40, 9000);  // finish rewound to t=8960
 __ok('interpolation: threshold crossings land between fixes (3940ms, not 2000ms)',
     timer0_100.state === T_DONE && nearly(timer0_100.result, 3940, 1e-6),
     'result=' + timer0_100.result);
+
+// === Tests: GPS session preservation (frequent SIGNAL LOSS fix) ===
+// Mirrored verbatim in tests/telemetry.test.js; ES5-only (dukpy fallback).
+var __pendingTimers = [];
+setTimeout = function(fn, ms) { __pendingTimers.push({ fn: fn, ms: ms }); return __pendingTimers.length; };
+var __geoSpy = { watch: 0, clear: 0 };
+navigator.geolocation = {
+  watchPosition: function() { __geoSpy.watch++; return 1000 + __geoSpy.watch; },
+  clearWatch: function() { __geoSpy.clear++; }
+};
+function __mkErr(code) { return { code: code, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 }; }
+function __resetGeo() { __geoSpy.watch = 0; __geoSpy.clear = 0; __pendingTimers.length = 0; gpsRetryPending = false; gpsFailCount = 0; lastGpsTime = -1; }
+__ok('gpsBackoff: 5s,10s,20s,30s cap',
+    gpsBackoffDelay(0) === 5000 && gpsBackoffDelay(1) === 10000 && gpsBackoffDelay(2) === 20000 && gpsBackoffDelay(3) === 30000 && gpsBackoffDelay(99) === 30000 && gpsBackoffDelay(-5) === 5000,
+    'got ' + gpsBackoffDelay(0) + ',' + gpsBackoffDelay(1) + ',' + gpsBackoffDelay(2) + ',' + gpsBackoffDelay(3));
+__resetGeo(); onPositionError(__mkErr(3));
+__ok('gpsErr: TIMEOUT never tears down the warm watch',
+    __geoSpy.clear === 0 && __geoSpy.watch === 0 && __pendingTimers.length === 0,
+    'clear=' + __geoSpy.clear + ' watch=' + __geoSpy.watch + ' pending=' + __pendingTimers.length);
+__ok('gpsErr: TIMEOUT still surfaces status',
+    String(prev.status).indexOf('TIMEOUT') !== -1,
+    'status=' + prev.status);
+__resetGeo(); onPositionError(__mkErr(2)); onPositionError(__mkErr(2)); onPositionError(__mkErr(2));
+__ok('gpsErr: repeat UNAVAILABLE schedules exactly one recovery',
+    __pendingTimers.length === 1 && __geoSpy.clear === 0 && __geoSpy.watch === 0,
+    'pending=' + __pendingTimers.length);
+__ok('gpsErr: first retry is fast (5s)',
+    __pendingTimers[0].ms === 5000,
+    'ms=' + (__pendingTimers[0] && __pendingTimers[0].ms));
+lastGpsTime = -99999; gpsWatchId = 7; var __recFn = __pendingTimers[0].fn; __recFn();
+__ok('gpsErr: recovery replaces watch once and frees the slot',
+    __geoSpy.watch === 1 && __geoSpy.clear === 1 && gpsRetryPending === false,
+    'watch=' + __geoSpy.watch + ' clear=' + __geoSpy.clear);
+__resetGeo(); onPositionError(__mkErr(1));
+__ok('gpsErr: PERMISSION_DENIED schedules nothing, kills nothing',
+    __pendingTimers.length === 0 && __geoSpy.clear === 0 && __geoSpy.watch === 0,
+    'pending=' + __pendingTimers.length);
+__resetGeo(); onPositionError({}); onPositionError(null); onPositionError(undefined);
+__ok('gpsErr: malformed errors are inert',
+    __pendingTimers.length === 0 && __geoSpy.clear === 0,
+    'pending=' + __pendingTimers.length);
 """
 
 
