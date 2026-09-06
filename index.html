@@ -297,11 +297,13 @@
         .gnss-alert.active { display: flex; animation: alert-blink 0.9s steps(2, jump-none) infinite; }
         @keyframes alert-blink { 50% { filter: brightness(1.6); } }
 
-/* ── main stage: mobile portrait stack — grows to fill viewport, never shrinks ── */
+        /* ── main stage: mobile portrait stack — packs top (never splits
+           free space into mid-screen gaps); the gauge wrapper below absorbs
+           leftovers invisibly around the centered gauge ── */
         .stage {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             gap: calc(5.6px * var(--s-gap));
             flex: 1 0 auto;
             align-items: stretch;
@@ -312,7 +314,14 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 0.5rem;
         }
-        .gauge-wrap { order: 2; align-self: center; }
+        /* Leftover-space absorber: grows with free stage height; the gauge
+           inside grows with it (cqw path) or stays centered on its dial
+           size (legacy path) — either way no visible gap splits sections */
+        .gauge-wrap {
+            order: 2; align-self: stretch;
+            flex: 1 0 auto; min-height: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
         .speed-track { width: 100%; margin-top: 0.55rem; }
         .side-col:last-of-type {
             order: 3;
@@ -917,10 +926,10 @@
             .cmd-bar { grid-column: 1 / -1; grid-row: 1; }
             .gnss-alert { grid-column: 1 / -1; grid-row: 2; }
             .stage { display: contents; }
-            .side-col:first-of-type { grid-column: 1; grid-row: 3; align-self: start; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
-            .side-col:last-of-type { grid-column: 1; grid-row: 4; align-self: start; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+            .side-col:first-of-type { grid-column: 1; grid-row: 3; align-self: stretch; align-content: space-between; }
+            .side-col:last-of-type { grid-column: 1; grid-row: 4; align-self: stretch; align-content: space-between; }
             .gauge-wrap { grid-column: 2; grid-row: 3 / 5; align-self: center; --s-gauge: calc(var(--ui) * 1.35); }
-            .tactical { grid-column: 3; grid-row: 3; align-self: start; min-height: 0; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+            .tactical { grid-column: 3; grid-row: 3; align-self: stretch; align-content: center; min-height: 0; }
             .metric-footer { grid-column: 3; grid-row: 4; min-height: 0; overflow-y: auto; }
             .metric-footer .metric-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
             .hazard-strip { grid-column: 1 / -1; grid-row: 5; }
@@ -1131,7 +1140,7 @@
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.5.0 — Velocity-Lab</div>
+    <div id="app-version" class="version-tag">VER 1.5.1 — Velocity-Lab <span id="scale-debug"></span></div>
 </div>
 
 
@@ -2723,45 +2732,83 @@ let lastRenderTime  = performance.now();
                 } // end boot self-test demo (skipped under prefers-reduced-motion)
             }, 20);
 
-            // Auto-scale: uniform --ui = min(vw/390, vh/844), then shrink-to-fit
-            // content height (content scales ~linearly with --ui, so one pass
-            // converges). Hysteresis ignores URL-bar height jitter (<80 px) so
-            // scrolling never triggers a rescale loop. Floor 0.65 keeps the
-            // hero numerals huge while body text stays legible; below it the
-            // shell scrolls instead of clipping.
+            // Auto-scale: uniform --ui = min(vw/390, vh/844), then exact-fit to
+            // measured content (content scales ~linearly with --ui, so bounded
+            // passes converge). Hysteresis ignores URL-bar height jitter
+            // (<80 px) so scrolling never triggers a rescale loop. Floor 0.65
+            // keeps the hero numerals huge while body text stays legible;
+            // below it the shell scrolls instead of clipping.
             let lastScaleW = 0, lastScaleH = 0;
             let resizeRaf = null;
-            function updateScale(force) {
+            // True content height from child boxes + shell padding. scrollHeight
+            // can't be used: it floors at viewport height (hides undershoot)
+            // and misses shell padding + safe-area insets (hides overflow).
+            function measureContentH() {
+                try {
+                    const shell = document.querySelector('.dashboard-shell');
+                    if (!shell) return 0;
+                    let top = Infinity, bottom = -Infinity, n = 0;
+                    const kids = shell.children;
+                    for (let i = 0; i < kids.length; i++) {
+                        const el = kids[i];
+                        if (el.id === 'ios-gate') continue;
+                        let pos = 'static';
+                        try { pos = getComputedStyle(el).position; } catch (e2) {}
+                        if (pos === 'fixed' || pos === 'absolute') continue;
+                        const r = el.getBoundingClientRect();
+                        if (!(r.height > 0)) continue;
+                        if (r.top < top) top = r.top;
+                        if (r.bottom > bottom) bottom = r.bottom;
+                        n++;
+                    }
+                    if (!n || !isFinite(top)) return 0;
+                    let pad = 0;
+                    try {
+                        const cs = getComputedStyle(shell);
+                        pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+                    } catch (e3) {}
+                    return (bottom - top) + pad;
+                } catch (e4) { return 0; }
+            }
+            function updateScale(force, allowGrow) {
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
                 if (!force && Math.abs(vw - lastScaleW) < 1 && Math.abs(vh - lastScaleH) < 80) return;
                 lastScaleW = vw; lastScaleH = vh;
                 const baseW = 390, baseH = 844;
                 let scale = Math.min(vw / baseW, vh / baseH);
-                try {
-                    const doc = document.documentElement;
-                    const cur = parseFloat(getComputedStyle(doc).getPropertyValue('--ui')) || scale || 1;
-                    const contentH = doc.scrollHeight;
-                    // 10 px slack for fixed-px leftovers (borders) + rounding
-                    if (contentH > vh && cur > 0 && isFinite(contentH)) {
-                        scale = Math.min(scale, cur * (vh - 10) / contentH);
+                const cur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || scale || 1;
+                const contentH = measureContentH();
+                // Exact solve both directions so free space is absorbed by
+                // growing, never gaps — but grow ONLY on settled layout
+                // (post-boot/orientation passes). Early passes shrink-only:
+                // pre-boot content measures small and would overshoot.
+                if (cur > 0 && isFinite(contentH) && contentH > 0) {
+                    if (contentH > vh || allowGrow) {
+                        scale = Math.min(scale, cur * (vh - 20) / contentH);
                     }
-                } catch (e) {}
+                }
                 scale = Math.max(0.65, Math.min(2.5, scale));
                 document.documentElement.style.setProperty('--ui', scale.toFixed(4));
+                try {
+                    const dbg = document.getElementById('scale-debug');
+                    if (dbg) dbg.textContent = '· ui=' + scale.toFixed(2) + ' ' + vw + 'x' + vh;
+                } catch (e6) {}
             }
             function debouncedUpdateScale() {
                 if (resizeRaf) cancelAnimationFrame(resizeRaf);
-                resizeRaf = requestAnimationFrame(function(){ updateScale(false); });
+                resizeRaf = requestAnimationFrame(function(){ updateScale(false, false); });
             }
-            updateScale(true);
+            updateScale(true, false);
             window.addEventListener('resize', debouncedUpdateScale, { passive: true });
-            window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true); }, 100));
-            // Single final pass after boot settles (gauge 0.7s). Bounded passes
-            // only — extra passes (e.g. on fonts.ready) can measure mid-flight
-            // layout and undo a correct fit, causing visible pulsing. Font swap
-            // is size-neutral here (em line-heights + display=optional).
-            setTimeout(function(){ updateScale(true); }, 900);
+            window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true, true); }, 100));
+            // Bounded passes only: init (shrink-only), post-boot settle at
+            // 900 ms (gauge 0.7s done — exact solve), font arrival
+            // (shrink-only). No loops — a fixed schedule can't pulse.
+            setTimeout(function(){ updateScale(true, true); }, 900);
+            if (document.fonts && document.fonts.ready) {
+                try { document.fonts.ready.then(function(){ updateScale(true, false); }); } catch (e5) {}
+            }
         }
 
         window.addEventListener('load', checkPermissionsAndInit);
