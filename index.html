@@ -1140,7 +1140,7 @@
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.5.2 — Velocity-Lab <span id="scale-debug"></span></div>
+    <div id="app-version" class="version-tag">VER 1.5.3 — Velocity-Lab <span id="scale-debug"></span></div>
 </div>
 
 
@@ -2740,35 +2740,90 @@ let lastRenderTime  = performance.now();
             // below it the shell scrolls instead of clipping.
             let lastScaleW = 0, lastScaleH = 0;
             let resizeRaf = null;
-            // True content height from child boxes + shell padding. scrollHeight
-            // can't be used: it floors at viewport height (hides undershoot)
-            // and misses shell padding + safe-area insets (hides overflow).
+            // True content height = NATURAL leaf-height SUM + real gaps + pad,
+            // guarded by min() with the legacy box span. scrollHeight can't be
+            // used: it floors at viewport height (hides undershoot) and misses
+            // shell padding + safe-area insets. And no span of boxes works:
+            // flex absorbers (.stage, .gauge-wrap) stretch their boxes AND
+            // push leaves apart (.gauge-wrap centers the gauge in its slack),
+            // so any top-to-bottom span counts slack as content — the fit then
+            // converges at any ui (span always ≈ viewport), grow is dead code,
+            // shrink history ratchets ui down to ~0.92, and the gauge floats
+            // in two permanent voids no inter-section gate can see. Summing
+            // leaf heights + margins + container row-gaps is position-immune:
+            // ui grows until real content fills the viewport and the absorber
+            // keeps only the ~20px target residue. min() with the span keeps
+            // side-by-side cockpit layouts safe (summing overcounts there).
             function measureContentH() {
                 try {
                     const shell = document.querySelector('.dashboard-shell');
                     if (!shell) return 0;
+                    const skip = new Set();
+                    const stage = shell.querySelector('.stage');
+                    const gw = shell.querySelector('.gauge-wrap');
+                    if (stage) skip.add(stage);
+                    if (gw) skip.add(gw);
+                    function live(el) {
+                        if (!el || el.nodeType !== 1) return false;
+                        if (el.id === 'ios-gate') return false;
+                        let cs = null;
+                        try { cs = getComputedStyle(el); } catch (e2) { return false; }
+                        if (!cs || cs.display === 'none') return false;
+                        const pos = cs.position;
+                        if (pos === 'fixed' || pos === 'absolute') return false;
+                        return true;
+                    }
+                    function rowGap(el) {
+                        try { return parseFloat(getComputedStyle(el).rowGap) || 0; } catch (e3) { return 0; }
+                    }
+                    function flowCount(el) {
+                        let c = 0;
+                        const k = el.children;
+                        for (let i = 0; i < k.length; i++) if (live(k[i])) c++;
+                        return c;
+                    }
                     let top = Infinity, bottom = -Infinity, n = 0;
-                    const kids = shell.children;
-                    for (let i = 0; i < kids.length; i++) {
-                        const el = kids[i];
-                        if (el.id === 'ios-gate') continue;
-                        let pos = 'static';
-                        try { pos = getComputedStyle(el).position; } catch (e2) {}
-                        if (pos === 'fixed' || pos === 'absolute') continue;
+                    let sum = 0, nLeaf = 0, gaps = 0;
+                    function span(el) {
+                        if (!live(el)) return;
                         const r = el.getBoundingClientRect();
-                        if (!(r.height > 0)) continue;
+                        if (!(r.height > 0)) return;
                         if (r.top < top) top = r.top;
                         if (r.bottom > bottom) bottom = r.bottom;
                         n++;
                     }
-                    if (!n || !isFinite(top)) return 0;
+                    function nat(el) {
+                        if (!live(el)) return;
+                        if (skip.has(el)) {
+                            if (flowCount(el) > 1) gaps += (flowCount(el) - 1) * rowGap(el);
+                            const k = el.children;
+                            for (let i = 0; i < k.length; i++) nat(k[i]);
+                            return;
+                        }
+                        const r = el.getBoundingClientRect();
+                        if (!(r.height > 0)) return;
+                        let mt = 0, mb = 0;
+                        try {
+                            const cs = getComputedStyle(el);
+                            mt = parseFloat(cs.marginTop) || 0;
+                            mb = parseFloat(cs.marginBottom) || 0;
+                        } catch (e4) {}
+                        sum += r.height + mt + mb;
+                        nLeaf++;
+                    }
+                    const sk = shell.children;
+                    if (flowCount(shell) > 1) gaps += (flowCount(shell) - 1) * rowGap(shell);
+                    for (let i = 0; i < sk.length; i++) { span(sk[i]); nat(sk[i]); }
                     let pad = 0;
                     try {
                         const cs = getComputedStyle(shell);
                         pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-                    } catch (e3) {}
-                    return (bottom - top) + pad;
-                } catch (e4) { return 0; }
+                    } catch (e5) {}
+                    if (!n || !isFinite(top)) return 0;
+                    const spanH = (bottom - top) + pad;
+                    if (nLeaf >= 8 && sum > 0) return Math.min(spanH, sum + gaps + pad);
+                    return spanH;
+                } catch (e6) { return 0; }
             }
             function updateScale(force, allowGrow) {
                 const vw = window.innerWidth;

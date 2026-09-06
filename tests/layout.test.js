@@ -87,7 +87,7 @@ async function live() {
   const port = server.address().port;
   const browser = await playwright.chromium.launch();
   try {
-    for (const vp of [{ width: 390, height: 844 }, { width: 412, height: 950 }, { width: 800, height: 360 }, { width: 2400, height: 1080 }]) {
+    for (const vp of [{ width: 390, height: 844 }, { width: 412, height: 950 }, { width: 485, height: 983 }, { width: 800, height: 360 }, { width: 2400, height: 1080 }]) {
       const ctx = await browser.newContext({ viewport: vp });
       const page = await ctx.newPage();
       await page.goto("http://127.0.0.1:" + port + "/index.html", { waitUntil: "load", timeout: 30000 });
@@ -110,12 +110,29 @@ async function live() {
           if (g > maxGap) maxGap = g;
         }
         const cs = getComputedStyle(document.documentElement);
+        // Intra-wrap void: .gauge-wrap centers the gauge, so a slack-inflated
+        // wrap hides mid-screen voids no inter-section gap metric can see
+        // (485x983 shipped ui=0.92 + ~190px voids while this gate was green).
+        let gwSlack = 0;
+        try {
+          const gw = document.querySelector(".gauge-wrap");
+          if (gw) {
+            const r = gw.getBoundingClientRect();
+            let t = Infinity, b = -Infinity;
+            for (const el of gw.children) {
+              const q = el.getBoundingClientRect();
+              if (q.height > 0) { if (q.top < t) t = q.top; if (q.bottom > b) b = q.bottom; }
+            }
+            if (isFinite(t)) gwSlack = Math.max(0, Math.round(r.height - (b - t)));
+          }
+        } catch (e) {}
         return {
           maxGap: Math.round(maxGap),
           vScroll: document.documentElement.scrollHeight - window.innerHeight,
           hOver: document.documentElement.scrollWidth - window.innerWidth,
           fills: shell.getBoundingClientRect().bottom >= window.innerHeight - 1,
-          ui: parseFloat(cs.getPropertyValue("--ui")) || 0
+          ui: parseFloat(cs.getPropertyValue("--ui")) || 0,
+          gwSlack
         };
       });
       const expUi = Math.min(vp.width / 390, vp.height / 844);
@@ -127,6 +144,10 @@ async function live() {
       else pass(tag + ": max section gap " + m.maxGap + "px");
       if (Math.abs(m.ui - Math.min(expUi, 2.5)) > 0.35 && m.ui < 0.64) ok = fail(tag + ": --ui " + m.ui + " far from min-ratio " + expUi.toFixed(2)) && false;
       else pass(tag + ": --ui " + m.ui);
+      if (vp.width < vp.height) {
+        if (!(m.gwSlack <= 60)) ok = fail(tag + ": gauge-wrap slack " + m.gwSlack + "px exceeds 60px (centered voids)") && false;
+        else pass(tag + ": gauge-wrap slack " + m.gwSlack + "px");
+      }
       if (m.vScroll > 40) console.log("NOTE " + tag + ": vScroll " + m.vScroll + "px (floor/readability tradeoff)");
       await ctx.close();
     }
