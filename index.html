@@ -1535,11 +1535,22 @@ let lastRenderTime  = performance.now();
         window.addEventListener('pagehide', () => { if (stateDirty) saveSession(); });
         
         function handleMotion(event) {
-            const hasLinear = event.acceleration && typeof event.acceleration.z === 'number';
-            const rawX = hasLinear ? event.acceleration.x : (event.accelerationIncludingGravity?.x ?? 0);
-            const rawZ = hasLinear ? event.acceleration.z : (event.accelerationIncludingGravity?.z ?? 0);
-            // Adaptive alpha: shorter dt → lower alpha (more smoothing), longer dt → higher alpha
-            const nowImu = (typeof event.timeStamp === 'number' && event.timeStamp > 0) ? event.timeStamp : performance.now();
+            const acc = event.acceleration || {};
+            const grav = event.accelerationIncludingGravity || {};
+            const hasLinear = typeof acc.z === 'number';
+            // Null-safe axis reads: a null axis must read as missing (0),
+            // never NaN — NaN would poison the filter for the whole session.
+            const rawX = hasLinear
+                ? (typeof acc.x === 'number' ? acc.x : 0)
+                : (typeof grav.x === 'number' ? grav.x : 0);
+            const rawZ = hasLinear
+                ? acc.z
+                : (typeof grav.z === 'number' ? grav.z : 0);
+            // Adaptive alpha from arrival spacing on ONE clock. event.timeStamp
+            // is epoch-based on some browsers and performance-based on others;
+            // mixing it with a stored stamp from the other clock collapses dt
+            // to a clamp edge and pins the smoothing wrong all session.
+            const nowImu = performance.now();
             const dtImu = lastImuTime ? Math.max(0.005, Math.min(0.1, (nowImu - lastImuTime)/1000)) : 0.016;
             lastImuTime = nowImu;
             const adaptAlpha = Math.max(0.08, Math.min(0.35, IMU_ALPHA * (0.016 / dtImu) * 0.6 + IMU_ALPHA * 0.4));
@@ -1871,7 +1882,16 @@ let lastRenderTime  = performance.now();
                     let vMeas = gpsSpeedMs;
                     if (!trustSpeed) {
                         const vLs = lsVelocity(fixWindow);
-                        if (vLs !== null) vMeas = vLs;
+                        if (vLs !== null) {
+                            vMeas = vLs;
+                            // LS slope lives at the window center: propagate
+                            // to window end with measured accel, else sustained
+                            // ramps read ~span/2 behind instantaneous speed.
+                            if (imuFusionActive && fixWindow.length > 1) {
+                                const spanEnd = fixWindow[fixWindow.length - 1].t - fixWindow[0].t;
+                                vMeas = Math.max(0, vMeas + (imuLongG - imuLongGBias) * GRAVITY_MS2 * spanEnd / 2);
+                            }
+                        }
                     }
                     if (!kalmanInit) {
                         // Seed Doppler if trusted; a single-delta over a
@@ -1895,8 +1915,12 @@ let lastRenderTime  = performance.now();
                         // accuracy-weighted gain. Q grows in maneuvers (fast
                         // tracking) and stays small at cruise (max smoothing);
                         // without IMU the base rate keeps tracking near-raw.
-                        const aImu = imuFusionActive ? (imuLongG - imuLongGBias) * GRAVITY_MS2 : 0.0;
-                        const q0 = imuFusionActive ? KALMAN_Q0_IMU : KALMAN_Q0_GPS;
+                        // Stale inertial data (paused sensor, >1 s) is never
+                        // predicted on — a frozen 0.15G would otherwise drag
+                        // the estimate forever.
+                        const imuFresh = imuFusionActive && (now - lastImuTime) < 1000;
+                        const aImu = imuFresh ? (imuLongG - imuLongGBias) * GRAVITY_MS2 : 0.0;
+                        const q0 = imuFresh ? KALMAN_Q0_IMU : KALMAN_Q0_GPS;
                         const qTmp = q0 + KALMAN_Q_ACCEL * Math.abs(aImu);
                         const vPred = kalmanV + aImu * gpsDt;
                         const pPred = Math.min(50, kalmanP + qTmp * qTmp * gpsDt);
@@ -2276,7 +2300,9 @@ let lastRenderTime  = performance.now();
             const usableAgeSec = lastUsableGpsTime > 0 ? (now - lastUsableGpsTime) / 1000 : 999;
             // Tunnel mode: hold last target and dead-reckon on IMU for short
             // outages (<20 s since last USABLE fix) instead of snapping to 0.
-            const imuCoast = imuFusionActive && lastUsableGpsTime > 0 && usableAgeSec < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG;
+            // Coast needs LIVE inertial data — a frozen sensor must not drive it.
+            const imuLive = imuFusionActive && (now - lastImuTime) < 1000;
+            const imuCoast = imuLive && lastUsableGpsTime > 0 && usableAgeSec < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG;
             if (!isErrorState) {
                 if (gnssStale) {
                     if (!gpsAcquired) {
@@ -2328,7 +2354,9 @@ let lastRenderTime  = performance.now();
             // is unavailable spreads the step across the whole GPS interval.
             // Tunnel coast: same integrator runs up to 20 s without fixes with zero
             // GPS correction (pure dead-reckoning); the 20 s cap bounds drift.
-            if (imuFusionActive && timeSinceGpsSec < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG) {
+            // Requires live IMU (imuLive) — stale fused data would integrate
+            // phantom acceleration while parked.
+            if (imuLive && timeSinceGpsSec < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG) {
                 let predAccel = fusedLongG * GRAVITY_MS2;
                 if (Math.abs(predAccel) < 0.12 && currentSpeedMs < 0.35) predAccel = 0;
                 if (currentSpeedMs < 0.25 && Math.abs(predAccel) < 0.5 && displaySpeedMs < 0.5) predAccel *= 0.25;
