@@ -1140,7 +1140,7 @@
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.5.1 — Velocity-Lab <span id="scale-debug"></span></div>
+    <div id="app-version" class="version-tag">VER 1.5.2 — Velocity-Lab <span id="scale-debug"></span></div>
 </div>
 
 
@@ -2804,11 +2804,14 @@ let lastRenderTime  = performance.now();
             window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true, true); }, 100));
             // Bounded passes only: init (shrink-only), post-boot settle at
             // 900 ms (gauge 0.7s done — exact solve), font arrival
-            // (shrink-only). No loops — a fixed schedule can't pulse.
+            // (exact — late webfont wrap/unwrap flips heights after the
+            // 900ms pass on slow networks, leaving permanent gaps), final
+            // backstop at 2500 ms. Fixed schedule, static after — can't pulse.
             setTimeout(function(){ updateScale(true, true); }, 900);
             if (document.fonts && document.fonts.ready) {
-                try { document.fonts.ready.then(function(){ updateScale(true, false); }); } catch (e5) {}
+                try { document.fonts.ready.then(function(){ updateScale(true, true); }); } catch (e5) {}
             }
+            setTimeout(function(){ updateScale(true, true); }, 2500);
         }
 
         window.addEventListener('load', checkPermissionsAndInit);
