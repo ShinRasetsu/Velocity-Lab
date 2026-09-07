@@ -9,6 +9,25 @@
     "orientation": "any",
     "background_color": "#050505",
     "theme_color": "#050505",
+    "categories": ["sports", "utilities"],
+    "shortcuts": [
+        {
+            "name": "New Run (Reset)",
+            "short_name": "New Run",
+            "id": "new-run",
+            "description": "Resets the current run and telemetry.",
+            "url": "./?action=new",
+            "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "Export Run CSV",
+            "short_name": "Export",
+            "id": "export-csv",
+            "description": "Downloads the current run summary as CSV.",
+            "url": "./?action=export",
+            "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }]
+        }
+    ],
     "icons": [
         {
             "src": "./icon-192.png",
