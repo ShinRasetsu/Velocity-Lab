@@ -335,6 +335,86 @@ __resetGeo(); onPositionError({}); onPositionError(null); onPositionError(undefi
 __ok('gpsErr: malformed errors are inert',
     __pendingTimers.length === 0 && __geoSpy.clear === 0,
     'pending=' + __pendingTimers.length);
+
+// === Tests: velocity estimator (lsVelocity + Kalman/NIS/teleport via onPositionSuccess) ===
+// ES5-only, mirrored verbatim in tests/telemetry.test.js. Drives the real fix path with a
+// controllable clock + synthetic Doppler fixes on a north-bound straight line.
+var __t = 10000;
+performance.now = function () { return __t; };
+var __MPD = 6371000 * Math.PI / 180; // meters per degree of latitude
+var __lat = 40.0;
+
+function __resetEst() {
+  fixWindow = []; kalmanV = 0; kalmanP = 1; kalmanInit = false; prevKalmanV = 0;
+  outlierTimeSec = 0; lastFixClean = true;
+  currentSpeedMs = 0; displaySpeedMs = 0; distanceMeters = 0; prevGpsSpeedMs = 0;
+  lastGpsTime = -1; lastUsableGpsTime = -1;
+  lastGpsLat = undefined; lastGpsLon = undefined; lastGpsHeading = undefined;
+  gpsGlitchCount = 0; gpsHzSmooth = 0; lastGpsConfidence = 0;
+  imuFusionActive = false; lastImuTime = 0;
+  lastTimerSpeedKmh = NaN; lastTimerDistM = NaN; lastTimerTimeMs = NaN;
+  maxSpeedKmph = 0; maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
+  __t = 10000; __lat = 40.0;
+}
+
+function __coords(speedMs, dtSec, acc, jumpM) {
+  __t += dtSec * 1000;
+  __lat += (jumpM === undefined ? speedMs * dtSec : jumpM) / __MPD;
+  return { coords: { latitude: __lat, longitude: 0, accuracy: (acc === undefined ? 5 : acc), altitudeAccuracy: null, speed: speedMs, speedAccuracy: 0.5 } };
+}
+
+function __win(times, meters, accs) {
+  var out = [], i;
+  for (i = 0; i < times.length; i++) out.push({ t: times[i], lat: meters[i] / __MPD, lon: 0, acc: accs[i] });
+  return out;
+}
+
+// --- lsVelocity: pure weighted least-squares ---
+var __vLin = lsVelocity(__win([0, 1, 2, 3], [0, 20, 40, 60], [5, 5, 5, 5]));
+__ok('lsVelocity: straight-line 20 m/s -> ~20', __vLin !== null && Math.abs(__vLin - 20) < 0.05, 'got ' + __vLin);
+
+__ok('lsVelocity: span < LS_MIN_SPAN -> null', lsVelocity(__win([0, 0.1], [0, 5], [5, 5])) === null, '');
+__ok('lsVelocity: single anchor -> null', lsVelocity(__win([0], [0], [5])) === null, '');
+__ok('lsVelocity: empty window -> null', lsVelocity([]) === null, '');
+
+// 1/acc^2 discount: a 100 m outlier anchor must not drag the slope off the clean 30 m/s line.
+var __vW = lsVelocity(__win([0, 1, 2, 3], [0, 30, 60, 160], [5, 5, 5, 100]));
+var __vU = lsVelocity(__win([0, 1, 2, 3], [0, 30, 60, 160], [5, 5, 5, 5]));
+__ok('lsVelocity: 1/acc^2 discount keeps slope on clean line (~30)', __vW !== null && Math.abs(__vW - 30) < 5, 'weighted=' + __vW);
+__ok('lsVelocity: unweighted 100m outlier drags slope (proves the weight)', __vU !== null && Math.abs(__vU - 30) > 15, 'uniform=' + __vU);
+
+// --- Kalman: constant-speed convergence + NIS outlier spike rejection ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));      // seed stationary
+onPositionSuccess(__coords(4, 1));
+onPositionSuccess(__coords(8, 1));
+onPositionSuccess(__coords(12, 1));
+onPositionSuccess(__coords(16, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));     // settle
+__ok('kalman: constant 20 m/s Doppler converges near true speed', currentSpeedMs > 15 && currentSpeedMs < 22, 'currentSpeedMs=' + currentSpeedMs);
+
+var __gS = gpsGlitchCount;
+onPositionSuccess(__coords(120, 1));    // lone spike
+__ok('kalman: single 120 m/s spike is NIS-rejected (coasts, no snap)', Math.abs(currentSpeedMs - 20) < 8, 'currentSpeedMs=' + currentSpeedMs);
+__ok('kalman: spike increments the glitch counter', gpsGlitchCount > __gS, 'glitch=' + gpsGlitchCount);
+
+// --- Teleport: a jump no car could cover must hold, not seed a speed bump ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(4, 1));
+onPositionSuccess(__coords(8, 1));
+onPositionSuccess(__coords(12, 1));
+onPositionSuccess(__coords(16, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+var __gt = gpsGlitchCount;
+var __held = currentSpeedMs;
+onPositionSuccess(__coords(20, 1, 5, 5000));   // 5 km hop in 1 s
+__ok('teleport: 5 km position jump is held (speed unchanged)', Math.abs(currentSpeedMs - __held) < 1e-9, 'before=' + __held + ' after=' + currentSpeedMs);
+__ok('teleport: jump increments the glitch counter', gpsGlitchCount > __gt, 'glitch=' + gpsGlitchCount);
+__ok('teleport: Kalman not poisoned by the jump (still initialized & finite)', kalmanInit === true && isFinite(kalmanV), 'kalmanInit=' + kalmanInit + ' kalmanV=' + kalmanV);
 """
 
 

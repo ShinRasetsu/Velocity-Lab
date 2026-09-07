@@ -406,11 +406,11 @@
             position: absolute; top: 0.028em; left: 50%;
             width: 0.018em; height: 0.05em; margin-left: -0.009em;
             background: var(--amber);
-            box-shadow: 0 0 0.015em rgba(255,170,0,0.8);
+            box-shadow: 0 0 0.02em rgba(255,170,0,0.9);
             animation: peak-pulse 2s ease-in-out infinite;
-            will-change: box-shadow;
+            will-change: opacity;
         }
-        @keyframes peak-pulse { 0%,100% { box-shadow: 0 0 0.015em rgba(255,170,0,0.8); } 50% { box-shadow: 0 0 0.03em rgba(255,170,0,1), 0 0 0.06em rgba(255,170,0,0.5); } }
+        @keyframes peak-pulse { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
 
         /* best-speed ghost marker: dim amber tick from previous session */
         #best-marker { opacity: 0; transition: opacity 300ms ease; }
@@ -2327,21 +2327,38 @@ let lastRenderTime  = performance.now();
                 try { localStorage.removeItem('VelocityLab_text_scale'); } catch(e) {}
                 allTimeBest = {};
                 refreshTimerGhosts();
-                // Bust SW cache so updates take effect instantly (was stale-while-revalidate)
+                // Bust SW cache so updates take effect instantly (was stale-while-revalidate).
+                // Version-proof: delete by prefix, never by a hardcoded version
+                // (the page has no CACHE_VERSION symbol — the old template hit
+                // a ReferenceError and skipped the SW update below with it).
+                // Awaited: reload fires only after eviction + SW update settle
+                // (900 ms backstop), so a purged shell can't survive the race.
+                let bustDone = false;
+                const bustThenReload = function() {
+                    if (bustDone) return; bustDone = true;
+                    try { if (navigator.onLine) location.reload(); } catch (e) {}
+                };
                 try {
+                    const busts = [];
                     if (navigator.onLine && 'caches' in window) {
-                        caches.delete(`shell-${CACHE_VERSION}`);
-                        caches.delete(`runtime-${CACHE_VERSION}`);
+                        busts.push(caches.keys().then(function(keys) {
+                            return Promise.all(keys.map(function(k) {
+                                if (k.indexOf('shell-') === 0 || k.indexOf('runtime-') === 0) return caches.delete(k);
+                            }));
+                        }).catch(function(){}));
                     }
-                    if (navigator.serviceWorker) navigator.serviceWorker.getRegistration().then(r=>r && r.update()).catch(()=>{});
-                } catch(e) {}
+                    if (navigator.serviceWorker) busts.push(navigator.serviceWorker.getRegistration().then(function(r){ if (r) return r.update(); }).catch(function(){}));
+                    Promise.all(busts).then(bustThenReload).catch(bustThenReload);
+                    setTimeout(bustThenReload, 900);
+                } catch(e) { bustThenReload(); }
                 stateDirty = false;
             } catch (e) {
                 console.error("purgeData error", e);
             }
-            // Visual feedback - use window.alert safely
+            // Visual feedback - use window.alert safely (reload is owned by
+            // bustThenReload above, so the fresh shell is guaranteed).
             try { alert("Data purged. Dashboard reset — refresh to fetch latest version if online."); } catch(e) { console.log("Data purged"); }
-            try { if (navigator.onLine) location.reload(); } catch(e) {}
+            bustThenReload();
         }
         window.purgeData = purgeData;
 
@@ -2669,14 +2686,39 @@ let lastRenderTime  = performance.now();
             }
         }
 
+        // iOS motion choice with expiry: grants persist, denials re-ask after
+        // 30 days (an OS-settings grant must not stay locked out forever).
+        // Stored as JSON {s:'1'|'0', t:ms}; legacy plain '1'/'0' still reads
+        // ('1' = granted, bare '0' = stale denial re-prompted once).
+        const IOS_CHOICE_KEY = 'VelocityLab_ios_motion_granted';
+        const IOS_DENY_REASK_MS = 2592000000;
+        function getIosChoice() {
+            let raw = null;
+            try { raw = localStorage.getItem(IOS_CHOICE_KEY); } catch (e) {}
+            if (raw === '1') return 'granted';
+            if (raw === '0' || raw === 'gps-only') return 'expired-deny';
+            if (raw) {
+                try {
+                    const o = JSON.parse(raw);
+                    if (o && o.s === '1') return 'granted';
+                    if (o && (o.s === '0' || o.s === 'gps-only')) {
+                        if (typeof o.t === 'number' && Date.now() - o.t < IOS_DENY_REASK_MS) return 'denied';
+                        return 'expired-deny';
+                    }
+                } catch (e) {}
+            }
+            return 'unknown';
+        }
+        function setIosChoice(v) {
+            try { localStorage.setItem(IOS_CHOICE_KEY, JSON.stringify({ s: v, t: Date.now() })); } catch (e) {}
+        }
+
         async function requestIOSMotion() {
             if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
-            // Remember choice — both GRANT and GPS-ONLY — so we never re-prompt every launch.
-            try {
-                const prior = localStorage.getItem('VelocityLab_ios_motion_granted');
-                if (prior === '1') return true;
-                if (prior === '0' || prior === 'gps-only') return false;
-            } catch(e) {}
+            // Remember choice — GRANT persists, GPS-ONLY re-asks after 30 days.
+            const priorChoice = getIosChoice();
+            if (priorChoice === 'granted') return true;
+            if (priorChoice === 'denied') return false;
             
             // Don't block GPS — show gate but auto-dismiss quickly
             if (dom.iosGate) dom.iosGate.style.display = 'flex';
@@ -2685,7 +2727,7 @@ let lastRenderTime  = performance.now();
             return new Promise(resolve => {
                 const timeout = setTimeout(() => {
                     if (dom.iosGate) dom.iosGate.style.display = 'none';
-                    try { localStorage.setItem('VelocityLab_ios_motion_granted', '0'); } catch(e) {}
+                    try { setIosChoice('0'); } catch(e) {}
                     resolve(false);
                 }, 3500);
                 
@@ -2694,10 +2736,10 @@ let lastRenderTime  = performance.now();
                     if (dom.iosGate) dom.iosGate.style.display = 'none';
                     try {
                         const ok = (await DeviceMotionEvent.requestPermission()) === 'granted';
-                        try { localStorage.setItem('VelocityLab_ios_motion_granted', ok ? '1' : '0'); } catch(e) {}
+                        try { setIosChoice(ok ? '1' : '0'); } catch(e) {}
                         resolve(ok);
                     } catch {
-                        try { localStorage.setItem('VelocityLab_ios_motion_granted', '0'); } catch(e2) {}
+                        try { setIosChoice('0'); } catch(e2) {}
                         resolve(false);
                     }
                 }, { once: true });
@@ -2708,7 +2750,7 @@ let lastRenderTime  = performance.now();
                     gpsOnlyBtn.addEventListener('click', () => {
                         clearTimeout(timeout);
                         if (dom.iosGate) dom.iosGate.style.display = 'none';
-                        try { localStorage.setItem('VelocityLab_ios_motion_granted', '0'); } catch(e) {}
+                        try { setIosChoice('0'); } catch(e) {}
                         resolve(false);
                     }, { once: true });
                 }
@@ -2748,6 +2790,16 @@ let lastRenderTime  = performance.now();
             
             requestWakeLock();
             requestAnimationFrame(renderLoop);
+
+            // PWA shortcut deep-links (?action=new|export from manifest
+            // shortcuts): run after first paint, then strip the query so a
+            // later reload doesn't re-fire. No param = no-op.
+            try {
+                const shortcutAction = new URLSearchParams(window.location.search || '').get('action');
+                if (shortcutAction === 'new') setTimeout(function() { try { resetRun(); } catch (e) {} }, 600);
+                else if (shortcutAction === 'export') setTimeout(function() { try { exportRun(); } catch (e) {} }, 1200);
+                if (shortcutAction) { try { const du = new URL(window.location.href); du.searchParams.delete('action'); window.history.replaceState({}, '', du.pathname + du.search + du.hash); } catch (e2) {} }
+            } catch (e) {}
 
             // Trigger boot animations — every readout/bar/panel + gauge/ring
             setTimeout(() => {
