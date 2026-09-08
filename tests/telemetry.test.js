@@ -83,11 +83,14 @@ var __lat = 40.0;
 function __resetEst() {
   fixWindow = []; kalmanV = 0; kalmanP = 1; kalmanInit = false; prevKalmanV = 0;
   outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0; gpsLatGSm = 0; lastPosTs = -1; fixLog = [];
+  driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false;
+  lastAcc = null; nisEma = 1.0; zuptStillMs = 0;
   currentSpeedMs = 0; displaySpeedMs = 0; distanceMeters = 0; prevGpsSpeedMs = 0;
   lastGpsTime = -1; lastUsableGpsTime = -1;
   lastGpsLat = undefined; lastGpsLon = undefined; lastGpsHeading = undefined;
   gpsGlitchCount = 0; gpsHzSmooth = 0; lastGpsConfidence = 0;
   imuFusionActive = false; lastImuTime = 0;
+  fusedLongG = 0; fusedLatG = 0; imuLongG = 0; imuLatG = 0; imuLongGBias = 0; imuLatGBias = 0;
   lastTimerSpeedKmh = NaN; lastTimerDistM = NaN; lastTimerTimeMs = NaN;
   maxSpeedKmph = 0; maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
   __t = 10000; __lat = 40.0;
@@ -340,6 +343,60 @@ updateFusionStatusUI();
 __ok('fusion-hint: grant clears the hint affordance', String(dom.fusionStatus.title) === '', 'title=' + dom.fusionStatus.title);
 imuFusionActive = false;
 DeviceMotionEvent = undefined;
+
+// --- Phase 4.1 ZUPT: still IMU+GPS gates kill creep, moving does not ---
+__resetEst();
+onPositionSuccess(__coords(5, 1, 5));
+onPositionSuccess(__coords(5, 1, 5));
+imuFusionActive = true; fusedLongG = 0.02; fusedLatG = 0.01; imuLongG = 0.02; imuLatG = 0.01; imuLongGBias = 0; imuLatGBias = 0;
+currentSpeedMs = 0.35; kalmanV = 0.35; prevKalmanV = 0.35; kalmanP = 1.0; distanceMeters = 10; zuptStillMs = 600;
+var __zf = __coords(0.2, 1, 5); lastImuTime = __t; onPositionSuccess(__zf);
+__ok('zupt: sustained still zeros creep + freezes distance', currentSpeedMs === 0 && kalmanV === 0 && distanceMeters === 10, 'currentSpeedMs=' + currentSpeedMs + ' kalmanV=' + kalmanV + ' dist=' + distanceMeters);
+__resetEst();
+onPositionSuccess(__coords(5, 1, 5));
+onPositionSuccess(__coords(5, 1, 5));
+imuFusionActive = true; fusedLongG = 0.5; fusedLatG = 0; imuLongG = 0.5; imuLatG = 0;
+currentSpeedMs = 0.35; kalmanV = 0.35; prevKalmanV = 0.35; kalmanInit = true; zuptStillMs = 600;
+var __zm = __coords(0.2, 1, 5); lastImuTime = __t; onPositionSuccess(__zm);
+__ok('zupt: moving IMU does not zero', currentSpeedMs > 0, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Phase 4.2 Adaptive R: NIS EMA tracks noise, bounded ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(4, 1));
+onPositionSuccess(__coords(8, 1));
+onPositionSuccess(__coords(12, 1));
+onPositionSuccess(__coords(16, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+var __nis0 = nisEma;
+onPositionSuccess(__coords(22, 1));
+onPositionSuccess(__coords(18, 1));
+onPositionSuccess(__coords(22, 1));
+onPositionSuccess(__coords(18, 1));
+__ok('adapt-R: noisy run moves EMA (bounded)', nisEma !== __nis0 && nisEma >= 0.3 && nisEma <= 4.0, 'nis0=' + __nis0 + ' nis=' + nisEma);
+__ok('adapt-R: scale applied (R scaled, not NaN)', isFinite(nisEma), 'nisEma=' + nisEma);
+
+// --- Phase 4.3 Drift monitor: 30 s LS vs Kalman honesty ---
+__resetEst();
+onPositionSuccess(__coords(0, 1, 5));
+for (var __di = 0; __di < 32; __di++) {
+  __t += 1000;
+  __lat += 14 / __MPD;
+  onPositionSuccess({ coords: { latitude: __lat, longitude: 0, accuracy: 5, altitudeAccuracy: null, speed: 20, speedAccuracy: 0.5 } });
+}
+__ok('drift: sustained Doppler/LS divergence flags degraded', driftBad === true, 'driftBad=' + driftBad);
+__ok('drift: degraded tightens records (15 m now blocked)', (function(){ var __m0 = maxSpeedKmph; onPositionSuccess({ coords: { latitude: __lat + 20/__MPD, longitude:0, accuracy:15, altitudeAccuracy:null, speed:20, speedAccuracy:0.5 } }); return maxSpeedKmph === __m0; })(), 'max=' + maxSpeedKmph);
+
+// --- Phase 4.4 Provider switch: accuracy jump quarantines one fix ---
+__resetEst();
+onPositionSuccess(__coords(10, 1, 5));
+onPositionSuccess(__coords(10, 1, 5));
+var __pLen = fixLog.length;
+onPositionSuccess(__coords(10, 1, 20));
+var __pFl = fixLog[fixLog.length - 1].fl;
+__ok('provider: large acc jump flagged P', __pFl.indexOf('P') !== -1, 'fl=' + __pFl);
+__ok('provider: quarantine holds (next fix still needs confirm)', (function(){ onPositionSuccess(__coords(10, 1, 20)); return fixLog[fixLog.length-1].fl.indexOf('P') === -1; })(), 'fl=' + fixLog[fixLog.length-1].fl);
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";

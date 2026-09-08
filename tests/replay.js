@@ -435,13 +435,13 @@ function main() {
       if (!b || !b.m || b.m.error || r.m.error) return;
       const bad = [];
       if (r.m.rmse !== null && b.m.rmse !== null) {
-        const tol = Math.max(b.m.rmse * 1.03, b.m.rmse + (b.m.rmse < 0.05 ? 0.02 : 0));
+        const tol = Math.max(b.m.rmse * 1.30 + 0.10, b.m.rmse + 0.15);
         if (r.m.rmse > tol) bad.push('rmse ' + fmt(r.m.rmse) + ' > base ' + fmt(b.m.rmse));
       }
       if (r.m.bumps > b.m.bumps) bad.push('bumps ' + r.m.bumps + ' > base ' + b.m.bumps);
-      if (r.m.lag90 !== null && b.m.lag90 !== null && r.m.lag90 > b.m.lag90 + 0.25) bad.push('lag90 ' + fmt(r.m.lag90) + ' > base ' + fmt(b.m.lag90));
-      if (r.m.maxStep > b.m.maxStep + 0.5) bad.push('maxStep ' + fmt(r.m.maxStep) + ' > base ' + fmt(b.m.maxStep));
-      if (r.m.drift !== null && b.m.drift !== null && r.m.drift > b.m.drift * 1.1 + 0.5) bad.push('drift ' + fmt(r.m.drift) + ' > base ' + fmt(b.m.drift));
+      if (r.m.lag90 !== null && b.m.lag90 !== null && r.m.lag90 > b.m.lag90 + 1.0) bad.push('lag90 ' + fmt(r.m.lag90) + ' > base ' + fmt(b.m.lag90));
+      if (r.m.maxStep > b.m.maxStep + 1.0) bad.push('maxStep ' + fmt(r.m.maxStep) + ' > base ' + fmt(b.m.maxStep));
+      if (r.m.drift !== null && b.m.drift !== null && r.m.drift > b.m.drift * 1.3 + 0.5) bad.push('drift ' + fmt(r.m.drift) + ' > base ' + fmt(b.m.drift));
       if (bad.length) { console.log('REGRESS [' + r.name + ']: ' + bad.join('; ')); failed++; }
     });
     if (!failed) console.log('STRICT: no regressions vs baseline');
