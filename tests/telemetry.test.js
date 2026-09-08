@@ -11,7 +11,7 @@ const body = (()=>{ const m=fs.readFileSync(INDEX,'utf8').match(/<script>([\s\S]
 const PRELUDE = `
 var __results = [];
 function __ok(name, cond, detail) { __results.push({ name: String(name), ok: !!cond, detail: detail || '' }); }
-function __stubEl(){ return { style:{}, textContent:'', className:'', innerHTML:'', appendChild:function(){return arguments[0]}, removeChild:function(){return arguments[0]}, addEventListener:function(){}, setAttribute:function(){}, getContext:function(){return null} }; }
+function __stubEl(){ return { style:{ setProperty:function(){}, getPropertyValue:function(){return '';}, removeProperty:function(){} }, textContent:'', className:'', innerHTML:'', appendChild:function(){return arguments[0]}, removeChild:function(){return arguments[0]}, addEventListener:function(){}, setAttribute:function(){}, getContext:function(){return null}, classList:{ add:function(){}, remove:function(){}, toggle:function(){return false;}, contains:function(){return false;} } }; }
 var document = { getElementById:function(){return __stubEl();}, createElement:function(){return __stubEl();}, querySelector:function(){return __stubEl();}, querySelectorAll:function(){return [];}, addEventListener:function(){}, visibilityState:'visible', body: __stubEl(), documentElement: { style:{ setProperty:function(){} } } };
 var window = { addEventListener:function(){}, DeviceMotionEvent: undefined };
 var navigator = {};
@@ -82,7 +82,7 @@ var __lat = 40.0;
 
 function __resetEst() {
   fixWindow = []; kalmanV = 0; kalmanP = 1; kalmanInit = false; prevKalmanV = 0;
-  outlierTimeSec = 0; lastFixClean = true;
+  outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0; gpsLatGSm = 0; lastPosTs = -1; fixLog = [];
   currentSpeedMs = 0; displaySpeedMs = 0; distanceMeters = 0; prevGpsSpeedMs = 0;
   lastGpsTime = -1; lastUsableGpsTime = -1;
   lastGpsLat = undefined; lastGpsLon = undefined; lastGpsHeading = undefined;
@@ -95,7 +95,7 @@ function __resetEst() {
 
 function __coords(speedMs, dtSec, acc, jumpM) {
   __t += dtSec * 1000;
-  __lat += (jumpM === undefined ? speedMs * dtSec : jumpM) / __MPD;
+  __lat += (jumpM === undefined ? (speedMs || 0) * dtSec : jumpM) / __MPD;
   return { coords: { latitude: __lat, longitude: 0, accuracy: (acc === undefined ? 5 : acc), altitudeAccuracy: null, speed: speedMs, speedAccuracy: 0.5 } };
 }
 
@@ -151,6 +151,195 @@ onPositionSuccess(__coords(20, 1, 5, 5000));   // 5 km hop in 1 s
 __ok('teleport: 5 km position jump is held (speed unchanged)', Math.abs(currentSpeedMs - __held) < 1e-9, 'before=' + __held + ' after=' + currentSpeedMs);
 __ok('teleport: jump increments the glitch counter', gpsGlitchCount > __gt, 'glitch=' + gpsGlitchCount);
 __ok('teleport: Kalman not poisoned by the jump (still initialized & finite)', kalmanInit === true && isFinite(kalmanV), 'kalmanInit=' + kalmanInit + ' kalmanV=' + kalmanV);
+
+// --- P1a: 10 Hz window keeps the full 3 s baseline (was count-capped at 12 = 1.2 s) ---
+__resetEst();
+onPositionSuccess(__coords(0, 0.1));
+var __hz = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
+for (var __k = 0; __k < __hz.length; __k++) onPositionSuccess(__coords(__hz[__k], 0.1));
+for (var __m = 0; __m < 30; __m++) onPositionSuccess(__coords(20, 0.1));
+__ok('window: 10 Hz keeps full 3 s baseline (>12, <=30)', fixWindow.length > 12 && fixWindow.length <= 30, 'len=' + fixWindow.length);
+__ok('window: 10 Hz converges near true speed', Math.abs(currentSpeedMs - 20) < 3, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- P1b: post-seed settle halves the first steps (gradual lock, no snap) ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));       // seed stationary
+onPositionSuccess(__coords(12, 1));      // single 12 m/s step: NIS-clean, old slew allowed ~11.5
+__ok('settle: noisy seed step locks gradually (<9, not ~11.5)', currentSpeedMs > 5 && currentSpeedMs < 9, 'currentSpeedMs=' + currentSpeedMs);
+onPositionSuccess(__coords(12, 1));
+onPositionSuccess(__coords(12, 1));
+__ok('settle: counter consumed after 2 updates', seedSettle === 0, 'seedSettle=' + seedSettle);
+
+// --- P1c: LS collapse coasts on prediction (never replays a stale measurement) ---
+__resetEst();
+kalmanV = 20; prevKalmanV = 20; kalmanP = 1; kalmanInit = true;
+prevGpsSpeedMs = 99;             // stale garbage measurement
+lastFixClean = true; outlierTimeSec = 0;
+fixWindow = [{ t: __t / 1000 - 10, lat: __lat, lon: 0, acc: 5 }];  // aged out -> collapse
+lastGpsLat = __lat; lastGpsLon = 0;
+lastGpsTime = __t; lastUsableGpsTime = __t;  // normal path (dt=1), not first-fix
+var __g0 = gpsGlitchCount;
+onPositionSuccess(__coords(null, 1));   // non-Doppler, same spot
+__ok('collapse: stale vMeas not replayed (no glitch, still clean)', gpsGlitchCount === __g0 && lastFixClean === true, 'glitch=' + gpsGlitchCount);
+__ok('collapse: speed coasts on prediction (exactly 20)', currentSpeedMs === 20, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Soft jump: medium non-Doppler jump is damped, not bumped ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(4, 1));
+onPositionSuccess(__coords(8, 1));
+onPositionSuccess(__coords(12, 1));
+onPositionSuccess(__coords(16, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+var __sj = gpsGlitchCount;
+var __sp0 = currentSpeedMs;
+onPositionSuccess(__coords(null, 1, 5, 38));   // +38 m in 1 s, no Doppler (soft band)
+onPositionSuccess(__coords(null, 1, 5, 20));   // follow-up, back on the line
+__ok('softjump: medium jump counted as filtered', gpsGlitchCount > __sj, 'glitch=' + gpsGlitchCount);
+__ok('softjump: no speed bump from +38 m jump (+follow-up)', Math.abs(currentSpeedMs - 20) < 2.5, 'currentSpeedMs=' + currentSpeedMs + ' was ' + __sp0);
+
+// --- Doppler/delta veto tightened 12 -> 8 m/s ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(4, 1));
+onPositionSuccess(__coords(8, 1));
+onPositionSuccess(__coords(12, 1));
+onPositionSuccess(__coords(16, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+var __mm = gpsGlitchCount;
+var __mv = currentSpeedMs;
+onPositionSuccess(__coords(20, 1, 5, 30));   // +30 m but Doppler says 20 (10 m/s apart)
+__ok('doppler-veto: 10 m/s Doppler/delta split is held', gpsGlitchCount > __mm && Math.abs(currentSpeedMs - __mv) < 1e-9, 'glitch=' + gpsGlitchCount + ' before=' + __mv + ' after=' + currentSpeedMs);
+
+// --- GPS-G sample EMA: one +1.5G sample must not stair the fused estimate ---
+__resetEst();
+imuFusionActive = true; imuLongG = 0; imuLongGBias = 0; imuLatG = 0; imuLatGBias = 0;
+fusedLongG = 0; fusedLatG = 0; gpsLongGSm = 0; gpsLatGSm = 0;
+updateImuFusionFromGps(1.5, 0, 1.0, 1.0);
+__ok('fusion-ema: single GPS-G sample is smoothed (<0.15, not 0.18)', fusedLongG < 0.15, 'fusedLongG=' + fusedLongG);
+__ok('fusion-ema: EMA state tracks the sample', Math.abs(gpsLongGSm - 1.5 * (1 - Math.exp(-1 / 0.8))) < 1e-9, 'gpsLongGSm=' + gpsLongGSm);
+
+// --- RECORD_QUALITY_MIN: mediocre fixes drive the needle, not the records ---
+__resetEst();
+__resetTimers();   // timer state leaks across scenarios (DONE is retained by design)
+onPositionSuccess(__coords(0, 1, 19));
+onPositionSuccess(__coords(8, 1, 19));
+onPositionSuccess(__coords(16, 1, 19));
+onPositionSuccess(__coords(24, 1, 19));
+onPositionSuccess(__coords(32, 1, 19));
+onPositionSuccess(__coords(40, 1, 19));
+__ok('records: 19 m-accuracy fixes drive live speed (~40)', Math.abs(currentSpeedMs - 40) < 6, 'currentSpeedMs=' + currentSpeedMs);
+__ok('records: ...but not timers/MAX', timer0_100.state === T_IDLE && maxSpeedKmph === 0, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
+onPositionSuccess(__coords(40, 1, 8));
+__ok('records: 8 m fix arms timers + latches MAX', timer0_100.state === T_RUNNING && maxSpeedKmph > 100, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
+
+// --- Recency-weighted LS: exact on lines, current on ramps ---
+var __rLin = lsVelocity(__win([0, 1, 2, 3], [0, 20, 40, 60], [5, 5, 5, 5]));
+__ok('ls-recency: straight line still exact (~20)', __rLin !== null && Math.abs(__rLin - 20) < 0.05, 'got ' + __rLin);
+var __rFit = lsFit(__win([0, 1, 2, 3], [0, 5, 20, 45], [5, 5, 5, 5]));
+__ok('ls-recency: accel ramp reads near-current (>16 vs uniform 15, end truth 30)', __rFit !== null && __rFit.v > 16 && __rFit.v < 28, 'v=' + (__rFit && __rFit.v));
+__ok('ls-recency: fit lag reported (<1.2 s, was ~1.5)', __rFit !== null && __rFit.lagSec > 0.4 && __rFit.lagSec < 1.2, 'lag=' + (__rFit && __rFit.lagSec));
+
+// --- GPS-clock dt: delivery jitter must not corrupt intervals ---
+__resetEst();
+kalmanV = 20; prevKalmanV = 20; prevGpsSpeedMs = 20; currentSpeedMs = 20; kalmanInit = false;
+lastGpsTime = __t; lastUsableGpsTime = __t;
+lastPosTs = __t - 100;
+lastGpsLat = __lat; lastGpsLon = 0;
+__t += 1400; __lat += 20 / __MPD;   // truth 20 m/s on GPS clock; arrival jittered +0.4 s
+var __stamp = __t - 500;
+onPositionSuccess({ coords: { latitude: __lat, longitude: 0, accuracy: 5, altitudeAccuracy: null, speed: null, speedAccuracy: null }, timestamp: __stamp });
+__ok('stamp-dt: seed uses GPS-clock interval (~20, not 20/1.4)', Math.abs(currentSpeedMs - 20) < 0.5, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Settle exemption: IMU-confirmed launch is not clipped ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));      // seed stationary
+var __ex = __coords(12, 1);
+lastImuTime = __t - 100; imuFusionActive = true; imuLongG = 0.5; imuLongGBias = 0; imuLatG = 0; imuLatGBias = 0;
+onPositionSuccess(__ex);
+__ok('settle-exempt: IMU-confirmed launch locks fast (>9, not ~7.9)', currentSpeedMs > 9, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Parked slow path: 1 s cadence when calm, instant wake on input ---
+var __rafN = 0;
+requestAnimationFrame = function(){ __rafN++; };
+__resetEst(); __resetTimers(); stateDirty = false;
+lastGpsTime = __t - 20000; lastUsableGpsTime = __t - 20000;   // stale + calm
+lastRenderTime = __t;
+var __ptBefore = __pendingTimers.length;
+renderLoop();
+__ok('parked: calm loop parks on 1 s cadence (no RAF spin)', parkedSlow === true && __rafN === 0 && __pendingTimers.length > __ptBefore && __pendingTimers[__pendingTimers.length - 1].ms === 1000, 'parkedSlow=' + parkedSlow + ' raf=' + __rafN);
+wakeRenderLoop();
+__ok('parked: sensor wake resumes full rate at once', parkedSlow === false && __rafN === 1, 'parkedSlow=' + parkedSlow + ' raf=' + __rafN);
+currentSpeedMs = 5; displaySpeedMs = 5; lastGpsTime = __t;
+var __rafWas = __rafN;
+renderLoop();
+__ok('parked: motion never parks (RAF chain)', parkedSlow === false && __rafN === __rafWas + 1, 'parkedSlow=' + parkedSlow + ' raf=' + __rafN);
+
+// --- Dual-agree launch: GPS-only violent step with agreeing observables ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));      // seed stationary (Doppler, no IMU)
+onPositionSuccess(__coords(16, 1));     // 0-58 km/h in one fix, positions agree
+__ok('dual-agree: GPS-only launch step accepted (not coasted)', currentSpeedMs > 5 && lastFixClean === true, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Dual-agree guard: lone Doppler spike without position support still coasts ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(22, 1, 5, 16));   // Doppler 22, delta 16: split 6 (veto 8, agree 4)
+__ok('dual-agree: single-observable spike still coasted', currentSpeedMs < 1 && lastFixClean === false, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Establishment grace: non-Doppler pull-away locks (no veto-freeze) ---
+__resetEst();
+onPositionSuccess({ coords: { latitude: __lat, longitude: 0, accuracy: 5, altitudeAccuracy: null, speed: null, speedAccuracy: null } });
+__t += 1000; __lat += 20 / __MPD;
+onPositionSuccess({ coords: { latitude: __lat, longitude: 0, accuracy: 5, altitudeAccuracy: null, speed: null, speedAccuracy: null } });
+__ok('coldstart: non-Doppler pull-away locks (no veto-freeze)', currentSpeedMs > 5, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Phase-2 field log: bounded ring with estimator internals ---
+for (var __li = 0; __li < 605; __li++) logFix({ t: __li });
+__ok('fixlog: ring caps at 600 (oldest evicted)', fixLog.length === 600 && fixLog[0].t === 5 && fixLog[599].t === 604, 'len=' + fixLog.length);
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(10, 1));
+var __le = fixLog[fixLog.length - 1];
+__ok('fixlog: seed/update entries carry flags + finite estimate', fixLog.length === 2 && fixLog[0].fl === 'DF' && __le.fl === 'DU' && isFinite(__le.kv), 'len=' + fixLog.length + ' fl=' + (fixLog[0] && fixLog[0].fl));
+onPositionSuccess({ coords: { latitude: __lat, longitude: 0, accuracy: 99, altitudeAccuracy: null, speed: null, speedAccuracy: null } });
+var __lw = fixLog[fixLog.length - 1];
+__ok('fixlog: weak fixes logged with W flag', __lw.fl.indexOf('W') !== -1, 'fl=' + __lw.fl);
+
+// --- Phase-1b mount-health: flags rattling mounts, ignores calm ones ---
+function __mountState() {
+  currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0.9;
+  lastUsableGpsTime = __t; lastGpsTime = __t;
+  mountOffsetX = 0; mountOffsetZ = 0; imuLongGBias = 0; imuLatGBias = 0;
+  mountN = 61; mountMeanL = 0; mountMeanT = 0; mountVarL = 0; mountVarT = 0;
+  mountBad = false; mountBadT0 = 0; mountOkT0 = 0; mountDismissed = false;
+  lastImuTime = 0;
+}
+function __shake(n, amp) {
+  for (var i = 0; i < n; i++) { __t += 100; handleMotion({ acceleration: { x: 0, z: (i % 2 ? amp : -amp) } }); }
+}
+__mountState();
+__shake(10, 30); __t += 3000; __shake(10, 30); __t += 3000; __shake(10, 30);
+__ok('mount: rattling mount flagged after sustained noise', mountBad === true, 'mountBad=' + mountBad);
+__mountState();
+__shake(40, 0);
+__ok('mount: calm mount stays clear (learn path ran)', mountBad === false && mountN === 101, 'mountBad=' + mountBad + ' n=' + mountN);
+mountBad = true; mountBadT0 = 0; mountOkT0 = 0; mountVarL = 0.002; mountVarT = 0.002;
+__shake(25, 0); __t += 4000; __shake(25, 0);
+__ok('mount: recovers when vibration stops', mountBad === false, 'mountBad=' + mountBad);
+
+// --- Phase-1a GPS-only hint advertises tap-to-enable motion ---
+imuFusionActive = false;
+DeviceMotionEvent = { requestPermission: function(){} };
+updateFusionStatusUI();
+__ok('fusion-hint: GPS-only advertises tap-to-enable motion', String(dom.fusionStatus.title).indexOf('motion') !== -1, 'title=' + dom.fusionStatus.title);
+imuFusionActive = true;
+updateFusionStatusUI();
+__ok('fusion-hint: grant clears the hint affordance', String(dom.fusionStatus.title) === '', 'title=' + dom.fusionStatus.title);
+imuFusionActive = false;
+DeviceMotionEvent = undefined;
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";

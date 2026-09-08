@@ -295,6 +295,9 @@
             color: #ff6699; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
         }
         .gnss-alert.active { display: flex; animation: alert-blink 0.9s steps(2, jump-none) infinite; }
+        /* Mount-health alert: hidden by default (zero box until flagged) */
+        #mount-alert { display: none; }
+        #mount-alert.active { display: flex; border-color: rgba(255,190,60,0.55); color: #ffcf7a; background: repeating-linear-gradient(45deg, rgba(255,190,60,0.14) 0 10px, rgba(10,4,8,0.6) 10px 20px); }
         @keyframes alert-blink { 50% { filter: brightness(1.6); } }
 
         /* ── main stage: mobile portrait stack — packs top (never splits
@@ -988,6 +991,7 @@
     <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true">
         <span class="gate-title clr-green neon-accent">VELOCITY-LAB</span>
         <span class="gate-sub">モーションセンサー起動必須 // MOTION SENSOR ACCESS REQUIRED FOR IMU FUSION TELEMETRY.</span>
+        <span class="gate-sub">GRANT → live needle + launch response // GRANT で即応答・G計測。GPS ONLY → ~1–2 s lag, no G-meter.</span>
         <button id="ios-grant-btn" aria-label="Grant Motion Access" class="action-btn btn-ios-grant neon-accent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
             GRANT MOTION ACCESS
@@ -1016,7 +1020,7 @@
                 <span id="status-indicator" class="text-yellow-500 neon-warning">[ ACQUIRING GNSS ]</span>
                 <span class="cmd-status-sub">
                     <span id="accuracy-display">ACC -- M</span>
-                    <span id="fusion-display" class="text-gray-600">FUSION: GPS ONLY</span>
+                    <span id="fusion-display" class="text-gray-600" tabindex="0" role="button" aria-label="Enable motion fusion">FUSION: GPS ONLY</span>
                 </span>
             </div>
 <div class="cmd-sys" aria-live="polite">
@@ -1031,6 +1035,7 @@
 
     <!-- GNSS LOSS ALERT (tap to dismiss until next signal change) -->
     <div id="gnss-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ GNSS SIGNAL LOST — 再取得中 // REACQUIRING</div>
+    <div id="mount-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ MOUNT UNSTABLE — check phone mount // IMU accuracy reduced</div>
 
     <!-- MAIN STAGE -->
     <main class="stage" aria-label="Dashboard">
@@ -1169,22 +1174,54 @@
         const GPS_ACC_TRUST_MIN_M    = 4.0;
         const GPS_ACC_TRUST_MAX_M    = 25.0;
         const GPS_QUALITY_MIN        = 0.2;
+        // Records (timers/MAX/peaks) demand better fixes than the live
+        // needle: a 20 m fix may drive the speedo but must not write a
+        // 0-100 time or latch MAX.
+        const RECORD_QUALITY_MIN     = 0.35;
         const FUSION_BIAS_TAU_SEC    = 2.5;
         const FUSION_NUDGE_TAU_SEC   = 0.8;
         const FUSION_GPS_WEIGHT      = 0.12;
+        // Per-fix EMA horizon for the GPS-derived G sample (rate-normalized):
+        // smooths the stepwise dv/dt sample before it touches fusion.
+        const FUSION_G_SMOOTH_TAU_SEC = 0.8;
+        // Mount-health thresholds (G² combined-axis variance, learned at
+        // standstill on good GPS): idle vibration sits far below BAD;
+        // a rattling mount far above. Conservative pending field logs.
+        const MOUNT_VAR_BAD          = 0.0144;
+        const MOUNT_VAR_OK           = 0.0036;
+        const MOUNT_MIN_N            = 60;
+        const MOUNT_BAD_MS           = 5000;
+        const MOUNT_OK_MS            = 3000;
         const IMU_BIAS_CLAMP         = 0.5;
         const G_RING_VISIBLE         = false;
         const PHYSICAL_G_CLAMP_LONG  = 3.5;
         // -- velocity estimator: least-squares window + 1D Kalman --
-        // Window is time-based (3 s, max 12 fixes) so 10 Hz streams fit over
-        // a long baseline instead of 0.4 s of noise.
+        // Window is time-based (3 s, max 30 fixes) so 10 Hz streams keep
+        // the full 3 s slope baseline instead of 1.2 s of noise.
         const FIX_WINDOW_SEC         = 3.0;
-        const FIX_WINDOW_MAX         = 12;
+        const FIX_WINDOW_MAX         = 30;
         const LS_MIN_SPAN_SEC        = 0.25;
         const KALMAN_Q0_IMU          = 0.7;
         const KALMAN_Q0_GPS          = 2.2;
         const KALMAN_Q_ACCEL         = 1.5;
         const KALMAN_R_MAX           = 60.0;
+        // Post-seed settle: a fresh seed (P=9) applies ~95% of the first
+        // innovations, so a noisy seed steps the speedo. Halve the allowed
+        // per-fix step for the next 2 fixes for a gradual lock instead.
+        const SEED_SETTLE_FIXES      = 2;
+        const SEED_DV_SCALE          = 0.5;
+        // Recency horizon for the LS window fit: recent anchors weigh more so
+        // the slope tracks the present during maneuvers instead of lagging
+        // ~span/2. Steady-state noise cost is small next to single-delta.
+        const LS_RECENCY_TAU_SEC     = 1.5;
+        // Two-observable agreement band: when Doppler and position-delta
+        // agree within this on a violent step, it is a launch, not a spike.
+        const LAUNCH_AGREE_MPS       = 4.0;
+        // Establishment grace: with no tracked baseline yet, plausible jumps
+        // defer to NIS+slew instead of vetoing — a veto here freezes vRef
+        // and deadlocks the filter before it ever moves. Absurd jumps and
+        // Doppler contradictions still hold. Named for the replay bench.
+        const STARTUP_GRACE_JUMP_M   = 40.0;
 
         const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2;
 
@@ -1237,6 +1274,15 @@ let lastRenderTime  = performance.now();
         let kalmanInit      = false;
         let prevKalmanV     = 0.0;
         let outlierTimeSec  = 0.0;
+        let seedSettle      = 0;
+        let gpsLongGSm      = 0.0;
+        let gpsLatGSm       = 0.0;
+        let lastPosTs       = -1;
+        let parkedSlow      = false;
+        let parkedGen       = 0;
+        // Mount-health learn state (standstill noise floor of the IMU)
+        let mountN = 0, mountMeanL = 0.0, mountMeanT = 0.0, mountVarL = 0.0, mountVarT = 0.0;
+        let mountBad = false, mountBadT0 = 0, mountOkT0 = 0, mountDismissed = false;
         let lastFixClean    = true;
 
         // Sensor Fusion State 
@@ -1307,6 +1353,7 @@ let lastRenderTime  = performance.now();
 
             // Gundam HUD additions
             gnssAlert:    document.getElementById('gnss-alert'),
+            mountAlert:   document.getElementById('mount-alert'),
             distDisplay:  document.getElementById('dist-display'),
             sessionTime:  document.getElementById('session-time'),
             brakeLive:    document.getElementById('brake-live'),
@@ -1343,7 +1390,7 @@ let lastRenderTime  = performance.now();
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
-            alertOn: null,
+            alertOn: null, mountOn: null,
             bestDeg: null
         };
 
@@ -1441,9 +1488,14 @@ let lastRenderTime  = performance.now();
 
         // ─── UI CONTROLS ──────────────────────────────────────────────────────────
         function resetRun() {
+            wakeRenderLoop();
             distanceMeters  = 0.0;
             displayDistanceM = 0.0;
             gnssDismissed = false;
+            mountDismissed = false;
+            mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
+            mountBad = false; mountBadT0 = 0; mountOkT0 = 0;
+            fixLog = [];
             lastUsableGpsTime = -1;
             maxSpeedKmph    = 0.0;
             displayMaxKmph  = 0.0;
@@ -1463,7 +1515,7 @@ let lastRenderTime  = performance.now();
             imuLatGBias  = 0.0;
             fixWindow = [];
             kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0;
-            outlierTimeSec = 0; lastFixClean = true;
+                outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0;
             lastGpsHeading = undefined;
             lastGpsLat = undefined;
             lastGpsLon = undefined;
@@ -1560,6 +1612,7 @@ let lastRenderTime  = performance.now();
         window.addEventListener('pagehide', () => { if (stateDirty) saveSession(); });
         
         function handleMotion(event) {
+            wakeRenderLoop();
             const acc = event.acceleration || {};
             const grav = event.accelerationIncludingGravity || {};
             const hasLinear = typeof acc.z === 'number';
@@ -1588,10 +1641,49 @@ let lastRenderTime  = performance.now();
             // updateImuFusionFromGps pulls it toward GPS-derived truth per sample.
             fusedLongG = imuLongG - imuLongGBias;
             fusedLatG  = imuLatG  - imuLatGBias;
+            // Mount-health learn: standstill on good GPS only. Tracks the IMU
+            // noise floor; a rattling mount raises it far above engine idle.
+            // Frozen while moving (never learns driving as mount noise).
+            const mountLearn = currentSpeedMs < 0.3 && displaySpeedMs < 0.3 && lastGpsConfidence >= 0.7 && lastUsableGpsTime > 0 && lastGpsTime > 0;
+            if (mountLearn) {
+                const mA = 0.03;
+                mountN++;
+                const dL = imuLongG - mountMeanL, dT = imuLatG - mountMeanT;
+                mountMeanL += dL * mA; mountMeanT += dT * mA;
+                mountVarL += (dL * dL - mountVarL) * mA;
+                mountVarT += (dT * dT - mountVarT) * mA;
+                if (mountN > MOUNT_MIN_N) {
+                    const mVar = mountVarL + mountVarT;
+                    if (!mountBad && mVar > MOUNT_VAR_BAD) {
+                        if (!mountBadT0) mountBadT0 = nowImu;
+                        if (nowImu - mountBadT0 > MOUNT_BAD_MS) { mountBad = true; mountDismissed = false; }
+                    } else if (!mountBad) {
+                        mountBadT0 = 0;
+                    }
+                    if (mountBad && mVar < MOUNT_VAR_OK) {
+                        if (!mountOkT0) mountOkT0 = nowImu;
+                        if (nowImu - mountOkT0 > MOUNT_OK_MS) { mountBad = false; mountBadT0 = 0; mountOkT0 = 0; }
+                    } else if (mountBad) {
+                        mountOkT0 = 0;
+                    }
+                }
+            } else {
+                mountBadT0 = 0; mountOkT0 = 0;
+            }
         }
 
         function updateImuFusionFromGps(gpsLongG, gpsLatG, confidence, gpsDtSec) {
             if (!imuFusionActive || confidence <= 0) return;
+            // Per-fix EMA on the GPS-derived G sample (rate-normalized): the
+            // raw dv/dt sample arrives stepwise at fix rate and would stair
+            // the fused estimate + accel bars. Smooth the sample, not the
+            // tracking — truth response stays governed by the nudge weight.
+            const dtG = (typeof gpsDtSec === 'number' && gpsDtSec > 0) ? Math.min(gpsDtSec, 5) : 1;
+            const gSmAlpha = 1 - Math.exp(-dtG / FUSION_G_SMOOTH_TAU_SEC);
+            gpsLongGSm += (gpsLongG - gpsLongGSm) * gSmAlpha;
+            gpsLatGSm += (gpsLatG - gpsLatGSm) * gSmAlpha;
+            gpsLongG = gpsLongGSm;
+            gpsLatG = gpsLatGSm;
             // 1. Slowly drift IMU bias toward the IMU-vs-GPS residual (a complementary filter).
             // dt-normalized (~2.5 s time constant) so 10 Hz GPS doesn't chase
             // noise 10× faster than the 1 Hz tuning point (was flat 0.35/fix).
@@ -1613,10 +1705,20 @@ let lastRenderTime  = performance.now();
 
         function updateFusionStatusUI() {
             if (imuFusionActive) {
-                if (dom.fusionStatus) { dom.fusionStatus.textContent = "FUSION: GPS+IMU"; dom.fusionStatus.className   = "clr-green neon-accent"; }
+                if (dom.fusionStatus) { dom.fusionStatus.textContent = "FUSION: GPS+IMU"; dom.fusionStatus.className   = "clr-green neon-accent"; dom.fusionStatus.title = ""; dom.fusionStatus.style.cursor = ""; }
                 if (dom.scorePanelLabel) dom.scorePanelLabel.textContent = "Performance Index (GPS+IMU)";
             } else {
-                if (dom.fusionStatus) { dom.fusionStatus.textContent = "FUSION: GPS ONLY"; dom.fusionStatus.className   = "text-gray-600"; }
+                if (dom.fusionStatus) {
+                    dom.fusionStatus.textContent = "FUSION: GPS ONLY";
+                    dom.fusionStatus.className   = "text-gray-600";
+                    // Recoverable: on iOS the 3.5 s gate often lapses before the
+                    // user reads it. Tapping re-asks (explicit gesture bypasses
+                    // the stored denial). No-op where no permission API exists.
+                    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                        dom.fusionStatus.title = "Tap to enable motion fusion (live needle, no lag)";
+                        dom.fusionStatus.style.cursor = "pointer";
+                    }
+                }
                 if (dom.scorePanelLabel) dom.scorePanelLabel.textContent = "Performance Index (GPS)";
             }
         }
@@ -1662,14 +1764,40 @@ let lastRenderTime  = performance.now();
 
         function lerp(a, b, f) { return a + (b - a) * f; }
 
+        // Phase-2 field log: per-fix raw observables + estimator internals for
+        // offline replay/tuning. Bounded ring (600 fixes ≈ 10 min at 1 Hz).
+        let fixLog = [];
+        const FIX_LOG_MAX = 600;
+        function lgRound(x, d) {
+            if (typeof x !== 'number' || !isFinite(x)) return null;
+            const p = Math.pow(10, d);
+            return Math.round(x * p) / p;
+        }
+        function logFix(e) {
+            fixLog.push({
+                t: Math.round(e.t) || 0, ts: Math.round(e.ts) || 0,
+                la: lgRound(e.la, 5), lo: lgRound(e.lo, 5), ac: lgRound(e.ac, 1),
+                sp: lgRound(e.sp, 3), sa: lgRound(e.sa, 2), hd: lgRound(e.hd, 1),
+                cf: lgRound(e.cf, 3), vm: lgRound(e.vm, 3), kv: lgRound(e.kv, 3),
+                kp: lgRound(e.kp, 3), k: lgRound(e.k, 4), iv: lgRound(e.iv, 3),
+                r: lgRound(e.r, 2), fl: String(e.fl || ''),
+                ig: lgRound(e.ig, 3), ds: lgRound(e.ds, 1),
+                jd: lgRound(e.jd, 1), mp: lgRound(e.mp, 1), rd: lgRound(e.rd, 3)
+            });
+            if (fixLog.length > FIX_LOG_MAX) fixLog.shift();
+        }
+
         // Least-squares velocity vector over buffered anchors. Differencing
         // two noisy fixes amplifies position noise into speed noise; fitting
         // the lat/lon slope over the window is unbiased and far smoother.
-        // Returns m/s, or null when the window spans too little time.
-        function lsVelocity(window_) {
+        // Anchors carry 1/acc² × recency weight: the fit tracks the present
+        // during maneuvers instead of lagging ~span/2.
+        // lsFit returns { v, lagSec }; lsVelocity keeps the scalar contract.
+        function lsFit(window_) {
             const n = window_.length;
             if (n < 2) return null;
-            const span = window_[n - 1].t - window_[0].t;
+            const tEnd = window_[n - 1].t;
+            const span = tEnd - window_[0].t;
             if (!(span >= LS_MIN_SPAN_SEC)) return null;
             // Weighted by 1/acc² so a 100 m anchor emerging from a tunnel
             // can't drag the slope fitted through 8 m anchors.
@@ -1684,7 +1812,7 @@ let lastRenderTime  = performance.now();
             const t0 = window_[0].t;
             for (let i = 0; i < n; i++) {
                 const a = (typeof window_[i].acc === 'number' && window_[i].acc > 0) ? window_[i].acc : GPS_ACC_TRUST_MAX_M;
-                const w = (1 / (a * a)) / wMax;
+                const w = ((1 / (a * a)) / wMax) * Math.exp(-(tEnd - window_[i].t) / LS_RECENCY_TAU_SEC);
                 const t = window_[i].t - t0;
                 sw += w; sumT += w * t; sumT2 += w * t * t;
                 sumLat += w * window_[i].lat; sumLon += w * window_[i].lon;
@@ -1698,7 +1826,17 @@ let lastRenderTime  = performance.now();
             const vx = dLon * Math.PI / 180 * 6371000 * Math.cos(latR);
             const vy = dLat * Math.PI / 180 * 6371000;
             const spd = Math.hypot(vx, vy);
-            return isFinite(spd) ? spd : null;
+            if (!isFinite(spd)) return null;
+            // The slope lives at the weighted-mean time: report its lag
+            // behind window end so callers propagate exactly (was span/2).
+            const tBar = sumT / sw;
+            const lagSec = Math.max(0, Math.min(FIX_WINDOW_SEC, (tEnd - t0) - tBar));
+            return { v: spd, lagSec: lagSec };
+        }
+
+        function lsVelocity(window_) {
+            const f = lsFit(window_);
+            return f ? f.v : null;
         }
 
         // Launch moment: rewind from the first moving fix to where speed crossed
@@ -1840,12 +1978,31 @@ let lastRenderTime  = performance.now();
         }
 
         function onPositionSuccess(position) {
+            wakeRenderLoop();
             const c = position.coords;
             const now = performance.now();
             let gpsDt = 0;
             let rawDt = 0;
             if (lastGpsTime > 0) { rawDt = (now - lastGpsTime) / 1000.0; gpsDt = Math.min(rawDt, GPS_MAX_DT_SEC); }
             lastGpsTime = now;
+            // GPS-clock intervals (immune to event-loop delivery jitter):
+            // prefer position.timestamp deltas when sane, else arrival dt.
+            // tFix is the window clock for this fix (stamp when trusted).
+            let tFix = now / 1000;
+            const posTs = (position && typeof position.timestamp === 'number') ? position.timestamp : NaN;
+            if (lastPosTs > 0 && typeof posTs === 'number' && isFinite(posTs) && posTs > 0) {
+                const stampDt = (posTs - lastPosTs) / 1000;
+                // Agreement is two-sided: a near-zero stamp against a real
+                // arrival is a broken clock (would fabricate 1000x speed),
+                // while arrival jitter must never veto a sane stamp —
+                // hence a relative floor plus the 1 s absolute cap.
+                if (stampDt > 0 && stampDt < 30 && stampDt > rawDt * 0.2 && Math.abs(stampDt - rawDt) < 1.0) {
+                    rawDt = stampDt;
+                    gpsDt = Math.min(rawDt, GPS_MAX_DT_SEC);
+                    tFix = posTs / 1000;
+                }
+            }
+            if (typeof posTs === 'number' && isFinite(posTs) && posTs > 0) lastPosTs = posTs;
             // Healthy fix: a dead provider is back, drop back to fast retry.
             // (gpsRetryPending stays owned by the queued timer, which stands
             // down on recency when it fires — keeps one recovery max.)
@@ -1895,6 +2052,23 @@ let lastRenderTime  = performance.now();
             // fixes still refresh the Lat/Lon anchor so recovery stays smooth.
             const usable = trustSpeed || conf >= GPS_QUALITY_MIN;
             let freshAcquire = false;
+            let softJump = false;
+            // Field-log path flags (W weak, D doppler, Q quarantine, H hard
+            // hold, S soft, O outlier, R reacquire, F seed, U update).
+            // lg() stamps shared fields; call sites add specifics.
+            let lgFl = (!usable ? "W" : "") + (trustSpeed ? "D" : "");
+            let lgJd = NaN, lgMp = NaN;
+            let lgDone = false;
+            function lg(o){
+                lgDone = true;
+                o.t = now; o.ts = posTs; o.la = c.latitude; o.lo = c.longitude; o.ac = acc;
+                o.sp = rawSpeed; o.sa = speedAcc; o.hd = (typeof c.heading === 'number' ? c.heading : null); o.cf = conf;
+                if (o.kv === undefined) o.kv = kalmanV;
+                if (o.kp === undefined) o.kp = kalmanP;
+                o.ig = fusedLongG; o.ds = distanceMeters;
+                o.jd = lgJd; o.mp = lgMp; o.rd = rawDt;
+                logFix(o);
+            }
             // Gap quarantine: the first non-Doppler fix after silence spans
             // unknown time (outage tail) — buffer its anchor as a fresh
             // baseline but trust no speed until consecutive fresh fixes.
@@ -1911,10 +2085,23 @@ let lastRenderTime  = performance.now();
                 const accTerm = (typeof acc === 'number' && isFinite(acc)) ? acc : GPS_ACC_TRUST_MAX_M;
                 const maxPlausible = Math.max(2 * accTerm + 8,
                     vRef * rawDt + 1.2 * GRAVITY_MS2 * rawDt * rawDt + 8);
-                const dopplerMismatch = trustSpeed && rawSpeed !== null && rawDt < 2.5 && Math.abs(jumpDistM / rawDt - rawSpeed) > 12;
-                if (jumpDistM > maxPlausible || dopplerMismatch) {
+                lgJd = jumpDistM; lgMp = maxPlausible;
+                // Tight veto: real 1G launches diverge Doppler vs delta by
+                // <~5 m/s at 1 Hz, so 8 already means one of them is lying.
+                const dopplerMismatch = trustSpeed && rawSpeed !== null && rawDt < 2.5 && Math.abs(jumpDistM / rawDt - rawSpeed) > 8;
+                // Soft band (0.55–1.2G): below the hard veto but above a
+                // plausible cruise move — a hard launch or a medium glitch.
+                const softLow = Math.max(2 * accTerm + 8,
+                    vRef * rawDt + 8 + 0.55 * 1.2 * GRAVITY_MS2 * rawDt * rawDt);
+                // Establishment grace (replay-proven): fresh seed, no baseline —
+                // vetoing a plausible first step freezes vRef at ~0 and the
+                // filter never moves (bootstrap deadlock). NIS+slew still
+                // bound everything; vetoes arm once 3 anchors are tracked.
+                const established = kalmanInit && fixWindow.length > 2;
+                const startupGrace = !established && jumpDistM < STARTUP_GRACE_JUMP_M && !dopplerMismatch;
+                if ((jumpDistM > maxPlausible || dopplerMismatch) && !startupGrace) {
                     gpsGlitchCount++;
-                    fixWindow = [{ t: now / 1000, lat: c.latitude, lon: c.longitude, acc: acc }];
+                    fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
                     prevGpsSpeedMs = Math.max(0, vRef);
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
@@ -1923,7 +2110,22 @@ let lastRenderTime  = performance.now();
                     updateFusionStatusUI();
                     const accStrT = `ACC: ${fmt1.format(acc)} m`;
                     if (prev.accuracy !== accStrT) { if (dom.accuracy) dom.accuracy.textContent = accStrT; prev.accuracy = accStrT; }
+                    lg({ fl: lgFl + "H", vm: gpsSpeedMs });
                     return;
+                } else if (!startupGrace && jumpDistM >= softLow) {
+                    // Soft jump: don't veto speed, but the old window level is
+                    // now inconsistent — later deltas against it would
+                    // re-inject this jump into the LS slope for ~3 s. Restart
+                    // the window at the new level (like the hard hold): this
+                    // fix coasts on prediction (LS collapses, see below) and
+                    // the next fit starts clean. Counted.
+                    gpsGlitchCount++;
+                    softJump = true;
+                    lgFl += "S";
+                    fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
+                    lastGpsLat = c.latitude;
+                    lastGpsLon = c.longitude;
+                    if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
                 }
             }
 
@@ -1934,34 +2136,44 @@ let lastRenderTime  = performance.now();
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
                 } else if (gapQuarantine) {
-                    fixWindow.push({ t: now / 1000, lat: c.latitude, lon: c.longitude, acc: acc });
+                    lgFl += "Q";
+                    if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
                     if (fixWindow.length > FIX_WINDOW_MAX) fixWindow.shift();
                     prevGpsSpeedMs = 0.0;
+                    // Anchor still advances: quarantine distrusts the gap
+                    // SPEED (unknown time), not the position — leaving the
+                    // anchor stale inflates the next delta across the gap and
+                    // trips vetoes on honest motion (replay-proven).
+                    lastGpsLat = c.latitude;
+                    lastGpsLon = c.longitude;
+                    if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
                 } else {
                     // Buffer usable anchors; the measurement below is Doppler
                     // when trusted, else the least-squares window velocity.
                     // Time-based window (3 s): stale anchors can't smear
                     // recovery, and fast streams get a long slope baseline.
-                    fixWindow.push({ t: now / 1000, lat: c.latitude, lon: c.longitude, acc: acc });
-                    while (fixWindow.length > 1 && now / 1000 - fixWindow[0].t > FIX_WINDOW_SEC) fixWindow.shift();
+                    if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    while (fixWindow.length > 1 && tFix - fixWindow[0].t > FIX_WINDOW_SEC) fixWindow.shift();
                     if (fixWindow.length > FIX_WINDOW_MAX) fixWindow.shift();
                     let vMeas = gpsSpeedMs;
                     if (!trustSpeed) {
-                        const vLs = lsVelocity(fixWindow);
-                        if (vLs !== null) {
-                            vMeas = vLs;
-                            // LS slope lives at the window center: propagate
-                            // to window end with measured accel, else sustained
-                            // ramps read ~span/2 behind instantaneous speed.
+                        const vFit = lsFit(fixWindow);
+                        if (vFit !== null) {
+                            vMeas = vFit.v;
+                            // LS slope lives lagSec behind window end: propagate
+                            // with measured accel, else sustained ramps read
+                            // stale by the full fit lag.
                             if (imuFusionActive && fixWindow.length > 1) {
-                                const spanEnd = fixWindow[fixWindow.length - 1].t - fixWindow[0].t;
-                                vMeas = Math.max(0, vMeas + (imuLongG - imuLongGBias) * GRAVITY_MS2 * spanEnd / 2);
+                                vMeas = Math.max(0, vMeas + (imuLongG - imuLongGBias) * GRAVITY_MS2 * vFit.lagSec);
                             }
                         } else if (kalmanInit) {
                             // LS collapsed (1 anchor / singular fit after 1/acc²
-                            // re-weight): hold last measurement instead of the
-                            // raw single-delta for one fix — kills the snap.
-                            vMeas = Math.max(0, prevGpsSpeedMs);
+                            // re-weight): coast on the filter prediction instead
+                            // of the last measurement — a stale/garbage vMeas
+                            // must not re-enter as innovation for one fix. With
+                            // no IMU this is exactly innov=0 (pure coast); with
+                            // IMU the prediction still drives via vPred below.
+                            vMeas = Math.max(0, kalmanV);
                         }
                     }
                     if (!kalmanInit) {
@@ -1972,7 +2184,8 @@ let lastRenderTime  = performance.now();
                         // the next consecutive fix (freshAcquire guard below).
                         const seedV = trustSpeed ? vMeas : (gpsDt >= GPS_MAX_DT_SEC ? 0.0 : vMeas);
                         kalmanV = seedV; kalmanP = 9.0; kalmanInit = true; prevKalmanV = seedV;
-                        outlierTimeSec = 0; lastFixClean = true; freshAcquire = true;
+                        lg({ fl: lgFl + "F", vm: vMeas });
+                                outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0;
                         currentSpeedMs = Math.max(0, kalmanV);
                         if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += currentSpeedMs * gpsDt;
                         prevGpsSpeedMs = vMeas;
@@ -1989,15 +2202,20 @@ let lastRenderTime  = performance.now();
                         // Stale inertial data (paused sensor, >1 s) is never
                         // predicted on — a frozen 0.15G would otherwise drag
                         // the estimate forever.
-                        const imuFresh = imuFusionActive && (now - lastImuTime) < 1000;
-                        const aImu = imuFresh ? (imuLongG - imuLongGBias) * GRAVITY_MS2 : 0.0;
+                            const imuFresh = imuFusionActive && (now - lastImuTime) < 1000;
+                            const aImu = imuFresh ? (imuLongG - imuLongGBias) * GRAVITY_MS2 : 0.0;
+                            // Independent motion witness: fresh IMU showing a real
+                            // maneuver means seed steps are launch, not noise.
+                            const imuConfirmed = imuFresh && Math.abs(aImu) > 3.0;
                         const q0 = imuFresh ? KALMAN_Q0_IMU : KALMAN_Q0_GPS;
                         const qTmp = q0 + KALMAN_Q_ACCEL * Math.abs(aImu);
                         const vPred = kalmanV + aImu * gpsDt;
                         const pPred = Math.min(50, kalmanP + qTmp * qTmp * gpsDt);
                         let rMeas;
                         if (trustSpeed) {
-                            const sa = (typeof speedAcc === 'number' && !isNaN(speedAcc)) ? speedAcc : 0.5;
+                            // Missing speedAccuracy (common on iOS) assumes an
+                            // honest 1.0 m/s, not optimistic 0.5 — R stays real.
+                            const sa = (typeof speedAcc === 'number' && !isNaN(speedAcc)) ? speedAcc : 1.0;
                             // Doppler R also carries position accuracy: a 20 m
                             // fix with clean speedAccuracy must not yank like
                             // a 5 m fix — medium jumps pass the teleport gate.
@@ -2034,7 +2252,18 @@ let lastRenderTime  = performance.now();
                         const innov = vMeas - vPred;
                         const latSpike = Math.abs(rawGpsLatG) > PHYSICAL_G_CLAMP_LONG;
                         const nisSigma = imuFresh ? 3 : 4;
-                        const isOutlier = Math.abs(innov) > nisSigma * Math.sqrt(pPred + rMeas) || latSpike;
+                        // Two-observable launch confirmation (GPS-only hypercar
+                        // case): Doppler and position-delta are independent
+                        // observables — today's code vetoes on their mismatch
+                        // but never confirms on agreement. When both agree on
+                        // a violent step with no fresh IMU, it is a launch,
+                        // not a spike: accept despite NIS. Single-observable
+                        // steps stay gated, and IMU-present keeps its tighter
+                        // path (prediction already tracks ramps there).
+                        const deltaSpeed = (hasJumpDist && rawDt > 0) ? jumpDistM / rawDt : NaN;
+                        const dualAgree = !imuFresh && trustSpeed && rawSpeed !== null && rawDt > 0 && rawDt < 2.5 && isFinite(deltaSpeed) && Math.abs(deltaSpeed - rawSpeed) < LAUNCH_AGREE_MPS;
+                        const magOutlier = Math.abs(innov) > nisSigma * Math.sqrt(pPred + rMeas);
+                        const isOutlier = (magOutlier && !dualAgree) || latSpike;
                         if (isOutlier) {
                             gpsGlitchCount++;
                             outlierTimeSec += gpsDt;
@@ -2044,6 +2273,7 @@ let lastRenderTime  = performance.now();
                             // Evict isolated spikes only: popping every fix in
                             // a noisy run would freeze the window at 1 anchor
                             // and starve the LS fit (deadlock at 0).
+                            lg({ fl: lgFl + "O", vm: vMeas, iv: innov, r: rMeas });
                             if (lastFixClean && fixWindow.length > 0) fixWindow.pop();
                             lastFixClean = false;
                             lastGpsLat = c.latitude;
@@ -2056,16 +2286,23 @@ let lastRenderTime  = performance.now();
                                 // the noisiest estimate and snaps the speedo.
                                 // Teleports never reach here (jump gate holds).
                                 fixWindow = [];
-                                fixWindow.push({ t: now / 1000, lat: c.latitude, lon: c.longitude, acc: acc });
+                                fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
                                 const reacqV = Math.max(0, vMeas);
                                 kalmanV = reacqV; kalmanP = 9.0; prevKalmanV = reacqV;
+                                lg({ fl: lgFl + "R", vm: reacqV });
                                 currentSpeedMs = Math.max(0, kalmanV);
                                 prevGpsSpeedMs = reacqV;
                                 lastUsableGpsTime = now;
                                 if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
-                                outlierTimeSec = 0; lastFixClean = true; freshAcquire = true;
+                        outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true;
                             }
                         } else {
+                            // Post-seed settle: halve the allowed step for the
+                            // first SEED_SETTLE_FIXES updates (gradual lock) —
+                            // unless IMU confirms a real maneuver, where
+                            // clipping would cost launch response for nothing.
+                            const settleTight = seedSettle > 0 && !imuConfirmed;
+                            if (seedSettle > 0) seedSettle--;
                             const kGain = pPred / (pPred + rMeas);
                             // Slew-limit the committed step to physical G: the
                             // filter always advances (a veto here would freeze
@@ -2079,9 +2316,10 @@ let lastRenderTime  = performance.now();
                             // bumps while still allowing real launches.
                             const slewDt = Math.min(gpsDt, 1.5);
                             const dvMax = Math.min(PHYSICAL_G_CLAMP_LONG * GRAVITY_MS2 * slewDt, 4 + 1.2 * GRAVITY_MS2 * slewDt);
-                            if (Math.abs(dv) > dvMax) {
+                            const dvCap = settleTight ? dvMax * SEED_DV_SCALE : dvMax;
+                            if (Math.abs(dv) > dvCap) {
                                 gpsGlitchCount++;
-                                dv = Math.max(-dvMax, Math.min(dvMax, dv));
+                                dv = Math.max(-dvCap, Math.min(dvCap, dv));
                             }
                             kalmanV = prevKalmanV + dv;
                             kalmanP = pPred * (1 - kGain);
@@ -2094,6 +2332,7 @@ let lastRenderTime  = performance.now();
                             if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += currentSpeedMs * gpsDt;
                             updateImuFusionFromGps(rawGpsLongG, rawGpsLatG, conf, gpsDt);
                             prevGpsSpeedMs = vMeas;
+                            lg({ fl: lgFl + "U", vm: vMeas, k: kGain, iv: innov, r: rMeas });
                             lastUsableGpsTime = now;
                             // Only update position/heading on clean fix to avoid poisoning next Haversine/heading
                             lastGpsLat = c.latitude;
@@ -2105,9 +2344,10 @@ let lastRenderTime  = performance.now();
             } else {
                 // First fix — seed speed only if usable, anchor always
                 if (usable) {
-                    fixWindow.push({ t: now / 1000, lat: c.latitude, lon: c.longitude, acc: acc });
+                    fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
                     kalmanV = gpsSpeedMs; kalmanP = 9.0; kalmanInit = true; prevKalmanV = gpsSpeedMs;
-                    outlierTimeSec = 0; lastFixClean = true; freshAcquire = true;
+                    lg({ fl: lgFl + "F", vm: gpsSpeedMs });
+                    outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true;
                     currentSpeedMs = Math.max(0, kalmanV);
                     prevGpsSpeedMs = gpsSpeedMs;
                     lastUsableGpsTime = now;
@@ -2125,15 +2365,16 @@ let lastRenderTime  = performance.now();
             if (usable) setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
             else setDOM(dom.status, 'status', "GNSS WEAK", "text-yellow-500 neon-warning");
 
-            // Accuracy guard: only high-quality GPS samples drive timers, peaks and the CSV log
-            // so a 25 m fix on a parking ramp can't write a bogus 0-100 time or inflate max G.
+            // Accuracy guard: records (timers/MAX/peaks) need RECORD_QUALITY_MIN,
+            // stricter than the live needle — so a 20 m fix on a parking ramp
+            // can't write a bogus 0-100 time or inflate max G.
             // Quarantined gap fixes sit this out too (one fix of caution).
             // Any first fix after silence (>MAX_DT) also sits out timers/MAX
             // one fix — even Doppler: speed still updates above, only the
             // monotonic records wait for a consecutive confirmation.
             // Fresh-acquire seeds skip MAX/peaks for one fix: a noisy seed
             // would latch monotonic records that never come back down.
-            if (conf >= GPS_QUALITY_MIN && !gapQuarantine && !(rawDt > GPS_MAX_DT_SEC)) {
+            if (conf >= RECORD_QUALITY_MIN && !gapQuarantine && !(rawDt > GPS_MAX_DT_SEC)) {
                 if (!freshAcquire) updateTimers(gpsSpeedKmph, distanceMeters, now);
 
                 if (!freshAcquire && gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; stateDirty = true; }
@@ -2154,6 +2395,7 @@ let lastRenderTime  = performance.now();
             updateFusionStatusUI();
             const accStr = `ACC: ${fmt1.format(acc)} m`;
             if (prev.accuracy !== accStr) { if (dom.accuracy) dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
+            if (!lgDone) lg({ fl: lgFl });
         }
 
         // One guarded recovery slot: replaces a dead watch, never stacks.
@@ -2224,6 +2466,7 @@ let lastRenderTime  = performance.now();
 
         function purgeData() {
             try {
+                wakeRenderLoop();
                 // Reset all sprint timers
                 [timer0_60, timer0_100, timer100_200, timerQuarter, timer100_0].forEach(t => {
                     t.state = T_IDLE;
@@ -2235,6 +2478,10 @@ let lastRenderTime  = performance.now();
                 maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
                 maxSpeedKmph = 0.0; displayMaxKmph = 0.0; lastGpsConfidence = 0.0;
                 gnssDismissed = false;
+                mountDismissed = false;
+                mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
+                mountBad = false; mountBadT0 = 0; mountOkT0 = 0;
+                fixLog = [];
                 lastUsableGpsTime = -1;
                 prev.peakG = null; prev.brakeScore = null; prev.displayMax = null;
                 prev.peakLatGMetric = null; prev.peakLonGMetric = null;
@@ -2264,7 +2511,7 @@ let lastRenderTime  = performance.now();
                 lastGpsHeading = undefined;
                 fixWindow = [];
                 kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0;
-                outlierTimeSec = 0; lastFixClean = true;
+            outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0;
                 lastTimerSpeedKmh = NaN;
                 lastTimerDistM = NaN;
                 lastTimerTimeMs = NaN;
@@ -2363,6 +2610,7 @@ let lastRenderTime  = performance.now();
         window.purgeData = purgeData;
 
         function restartGPS() {
+            wakeRenderLoop();
             setDOM(dom.status, 'status', "RESTARTING GPS...", "text-yellow-500 neon-warning");
             if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
             if ("geolocation" in navigator) {
@@ -2391,6 +2639,15 @@ let lastRenderTime  = performance.now();
                     ["vScore", score.total + "/70"],
                     ["glitches", String(gpsGlitchCount)]
                 ];
+                // Phase-2 field log: second CSV section (blank-line separated)
+                // with per-fix raw observables + estimator internals for
+                // offline replay/tuning. Nulls render empty.
+                rows.push([]);
+                rows.push(["# fixlog", "\"tMs,tsMs,lat,lon,acc,doppler,sacc,hdg,conf,vMeas,kalmanV,kalmanP,kGain,innov,R,flags,fusedG,distM,jumpDist,maxPlaus,rawDt\""]);
+                for (let fi = 0; fi < fixLog.length; fi++) {
+                    const fe = fixLog[fi];
+                    rows.push(["@", fe.t, fe.ts, fe.la, fe.lo, fe.ac, fe.sp, fe.sa, fe.hd, fe.cf, fe.vm, fe.kv, fe.kp, fe.k, fe.iv, fe.r, fe.fl, fe.ig, fe.ds, fe.jd, fe.mp, fe.rd]);
+                }
                 const csv = rows.map(function(r){ return r.join(","); }).join("\n");
                 const blob = new Blob([csv], { type: "text/csv" });
                 const a = document.createElement("a");
@@ -2407,6 +2664,33 @@ let lastRenderTime  = performance.now();
             gnssDismissed = true;
             try { dom.gnssAlert.classList.remove("active"); dom.gnssAlert.style.display = "none"; } catch (e) {}
         });
+
+        // Manual motion re-ask from the GPS-ONLY hint. iOS still requires the
+        // in-gesture grant; the tap itself is the gesture for the dialog.
+        function reaskMotion() {
+            if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') return;
+            if (imuFusionActive) return;
+            requestIOSMotion(true).then(function(ok) {
+                if (ok && window.DeviceMotionEvent) { try { window.addEventListener('devicemotion', handleMotion, false); } catch (e) {} }
+                updateFusionStatusUI();
+            }).catch(function() {});
+        }
+        if (dom.fusionStatus) {
+            const fusionHint = function() { try { reaskMotion(); } catch (e) {} };
+            dom.fusionStatus.addEventListener('click', fusionHint);
+            dom.fusionStatus.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { try { e.preventDefault(); } catch (e2) {} fusionHint(); } });
+        }
+        if (dom.mountAlert) dom.mountAlert.addEventListener('click', function() {
+            mountDismissed = true;
+            try { dom.mountAlert.classList.remove("active"); } catch (e) {}
+        });
+
+        // Event-driven wake for the parked slow path below: sensor input means
+        // the display may need motion this frame — resume full rate at once.
+        // A pending slow timeout (if any) no-ops via its generation check.
+        function wakeRenderLoop() {
+            if (parkedSlow) { parkedSlow = false; parkedGen++; requestAnimationFrame(renderLoop); }
+        }
 
         function renderLoop() {
             const now = performance.now();
@@ -2442,7 +2726,7 @@ let lastRenderTime  = performance.now();
                         currentSpeedMs = 0.0;
                         // Cold re-acquire on recovery: stale estimator state
                         // would snap the speedo on the next fix
-                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; lastFixClean = true; fixWindow = []; }
+                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; lastPosTs = -1; fixWindow = []; }
                         setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
                     }
                     if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
@@ -2522,6 +2806,11 @@ let lastRenderTime  = performance.now();
                 } else if (timeSinceGpsSec > 2) {
                     smoothTime = 0.42;
                 }
+                // Fast-when-far: catch launch steps quickly, settle glassy.
+                // Bounded — steady state (err < 2 m/s) is identical to before.
+                const spdErr = Math.abs(currentSpeedMs - displaySpeedMs);
+                if (spdErr > 5) smoothTime *= 0.55;
+                else if (spdErr > 2) smoothTime *= 0.75;
                 const alphaSpd = 1 - Math.exp(-dtSec / smoothTime);
                 displaySpeedMs += (currentSpeedMs - displaySpeedMs) * alphaSpd;
                 if (currentSpeedMs < 0.15 && displaySpeedMs < 0.35) {
@@ -2668,6 +2957,12 @@ let lastRenderTime  = performance.now();
                 if (dom.gnssAlert && !(gnssStale && gnssDismissed)) dom.gnssAlert.classList.toggle("active", gnssStale);
                 prev.alertOn = gnssStale;
             }
+            // Mount-health banner: rare, amber, tap-to-dismiss until re-flagged
+            const mountOn = mountBad && !mountDismissed;
+            if (prev.mountOn !== mountOn) {
+                if (dom.mountAlert) dom.mountAlert.classList.toggle("active", mountOn);
+                prev.mountOn = mountOn;
+            }
 
             if (stateDirty) {
                 evaluateAndRenderScore();
@@ -2679,6 +2974,20 @@ let lastRenderTime  = performance.now();
                 }
             }
             lastRenderTime = now;
+            const timersRunning = timer0_60.state === T_RUNNING || timer0_100.state === T_RUNNING || timer100_200.state === T_RUNNING || timerQuarter.state === T_RUNNING || timer100_0.state === T_RUNNING;
+            const parkedCalm = !imuLive && currentSpeedMs < 0.15 && displaySpeedMs < 0.15 && !timersRunning && !stateDirty;
+            if (parkedCalm) {
+                // Parked slow path (battery): 1 s cadence while nothing can
+                // move the needle — zero response cost, because any fix, IMU
+                // sample, or user action calls wakeRenderLoop() for an instant
+                // full-rate resume. A missed wake still self-heals: parkedCalm
+                // re-evaluates false the moment motion returns.
+                parkedSlow = true;
+                const gen = parkedGen;
+                setTimeout(function(){ if (gen === parkedGen) { parkedSlow = false; requestAnimationFrame(renderLoop); } }, 1000);
+                return;
+            }
+            parkedSlow = false;
             if (gnssStale) {
                 setTimeout(function(){ requestAnimationFrame(renderLoop); }, 250);
             } else {
@@ -2713,12 +3022,13 @@ let lastRenderTime  = performance.now();
             try { localStorage.setItem(IOS_CHOICE_KEY, JSON.stringify({ s: v, t: Date.now() })); } catch (e) {}
         }
 
-        async function requestIOSMotion() {
+        async function requestIOSMotion(force) {
             if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
             // Remember choice — GRANT persists, GPS-ONLY re-asks after 30 days.
+            // A manual tap (force) is explicit intent: bypass the stored denial.
             const priorChoice = getIosChoice();
             if (priorChoice === 'granted') return true;
-            if (priorChoice === 'denied') return false;
+            if (priorChoice === 'denied' && !force) return false;
             
             // Don't block GPS — show gate but auto-dismiss quickly
             if (dom.iosGate) dom.iosGate.style.display = 'flex';
