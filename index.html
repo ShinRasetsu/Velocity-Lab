@@ -298,6 +298,8 @@
         /* Mount-health alert: hidden by default (zero box until flagged) */
         #mount-alert { display: none; }
         #mount-alert.active { display: flex; border-color: rgba(255,190,60,0.55); color: #ffcf7a; background: repeating-linear-gradient(45deg, rgba(255,190,60,0.14) 0 10px, rgba(10,4,8,0.6) 10px 20px); }
+        #drift-alert { display: none; }
+        #drift-alert.active { display: flex; border-color: rgba(180,160,255,0.55); color: #c9b8ff; background: repeating-linear-gradient(45deg, rgba(180,160,255,0.14) 0 10px, rgba(10,4,8,0.6) 10px 20px); }
         @keyframes alert-blink { 50% { filter: brightness(1.6); } }
 
         /* ── main stage: mobile portrait stack — packs top (never splits
@@ -1036,6 +1038,7 @@
     <!-- GNSS LOSS ALERT (tap to dismiss until next signal change) -->
     <div id="gnss-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ GNSS SIGNAL LOST — 再取得中 // REACQUIRING</div>
     <div id="mount-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ MOUNT UNSTABLE — check phone mount // IMU accuracy reduced</div>
+    <div id="drift-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ GNSS DEGRADED — slow drift suspected // accuracy reduced</div>
 
     <!-- MAIN STAGE -->
     <main class="stage" aria-label="Dashboard">
@@ -1222,6 +1225,28 @@
         // and deadlocks the filter before it ever moves. Absurd jumps and
         // Doppler contradictions still hold. Named for the replay bench.
         const STARTUP_GRACE_JUMP_M   = 40.0;
+        // ZUPT (zero-velocity update): firm standstill on IMU+GPS gates
+        // kills drift and re-tares bias without adding lag to motion.
+        const ZUPT_STILL_G           = 0.07;
+        const ZUPT_STILL_MS          = 700;
+        const ZUPT_SPEED_MS          = 0.4;
+        // Innovation-adaptive R: covariance matching via EMA of NIS.
+        // Scales R per fix; hard-bounded so it can never destabilize.
+        // Gentle: only 0.8-1.6x, slow (12 s) so transients (ramps) don't
+        // desensitize before they settle.
+        const ADAPT_R_TAU_SEC        = 12.0;
+        const ADAPT_R_MIN            = 0.8;
+        const ADAPT_R_MAX            = 1.6;
+        // Drift monitor: long-window (30 s) LS vs Kalman; sustained
+        // disagreement means slow multipath — surface honesty.
+        const DRIFT_WINDOW_SEC       = 30.0;
+        const DRIFT_WINDOW_MAX       = 60;
+        const DRIFT_THRESH_MPS       = 3.0;
+        const DRIFT_BAD_MS           = 10000;
+        const DRIFT_OK_MS            = 8000;
+        // Provider switch: large accuracy jump hints the platform swapped
+        // its fused provider — accuracy-only quality lies here.
+        const PROVIDER_JUMP_M        = 12.0;
 
         const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2;
 
@@ -1284,6 +1309,15 @@ let lastRenderTime  = performance.now();
         let mountN = 0, mountMeanL = 0.0, mountMeanT = 0.0, mountVarL = 0.0, mountVarT = 0.0;
         let mountBad = false, mountBadT0 = 0, mountOkT0 = 0, mountDismissed = false;
         let lastFixClean    = true;
+        // ZUPT state
+        let zuptStillMs = 0;
+        // Innovation-adaptive R (covariance matching)
+        let nisEma = 1.0;
+        // Drift monitor (30 s honesty window)
+        let driftWindow = [];
+        let driftBad = false, driftBadT0 = 0, driftOkT0 = 0, driftDismissed = false;
+        // Provider switch memory
+        let lastAcc = null;
 
         // Sensor Fusion State 
         let imuFusionActive   = false;  
@@ -1354,6 +1388,7 @@ let lastRenderTime  = performance.now();
             // Gundam HUD additions
             gnssAlert:    document.getElementById('gnss-alert'),
             mountAlert:   document.getElementById('mount-alert'),
+            driftAlert:   document.getElementById('drift-alert'),
             distDisplay:  document.getElementById('dist-display'),
             sessionTime:  document.getElementById('session-time'),
             brakeLive:    document.getElementById('brake-live'),
@@ -1390,7 +1425,7 @@ let lastRenderTime  = performance.now();
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
-            alertOn: null, mountOn: null,
+            alertOn: null, mountOn: null, driftOn: null,
             bestDeg: null
         };
 
@@ -1515,7 +1550,8 @@ let lastRenderTime  = performance.now();
             imuLatGBias  = 0.0;
             fixWindow = [];
             kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0;
-                outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0;
+                outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0;
+                driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false;
             lastGpsHeading = undefined;
             lastGpsLat = undefined;
             lastGpsLon = undefined;
@@ -2073,6 +2109,15 @@ let lastRenderTime  = performance.now();
             // unknown time (outage tail) — buffer its anchor as a fresh
             // baseline but trust no speed until consecutive fresh fixes.
             const gapQuarantine = rawDt > GPS_MAX_DT_SEC && !trustSpeed;
+            // Provider-switch quarantine: fused platforms hop accuracy 10-20 m
+            // when swapping WiFi/cell/GPS — same shape as a gap, same caution.
+            let providerSwitch = false;
+            if (lastAcc !== null && typeof acc === 'number' && isFinite(acc) && typeof lastAcc === 'number' && isFinite(lastAcc) && rawDt > 0 && rawDt < 2.5) {
+                if (Math.abs(acc - lastAcc) > PROVIDER_JUMP_M) providerSwitch = true;
+            }
+            if (providerSwitch) lgFl += "P";
+            // Commit for next fix even if this one hard-holds (early return).
+            lastAcc = acc;
 
             // Teleport gate (applies to Doppler too): a position jump no
             // vehicle could have covered must never enter the LS window,
@@ -2102,6 +2147,7 @@ let lastRenderTime  = performance.now();
                 if ((jumpDistM > maxPlausible || dopplerMismatch) && !startupGrace) {
                     gpsGlitchCount++;
                     fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
+                    driftWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
                     prevGpsSpeedMs = Math.max(0, vRef);
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
@@ -2123,6 +2169,7 @@ let lastRenderTime  = performance.now();
                     softJump = true;
                     lgFl += "S";
                     fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
+                    driftWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
                     if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
@@ -2135,10 +2182,13 @@ let lastRenderTime  = performance.now();
                 if (!usable) {
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
-                } else if (gapQuarantine) {
+                } else if (gapQuarantine || providerSwitch) {
                     lgFl += "Q";
                     if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
                     if (fixWindow.length > FIX_WINDOW_MAX) fixWindow.shift();
+                    driftWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    while (driftWindow.length > 1 && tFix - driftWindow[0].t > DRIFT_WINDOW_SEC) driftWindow.shift();
+                    if (driftWindow.length > DRIFT_WINDOW_MAX) driftWindow.shift();
                     prevGpsSpeedMs = 0.0;
                     // Anchor still advances: quarantine distrusts the gap
                     // SPEED (unknown time), not the position — leaving the
@@ -2155,6 +2205,9 @@ let lastRenderTime  = performance.now();
                     if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
                     while (fixWindow.length > 1 && tFix - fixWindow[0].t > FIX_WINDOW_SEC) fixWindow.shift();
                     if (fixWindow.length > FIX_WINDOW_MAX) fixWindow.shift();
+                    driftWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    while (driftWindow.length > 1 && tFix - driftWindow[0].t > DRIFT_WINDOW_SEC) driftWindow.shift();
+                    if (driftWindow.length > DRIFT_WINDOW_MAX) driftWindow.shift();
                     let vMeas = gpsSpeedMs;
                     if (!trustSpeed) {
                         const vFit = lsFit(fixWindow);
@@ -2185,7 +2238,7 @@ let lastRenderTime  = performance.now();
                         const seedV = trustSpeed ? vMeas : (gpsDt >= GPS_MAX_DT_SEC ? 0.0 : vMeas);
                         kalmanV = seedV; kalmanP = 9.0; kalmanInit = true; prevKalmanV = seedV;
                         lg({ fl: lgFl + "F", vm: vMeas });
-                                outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0;
+                                outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0;
                         currentSpeedMs = Math.max(0, kalmanV);
                         if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += currentSpeedMs * gpsDt;
                         prevGpsSpeedMs = vMeas;
@@ -2233,6 +2286,11 @@ let lastRenderTime  = performance.now();
                             const rFloor = span < 0.5 ? 0.5 : 0.25;
                             rMeas = Math.min(KALMAN_R_MAX, rFloor + (wAcc / span) * (wAcc / span));
                         }
+                        // Innovation-adaptive R: scale noise by recent NIS (covariance
+                        // matching) — noisy platform → larger R, clean → tighter.
+                        // Bounded so it can never deadlock or chase noise.
+                        const adaptScale = Math.max(ADAPT_R_MIN, Math.min(ADAPT_R_MAX, nisEma));
+                        rMeas = Math.min(KALMAN_R_MAX, rMeas * adaptScale);
                         let rawGpsLatG = 0;
                         // Heading is garbage at standstill / over gaps: phone
                         // compass/GPS bearing swings randomly below ~5 m/s, so
@@ -2287,6 +2345,7 @@ let lastRenderTime  = performance.now();
                                 // Teleports never reach here (jump gate holds).
                                 fixWindow = [];
                                 fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                                driftWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
                                 const reacqV = Math.max(0, vMeas);
                                 kalmanV = reacqV; kalmanP = 9.0; prevKalmanV = reacqV;
                                 lg({ fl: lgFl + "R", vm: reacqV });
@@ -2294,7 +2353,7 @@ let lastRenderTime  = performance.now();
                                 prevGpsSpeedMs = reacqV;
                                 lastUsableGpsTime = now;
                                 if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
-                        outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true;
+                                outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; nisEma = 1.0;
                             }
                         } else {
                             // Post-seed settle: halve the allowed step for the
@@ -2329,7 +2388,28 @@ let lastRenderTime  = performance.now();
                             const rawGpsLongG = Math.max(-1.5, Math.min(1.5, (dv / gpsDt) / GRAVITY_MS2));
                             outlierTimeSec = 0; lastFixClean = true;
                             prevKalmanV = kalmanV;
-                            if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += currentSpeedMs * gpsDt;
+                            // Covariance matching: EMA of NIS tracks whether R is honest.
+                            // Only on clean fixes — outliers would bias high.
+                            const nis = (innov * innov) / Math.max(1e-6, pPred + rMeas);
+                            const aR = 1 - Math.exp(-gpsDt / ADAPT_R_TAU_SEC);
+                            nisEma += (nis - nisEma) * aR;
+                            if (nisEma < 0.3) nisEma = 0.3;
+                            else if (nisEma > 4.0) nisEma = 4.0;
+                            // ZUPT: firm standstill on IMU+GPS gates kills parked creep.
+                            const zuptImuStill = imuFusionActive && (now - lastImuTime < 400) && Math.abs(fusedLongG) < ZUPT_STILL_G && Math.abs(fusedLatG) < ZUPT_STILL_G * 1.7;
+                            const zuptGpsStill = currentSpeedMs < ZUPT_SPEED_MS && gpsSpeedMs < ZUPT_SPEED_MS * 1.25;
+                            if (zuptImuStill && zuptGpsStill && conf >= 0.35) zuptStillMs += gpsDt * 1000;
+                            else zuptStillMs = 0;
+                            if (zuptStillMs >= ZUPT_STILL_MS && currentSpeedMs < 0.8) {
+                                if (currentSpeedMs > 0) {
+                                    currentSpeedMs = 0; kalmanV = 0; prevKalmanV = 0;
+                                    if (kalmanP > 1.5) kalmanP = 1.5;
+                                    imuLongGBias += (imuLongG - imuLongGBias) * 0.08;
+                                    imuLatGBias  += (imuLatG  - imuLatGBias)  * 0.08;
+                                    imuLongGBias = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLongGBias));
+                                    imuLatGBias  = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLatGBias));
+                                }
+                            } else if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += currentSpeedMs * gpsDt;
                             updateImuFusionFromGps(rawGpsLongG, rawGpsLatG, conf, gpsDt);
                             prevGpsSpeedMs = vMeas;
                             lg({ fl: lgFl + "U", vm: vMeas, k: kGain, iv: innov, r: rMeas });
@@ -2345,9 +2425,12 @@ let lastRenderTime  = performance.now();
                 // First fix — seed speed only if usable, anchor always
                 if (usable) {
                     fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    driftWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    while (driftWindow.length > 1 && tFix - driftWindow[0].t > DRIFT_WINDOW_SEC) driftWindow.shift();
+                    if (driftWindow.length > DRIFT_WINDOW_MAX) driftWindow.shift();
                     kalmanV = gpsSpeedMs; kalmanP = 9.0; kalmanInit = true; prevKalmanV = gpsSpeedMs;
                     lg({ fl: lgFl + "F", vm: gpsSpeedMs });
-                    outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true;
+                    outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0;
                     currentSpeedMs = Math.max(0, kalmanV);
                     prevGpsSpeedMs = gpsSpeedMs;
                     lastUsableGpsTime = now;
@@ -2374,7 +2457,8 @@ let lastRenderTime  = performance.now();
             // monotonic records wait for a consecutive confirmation.
             // Fresh-acquire seeds skip MAX/peaks for one fix: a noisy seed
             // would latch monotonic records that never come back down.
-            if (conf >= RECORD_QUALITY_MIN && !gapQuarantine && !(rawDt > GPS_MAX_DT_SEC)) {
+            const recMinDyn = driftBad ? RECORD_QUALITY_MIN + 0.15 : RECORD_QUALITY_MIN;
+            if (conf >= recMinDyn && !gapQuarantine && !providerSwitch && !(rawDt > GPS_MAX_DT_SEC)) {
                 if (!freshAcquire) updateTimers(gpsSpeedKmph, distanceMeters, now);
 
                 if (!freshAcquire && gpsSpeedKmph > maxSpeedKmph) { maxSpeedKmph = gpsSpeedKmph; stateDirty = true; }
@@ -2392,6 +2476,21 @@ let lastRenderTime  = performance.now();
                 }
             }
 
+            // Drift monitor: 30 s LS vs Kalman — slow multipath honesty.
+            if (usable && driftWindow.length > 1 && tFix - driftWindow[0].t >= 15) {
+                const vLong = lsVelocity(driftWindow);
+                if (vLong !== null && isFinite(vLong)) {
+                    const dE = Math.abs(vLong - kalmanV);
+                    if (!driftBad && dE > DRIFT_THRESH_MPS) {
+                        if (!driftBadT0) driftBadT0 = now;
+                        if (now - driftBadT0 > DRIFT_BAD_MS) { driftBad = true; driftDismissed = false; driftBadT0 = 0; driftOkT0 = 0; }
+                    } else if (!driftBad) driftBadT0 = 0;
+                    if (driftBad && dE < DRIFT_THRESH_MPS * 0.6) {
+                        if (!driftOkT0) driftOkT0 = now;
+                        if (now - driftOkT0 > DRIFT_OK_MS) { driftBad = false; driftBadT0 = 0; driftOkT0 = 0; }
+                    } else if (driftBad) driftOkT0 = 0;
+                }
+            }
             updateFusionStatusUI();
             const accStr = `ACC: ${fmt1.format(acc)} m`;
             if (prev.accuracy !== accStr) { if (dom.accuracy) dom.accuracy.textContent = accStr; prev.accuracy = accStr; }
@@ -2482,6 +2581,8 @@ let lastRenderTime  = performance.now();
                 mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
                 mountBad = false; mountBadT0 = 0; mountOkT0 = 0;
                 fixLog = [];
+                nisEma = 1.0; zuptStillMs = 0;
+                driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false; lastAcc = null;
                 lastUsableGpsTime = -1;
                 prev.peakG = null; prev.brakeScore = null; prev.displayMax = null;
                 prev.peakLatGMetric = null; prev.peakLonGMetric = null;
@@ -2511,7 +2612,8 @@ let lastRenderTime  = performance.now();
                 lastGpsHeading = undefined;
                 fixWindow = [];
                 kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0;
-            outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0;
+            outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0;
+                driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false; lastAcc = null;
                 lastTimerSpeedKmh = NaN;
                 lastTimerDistM = NaN;
                 lastTimerTimeMs = NaN;
@@ -2684,6 +2786,10 @@ let lastRenderTime  = performance.now();
             mountDismissed = true;
             try { dom.mountAlert.classList.remove("active"); } catch (e) {}
         });
+        if (dom.driftAlert) dom.driftAlert.addEventListener('click', function() {
+            driftDismissed = true;
+            try { dom.driftAlert.classList.remove("active"); } catch (e) {}
+        });
 
         // Event-driven wake for the parked slow path below: sensor input means
         // the display may need motion this frame — resume full rate at once.
@@ -2726,7 +2832,7 @@ let lastRenderTime  = performance.now();
                         currentSpeedMs = 0.0;
                         // Cold re-acquire on recovery: stale estimator state
                         // would snap the speedo on the next fix
-                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; lastPosTs = -1; fixWindow = []; }
+                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; lastAcc = null; lastPosTs = -1; fixWindow = []; }
                         setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
                     }
                     if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
@@ -2962,6 +3068,11 @@ let lastRenderTime  = performance.now();
             if (prev.mountOn !== mountOn) {
                 if (dom.mountAlert) dom.mountAlert.classList.toggle("active", mountOn);
                 prev.mountOn = mountOn;
+            }
+            const driftOn = driftBad && !driftDismissed;
+            if (prev.driftOn !== driftOn) {
+                if (dom.driftAlert) dom.driftAlert.classList.toggle("active", driftOn);
+                prev.driftOn = driftOn;
             }
 
             if (stateDirty) {
