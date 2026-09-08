@@ -1874,6 +1874,40 @@ let lastRenderTime  = performance.now();
             const f = lsFit(window_);
             return f ? f.v : null;
         }
+        // Raw LS without recency — for 30 s drift honesty. Recency would bias
+        // the long window to the last ~3 s and hide slow drift.
+        function lsVelocityRaw(window_) {
+            const n = window_.length;
+            if (n < 2) return null;
+            const span = window_[n - 1].t - window_[0].t;
+            if (!(span >= LS_MIN_SPAN_SEC)) return null;
+            let wMax = 0;
+            for (let j = 0; j < n; j++) {
+                const a = (typeof window_[j].acc === 'number' && window_[j].acc > 0) ? window_[j].acc : GPS_ACC_TRUST_MAX_M;
+                const wj = 1 / (a * a);
+                if (wj > wMax) wMax = wj;
+            }
+            if (!(wMax > 0)) return null;
+            let sw = 0, sumT = 0, sumT2 = 0, sumLat = 0, sumLon = 0, sumTLat = 0, sumTLon = 0;
+            const t0 = window_[0].t;
+            for (let i = 0; i < n; i++) {
+                const a = (typeof window_[i].acc === 'number' && window_[i].acc > 0) ? window_[i].acc : GPS_ACC_TRUST_MAX_M;
+                const w = (1 / (a * a)) / wMax;
+                const t = window_[i].t - t0;
+                sw += w; sumT += w * t; sumT2 += w * t * t;
+                sumLat += w * window_[i].lat; sumLon += w * window_[i].lon;
+                sumTLat += w * t * window_[i].lat; sumTLon += w * t * window_[i].lon;
+            }
+            const den = sw * sumT2 - sumT * sumT;
+            if (!(den > 1e-9)) return null;
+            const dLat = (sw * sumTLat - sumT * sumLat) / den;
+            const dLon = (sw * sumTLon - sumT * sumLon) / den;
+            const latR = window_[n - 1].lat * Math.PI / 180;
+            const vx = dLon * Math.PI / 180 * 6371000 * Math.cos(latR);
+            const vy = dLat * Math.PI / 180 * 6371000;
+            const spd = Math.hypot(vx, vy);
+            return isFinite(spd) ? spd : null;
+        }
 
         // Launch moment: rewind from the first moving fix to where speed crossed
         // the zero-snap threshold upward. Falls back to the fix timestamp when
@@ -2478,7 +2512,7 @@ let lastRenderTime  = performance.now();
 
             // Drift monitor: 30 s LS vs Kalman — slow multipath honesty.
             if (usable && driftWindow.length > 1 && tFix - driftWindow[0].t >= 15) {
-                const vLong = lsVelocity(driftWindow);
+                const vLong = lsVelocityRaw(driftWindow);
                 if (vLong !== null && isFinite(vLong)) {
                     const dE = Math.abs(vLong - kalmanV);
                     if (!driftBad && dE > DRIFT_THRESH_MPS) {
