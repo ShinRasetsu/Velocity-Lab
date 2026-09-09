@@ -1227,16 +1227,17 @@
         const STARTUP_GRACE_JUMP_M   = 40.0;
         // ZUPT (zero-velocity update): firm standstill on IMU+GPS gates
         // kills drift and re-tares bias without adding lag to motion.
-        const ZUPT_STILL_G           = 0.07;
-        const ZUPT_STILL_MS          = 700;
-        const ZUPT_SPEED_MS          = 0.4;
+        // Conservative: 1.2 s + tight speed so crawling never zeros.
+        const ZUPT_STILL_G           = 0.05;
+        const ZUPT_STILL_MS          = 1200;
+        const ZUPT_SPEED_MS          = 0.25;
         // Innovation-adaptive R: covariance matching via EMA of NIS.
         // Scales R per fix; hard-bounded so it can never destabilize.
-        // Gentle: only 0.8-1.6x, slow (12 s) so transients (ramps) don't
-        // desensitize before they settle.
-        const ADAPT_R_TAU_SEC        = 12.0;
-        const ADAPT_R_MIN            = 0.8;
-        const ADAPT_R_MAX            = 1.6;
+        // Minimal: 0.95-1.18x, slow (20 s) so transients (ramps) don't
+        // desensitize; sqrt tempers spikes. Real noisy benefit remains.
+        const ADAPT_R_TAU_SEC        = 20.0;
+        const ADAPT_R_MIN            = 0.95;
+        const ADAPT_R_MAX            = 1.18;
         // Drift monitor: long-window (30 s) LS vs Kalman; sustained
         // disagreement means slow multipath — surface honesty.
         const DRIFT_WINDOW_SEC       = 30.0;
@@ -1246,7 +1247,8 @@
         const DRIFT_OK_MS            = 8000;
         // Provider switch: large accuracy jump hints the platform swapped
         // its fused provider — accuracy-only quality lies here.
-        const PROVIDER_JUMP_M        = 12.0;
+        // 15 m avoids tripping on normal urban jitter (seen 8-11 m).
+        const PROVIDER_JUMP_M        = 15.0;
 
         const T_IDLE = 0, T_RUNNING = 1, T_DONE = 2;
 
@@ -2147,7 +2149,7 @@ let lastRenderTime  = performance.now();
             // when swapping WiFi/cell/GPS — same shape as a gap, same caution.
             let providerSwitch = false;
             if (lastAcc !== null && typeof acc === 'number' && isFinite(acc) && typeof lastAcc === 'number' && isFinite(lastAcc) && rawDt > 0 && rawDt < 2.5) {
-                if (Math.abs(acc - lastAcc) > PROVIDER_JUMP_M) providerSwitch = true;
+                if (Math.abs(acc - lastAcc) >= PROVIDER_JUMP_M) providerSwitch = true;
             }
             if (providerSwitch) lgFl += "P";
             // Commit for next fix even if this one hard-holds (early return).
@@ -2322,8 +2324,8 @@ let lastRenderTime  = performance.now();
                         }
                         // Innovation-adaptive R: scale noise by recent NIS (covariance
                         // matching) — noisy platform → larger R, clean → tighter.
-                        // Bounded so it can never deadlock or chase noise.
-                        const adaptScale = Math.max(ADAPT_R_MIN, Math.min(ADAPT_R_MAX, nisEma));
+                        // sqrt tempers: NIS 2→1.41x, not 2x. Bounded.
+                        const adaptScale = Math.max(ADAPT_R_MIN, Math.min(ADAPT_R_MAX, Math.sqrt(Math.max(0.3, nisEma))));
                         rMeas = Math.min(KALMAN_R_MAX, rMeas * adaptScale);
                         let rawGpsLatG = 0;
                         // Heading is garbage at standstill / over gaps: phone
