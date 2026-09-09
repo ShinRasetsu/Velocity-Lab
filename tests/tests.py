@@ -351,7 +351,7 @@ function __resetEst() {
   fixWindow = []; kalmanV = 0; kalmanP = 1; kalmanInit = false; prevKalmanV = 0;
   outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0; gpsLatGSm = 0; lastPosTs = -1; fixLog = [];
   driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false;
-  lastAcc = null; nisEma = 1.0; zuptStillMs = 0;
+  lastAcc = null; nisEma = 1.0; zuptStillMs = 0; innovHist = [];
   currentSpeedMs = 0; displaySpeedMs = 0; distanceMeters = 0; prevGpsSpeedMs = 0;
   lastGpsTime = -1; lastUsableGpsTime = -1;
   lastGpsLat = undefined; lastGpsLon = undefined; lastGpsHeading = undefined;
@@ -360,6 +360,7 @@ function __resetEst() {
   fusedLongG = 0; fusedLatG = 0; imuLongG = 0; imuLatG = 0; imuLongGBias = 0; imuLatGBias = 0;
   lastTimerSpeedKmh = NaN; lastTimerDistM = NaN; lastTimerTimeMs = NaN;
   maxSpeedKmph = 0; maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
+  pendingMaxKmph = 0;
   __t = 10000; __lat = 40.0;
 }
 
@@ -434,8 +435,8 @@ __ok('window: 10 Hz converges near true speed', Math.abs(currentSpeedMs - 20) < 
 // --- P1b: post-seed settle halves the first steps (gradual lock, no snap) ---
 __resetEst();
 onPositionSuccess(__coords(0, 1));       // seed stationary
-onPositionSuccess(__coords(12, 1));      // single 12 m/s step: NIS-clean, old slew allowed ~11.5
-__ok('settle: noisy seed step locks gradually (<9, not ~11.5)', currentSpeedMs > 5 && currentSpeedMs < 9, 'currentSpeedMs=' + currentSpeedMs);
+onPositionSuccess(__coords(12, 1, 5, 6));   // UNCONFIRMED 12 m/s step (positions say 6): NIS-clean, old slew allowed ~11.5
+__ok('settle: unconfirmed seed step locks gradually (<9, not ~11.5)', currentSpeedMs > 5 && currentSpeedMs < 9, 'currentSpeedMs=' + currentSpeedMs);
 onPositionSuccess(__coords(12, 1));
 onPositionSuccess(__coords(12, 1));
 __ok('settle: counter consumed after 2 updates', seedSettle === 0, 'seedSettle=' + seedSettle);
@@ -480,8 +481,24 @@ onPositionSuccess(__coords(20, 1));
 onPositionSuccess(__coords(20, 1));
 var __mm = gpsGlitchCount;
 var __mv = currentSpeedMs;
+var __mu = lastUsableGpsTime;
 onPositionSuccess(__coords(20, 1, 5, 30));   // +30 m but Doppler says 20 (10 m/s apart)
-__ok('doppler-veto: 10 m/s Doppler/delta split is held', gpsGlitchCount > __mm && Math.abs(currentSpeedMs - __mv) < 1e-9, 'glitch=' + gpsGlitchCount + ' before=' + __mv + ' after=' + currentSpeedMs);
+__ok('doppler-veto: 10 m/s split counted, no snap (<0.5, still ~20)', gpsGlitchCount > __mm && Math.abs(currentSpeedMs - __mv) < 0.5 && Math.abs(currentSpeedMs - 20) < 1.0, 'glitch=' + gpsGlitchCount + ' before=' + __mv + ' after=' + currentSpeedMs);
+__ok('doppler-veto: steady Doppler keeps the fix usable', lastUsableGpsTime > __mu, 'usable=' + lastUsableGpsTime);
+
+// --- Mismatch + jumping Doppler: contradiction still hard-holds ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(4, 1));
+onPositionSuccess(__coords(8, 1));
+onPositionSuccess(__coords(12, 1));
+onPositionSuccess(__coords(16, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+var __jm = gpsGlitchCount;
+var __jv = currentSpeedMs;
+onPositionSuccess(__coords(40, 1, 5, 10));   // Doppler 40, delta 10: split 30, Doppler not steady
+__ok('mismatch-jump: contradiction hard-holds (byte-identical)', gpsGlitchCount > __jm && Math.abs(currentSpeedMs - __jv) < 1e-9, 'glitch=' + gpsGlitchCount + ' before=' + __jv + ' after=' + currentSpeedMs);
 
 // --- GPS-G sample EMA: one +1.5G sample must not stair the fused estimate ---
 __resetEst();
@@ -503,7 +520,26 @@ onPositionSuccess(__coords(40, 1, 19));
 __ok('records: 19 m-accuracy fixes drive live speed (~40)', Math.abs(currentSpeedMs - 40) < 6, 'currentSpeedMs=' + currentSpeedMs);
 __ok('records: ...but not timers/MAX', timer0_100.state === T_IDLE && maxSpeedKmph === 0, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
 onPositionSuccess(__coords(40, 1, 8));
-__ok('records: 8 m fix arms timers + latches MAX', timer0_100.state === T_RUNNING && maxSpeedKmph > 100, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
+__ok('records: 8 m fix arms timers (MAX needs one confirm)', timer0_100.state === T_RUNNING && maxSpeedKmph === 0, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
+onPositionSuccess(__coords(40, 1, 8));
+__ok('records: second 8 m fix latches MAX', maxSpeedKmph > 100, 'max=' + maxSpeedKmph);
+
+// --- MAX confirmation: lone spike never latches, sustained climb does ---
+__resetEst();
+__resetTimers();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(10, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+__ok('maxconf: cruise latches MAX (~72)', maxSpeedKmph > 65 && maxSpeedKmph < 80, 'max=' + maxSpeedKmph);
+onPositionSuccess(__coords(27.78, 1, 5, 27.78));   // lone 100 km/h spike, one fix
+onPositionSuccess(__coords(20, 1));                 // back to cruise
+__ok('maxconf: lone spike never latches', maxSpeedKmph < 90, 'max=' + maxSpeedKmph);
+onPositionSuccess(__coords(32, 1, 5, 32));
+onPositionSuccess(__coords(32, 1, 5, 32));
+onPositionSuccess(__coords(32, 1, 5, 32));
+__ok('maxconf: sustained climb latches (~115)', maxSpeedKmph > 110, 'max=' + maxSpeedKmph);
 
 // --- Recency-weighted LS: exact on lines, current on ramps ---
 var __rLin = lsVelocity(__win([0, 1, 2, 3], [0, 20, 40, 60], [5, 5, 5, 5]));
@@ -550,8 +586,10 @@ __ok('parked: motion never parks (RAF chain)', parkedSlow === false && __rafN ==
 // --- Dual-agree launch: GPS-only violent step with agreeing observables ---
 __resetEst();
 onPositionSuccess(__coords(0, 1));      // seed stationary (Doppler, no IMU)
+var __dg = gpsGlitchCount;
 onPositionSuccess(__coords(16, 1));     // 0-58 km/h in one fix, positions agree
-__ok('dual-agree: GPS-only launch step accepted (not coasted)', currentSpeedMs > 5 && lastFixClean === true, 'currentSpeedMs=' + currentSpeedMs);
+__ok('dual-agree: confirmed launch step not clipped (>14, settle exempt)', currentSpeedMs > 14 && lastFixClean === true, 'currentSpeedMs=' + currentSpeedMs);
+__ok('dual-agree: confirmed step counted as clean (no glitch)', gpsGlitchCount === __dg, 'glitch=' + gpsGlitchCount);
 
 // --- Dual-agree guard: lone Doppler spike without position support still coasts ---
 __resetEst();
@@ -664,6 +702,19 @@ onPositionSuccess(__coords(10, 1, 20));
 var __pFl = fixLog[fixLog.length - 1].fl;
 __ok('provider: large acc jump flagged P', __pFl.indexOf('P') !== -1, 'fl=' + __pFl);
 __ok('provider: quarantine holds (next fix still needs confirm)', (function(){ onPositionSuccess(__coords(10, 1, 20)); return fixLog[fixLog.length-1].fl.indexOf('P') === -1; })(), 'fl=' + fixLog[fixLog.length-1].fl);
+
+// --- Cruise damping: median |innov| scales Q (acc=15, the noisy case) ---
+__resetEst();
+onPositionSuccess(__coords(0, 1, 15));
+for (var __qi = 0; __qi < 12; __qi++) onPositionSuccess(__coords(20, 1, 15));
+var __qk = fixLog[fixLog.length - 1].k;
+__ok('damp: steady cruise lowers gain (<0.65, undamped ~0.74)', __qk < 0.65, 'k=' + __qk);
+onPositionSuccess(__coords(30, 1, 15));
+var __qkR = fixLog[fixLog.length - 1].k;
+__ok('damp: confirmed maneuver restores full gain', __qkR > 0.65, 'k=' + __qkR);
+for (var __qr = 0; __qr < 8; __qr++) onPositionSuccess(__coords(30, 1, 15));
+var __qk2 = fixLog[fixLog.length - 1].k;
+__ok('damp: re-damps on new cruise (no latch-up)', __qk2 < 0.65, 'k=' + __qk2);
 """
 
 
