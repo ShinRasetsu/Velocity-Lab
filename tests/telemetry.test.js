@@ -11,7 +11,7 @@ const body = (()=>{ const m=fs.readFileSync(INDEX,'utf8').match(/<script>([\s\S]
 const PRELUDE = `
 var __results = [];
 function __ok(name, cond, detail) { __results.push({ name: String(name), ok: !!cond, detail: detail || '' }); }
-function __stubEl(){ return { style:{ setProperty:function(){}, getPropertyValue:function(){return '';}, removeProperty:function(){} }, textContent:'', className:'', innerHTML:'', appendChild:function(){return arguments[0]}, removeChild:function(){return arguments[0]}, addEventListener:function(){}, setAttribute:function(){}, getContext:function(){return null}, classList:{ add:function(){}, remove:function(){}, toggle:function(){return false;}, contains:function(){return false;} } }; }
+function __stubEl(){ return { style:{ setProperty:function(){}, getPropertyValue:function(){return '';}, removeProperty:function(){} }, textContent:'', className:'', innerHTML:'', appendChild:function(){return arguments[0]}, removeChild:function(){return arguments[0]}, addEventListener:function(){}, setAttribute:function(){}, getContext:function(){return null}, classList:{ add:function(){}, remove:function(){}, toggle:function(c,f){ this._t=this._t||{}; this._t[c]=(f===undefined)?!this._t[c]:!!f; return this._t[c]; }, contains:function(c){ return !!(this._t&&this._t[c]); } } }; }
 var document = { getElementById:function(){return __stubEl();}, createElement:function(){return __stubEl();}, querySelector:function(){return __stubEl();}, querySelectorAll:function(){return [];}, addEventListener:function(){}, visibilityState:'visible', body: __stubEl(), documentElement: { style:{ setProperty:function(){} } } };
 var window = { addEventListener:function(){}, DeviceMotionEvent: undefined };
 var navigator = {};
@@ -484,6 +484,20 @@ onPositionSuccess(__coords(0, 1));
 for (var __si = 0; __si < 6; __si++) onPositionSuccess(__coords(20, 1, 5, 20));
 for (var __sj = 0; __sj < 10; __sj++) onPositionSuccess(__coords(null, 1, 5, 0.2));
 __ok('stopsnap: non-Doppler standstill stays bounded, no blink', currentSpeedMs < 0.3 && stopLatched === true, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Ring signal cue: gauge mirrors GNSS tiers (lost red / weak amber) ---
+__resetEst(); __resetTimers(); stateDirty = false;
+__t += 30000;   // keep lastGpsTime positive (acquired) yet stale
+lastGpsTime = __t - 20000; lastUsableGpsTime = __t - 20000;   // stale, no coast
+lastRenderTime = __t;
+renderLoop();
+__ok('ringsig: stale GNSS sets sig-lost on the gauge', dom.speedGauge.classList._t['sig-lost'] === true && dom.speedGauge.classList._t['sig-weak'] !== true, 't=' + JSON.stringify(dom.speedGauge.classList._t));
+lastGpsTime = __t; lastUsableGpsTime = __t; lastGpsConfidence = 0.9;
+renderLoop();
+__ok('ringsig: fresh FIX clears to no class', dom.speedGauge.classList._t['sig-lost'] === false && dom.speedGauge.classList._t['sig-weak'] === false, 't=' + JSON.stringify(dom.speedGauge.classList._t));
+lastGpsConfidence = 0.1;
+renderLoop();
+__ok('ringsig: fresh WEAK sets sig-weak (not lost)', dom.speedGauge.classList._t['sig-weak'] === true && dom.speedGauge.classList._t['sig-lost'] === false, 't=' + JSON.stringify(dom.speedGauge.classList._t));
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";

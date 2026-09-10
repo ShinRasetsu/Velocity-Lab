@@ -63,7 +63,7 @@ function __stubEl() {
         addEventListener: function(){},
         setAttribute: function(){},
         getContext: function(){return null;},
-        classList: { add: function(){}, remove: function(){}, toggle: function(){return false;}, contains: function(){return false;} }
+        classList: { add: function(){}, remove: function(){}, toggle: function(c,f){ this._t=this._t||{}; this._t[c]=(f===undefined)?!this._t[c]:!!f; return this._t[c]; }, contains: function(c){ return !!(this._t&&this._t[c]); } }
     };
 }
 var document = {
@@ -751,6 +751,20 @@ onPositionSuccess(__coords(0, 1));
 for (var __si = 0; __si < 6; __si++) onPositionSuccess(__coords(20, 1, 5, 20));
 for (var __sj = 0; __sj < 10; __sj++) onPositionSuccess(__coords(null, 1, 5, 0.2));
 __ok('stopsnap: non-Doppler standstill stays bounded, no blink', currentSpeedMs < 0.3 && stopLatched === true, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Ring signal cue: gauge mirrors GNSS tiers (lost red / weak amber) ---
+__resetEst(); __resetTimers(); stateDirty = false;
+__t += 30000;   // keep lastGpsTime positive (acquired) yet stale
+lastGpsTime = __t - 20000; lastUsableGpsTime = __t - 20000;   // stale, no coast
+lastRenderTime = __t;
+renderLoop();
+__ok('ringsig: stale GNSS sets sig-lost on the gauge', dom.speedGauge.classList._t['sig-lost'] === true && dom.speedGauge.classList._t['sig-weak'] !== true, 't=' + JSON.stringify(dom.speedGauge.classList._t));
+lastGpsTime = __t; lastUsableGpsTime = __t; lastGpsConfidence = 0.9;
+renderLoop();
+__ok('ringsig: fresh FIX clears to no class', dom.speedGauge.classList._t['sig-lost'] === false && dom.speedGauge.classList._t['sig-weak'] === false, 't=' + JSON.stringify(dom.speedGauge.classList._t));
+lastGpsConfidence = 0.1;
+renderLoop();
+__ok('ringsig: fresh WEAK sets sig-weak (not lost)', dom.speedGauge.classList._t['sig-weak'] === true && dom.speedGauge.classList._t['sig-lost'] === false, 't=' + JSON.stringify(dom.speedGauge.classList._t));
 """
 
 
