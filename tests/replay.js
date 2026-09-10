@@ -124,6 +124,17 @@ function scenarios() {
   tn.gapAt = 8; tn.gapSec = 12;
   shiftAfterGap(tn);
   S.push(tn);
+  // Weak-spell recovery: accuracy collapses mid-run (garbage anchors),
+  // then recovers. Parked + moving variants discriminate anchor-refresh
+  // vs freeze-anchor policies on the !usable fallback line.
+  S.push(genDrive('weakParked', 25, 1, function(t) {
+    if (t < 5 || t >= 15) return { v: 0, acc: 5, dop: 1, dopNoise: 0, sa: 0.5, jit: 0 };
+    return { v: 0, acc: 60, dop: 1, dopNoise: 0, sa: null, jit: 12 };
+  }, { seed: 4242 }));
+  S.push(genDrive('weakMoving', 25, 1, function(t) {
+    if (t < 5 || t >= 15) return { v: 20, acc: 5, dop: 1, dopNoise: 0, sa: 0.5, jit: 0 };
+    return { v: 20, acc: 60, dop: 1, dopNoise: 0, sa: null, jit: 12 };
+  }, { seed: 4243 }));
 // Unobserved motion during an outage jumps the resume position by v*dt:
 // without the shift the car implausibly creeps 20 m through a 12 s gap.
 function shiftAfterGap(sc) {

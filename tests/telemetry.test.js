@@ -84,7 +84,7 @@ function __resetEst() {
   fixWindow = []; kalmanV = 0; kalmanP = 1; kalmanInit = false; prevKalmanV = 0;
   outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0; gpsLatGSm = 0; lastPosTs = -1; fixLog = [];
   driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false;
-  lastAcc = null; nisEma = 1.0; zuptStillMs = 0; innovHist = [];
+  lastAcc = null; nisEma = 1.0; zuptStillMs = 0; innovHist = []; stopStillN = 0; stopLatched = false;
   currentSpeedMs = 0; displaySpeedMs = 0; distanceMeters = 0; prevGpsSpeedMs = 0;
   lastGpsTime = -1; lastUsableGpsTime = -1;
   lastGpsLat = undefined; lastGpsLon = undefined; lastGpsHeading = undefined;
@@ -448,6 +448,42 @@ __ok('damp: confirmed maneuver restores full gain', __qkR > 0.65, 'k=' + __qkR);
 for (var __qr = 0; __qr < 8; __qr++) onPositionSuccess(__coords(30, 1, 15));
 var __qk2 = fixLog[fixLog.length - 1].k;
 __ok('damp: re-damps on new cruise (no latch-up)', __qk2 < 0.65, 'k=' + __qk2);
+
+// --- Stopped snap: Doppler-0 + static + low estimate reads 0 fast ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(5, 1));
+onPositionSuccess(__coords(10, 1));
+onPositionSuccess(__coords(15, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(0, 1, 5, 0.5));
+__ok('stopsnap: no snap on first stopped fix (needs confirm)', currentSpeedMs > 3, 'currentSpeedMs=' + currentSpeedMs);
+onPositionSuccess(__coords(0, 1, 5, 0.5));
+onPositionSuccess(__coords(0, 1, 5, 0.5));
+__ok('stopsnap: confirmed stop snaps estimator + display to 0', currentSpeedMs === 0 && displaySpeedMs === 0, 'currentSpeedMs=' + currentSpeedMs + ' display=' + displaySpeedMs);
+__ok('stopsnap: latch engaged on snap', stopLatched === true, 'stopLatched=' + stopLatched);
+onPositionSuccess(__coords(0, 1, 5, 0.5));
+onPositionSuccess(__coords(0, 1, 5, 0.5));
+__ok('stopsnap: latched stop stays 0 (no blink)', currentSpeedMs === 0 && displaySpeedMs === 0, 'currentSpeedMs=' + currentSpeedMs + ' display=' + displaySpeedMs);
+
+// --- Stopped snap: crawling (~1 m/s Doppler) never snaps ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(5, 1));
+onPositionSuccess(__coords(10, 1));
+onPositionSuccess(__coords(1, 1));
+onPositionSuccess(__coords(1, 1));
+onPositionSuccess(__coords(1, 1));
+onPositionSuccess(__coords(1, 1));
+__ok('stopsnap: 1 m/s crawl keeps tracking (no false zero)', currentSpeedMs > 0.5, 'currentSpeedMs=' + currentSpeedMs);
+
+// --- Stopped snap: non-Doppler static also snaps (slower arm) ---
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+for (var __si = 0; __si < 6; __si++) onPositionSuccess(__coords(20, 1, 5, 20));
+for (var __sj = 0; __sj < 10; __sj++) onPositionSuccess(__coords(null, 1, 5, 0.2));
+__ok('stopsnap: non-Doppler standstill stays bounded, no blink', currentSpeedMs < 0.3 && stopLatched === true, 'currentSpeedMs=' + currentSpeedMs);
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";
