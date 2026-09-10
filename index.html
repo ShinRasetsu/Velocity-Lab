@@ -285,16 +285,10 @@
         }
         .cmd-sys .action-btn { padding: 0.12rem 0.3rem; font-size: 0.4rem; min-height: 1.2rem; }
 
-        /* ── GNSS loss banner ────────────────────────────────────────────── */
-        .gnss-alert {
-            display: none;
-            align-items: center; justify-content: center; gap: 0.6rem;
-            padding: 0.3rem 0.75rem;
-            border: 1px solid rgba(255,51,102,0.55);
-            background: repeating-linear-gradient(45deg, rgba(255,51,102,0.16) 0 10px, rgba(10,4,8,0.6) 10px 20px);
-            color: #ff6699; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
-        }
-        .gnss-alert.active { display: flex; animation: alert-blink 0.9s steps(2, jump-none) infinite; }
+        /* (GNSS loss banner removed — signal state lives on the gauge ring now;
+           status text + aria-live region still announce it.)
+           Base alert box below is shared by mount/drift banners. */
+        .gnss-alert { display: none; align-items: center; justify-content: center; gap: 0.6rem; padding: 0.3rem 0.75rem; border: 1px solid; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; }
         /* Mount-health alert: hidden by default (zero box until flagged) */
         #mount-alert { display: none; }
         #mount-alert.active { display: flex; border-color: rgba(255,190,60,0.55); color: #ffcf7a; background: repeating-linear-gradient(45deg, rgba(255,190,60,0.14) 0 10px, rgba(10,4,8,0.6) 10px 20px); }
@@ -581,31 +575,31 @@
                 repeating-conic-gradient(from -90deg, rgba(255,51,102,0.75) 0deg 0.8deg, transparent 0.8deg 30deg);
             filter: drop-shadow(0 0 0.008em rgba(255,51,102,0.5));
         }
-        /* Diagonal alarm slash (THE THEORETICAL LIMIT move, dial-scaled):
-           full-bleed ribbon across the core on lost only. Static geometry —
-           no motion to reduce, no layout box (absolute, hidden default). */
-        #sig-slash {
-            position: absolute; left: -12%; right: -12%; top: 50%;
-            transform: translateY(-50%) rotate(-12deg);
-            display: none; align-items: center; justify-content: center;
-            padding: 0.012em 0;
-            background: linear-gradient(90deg, transparent, rgba(255,51,102,0.88) 18%, rgba(255,51,102,0.88) 82%, transparent);
-            border-top: 1px solid rgba(255,255,255,0.4);
-            border-bottom: 1px solid rgba(255,255,255,0.4);
-            color: #fff; font-style: italic; font-weight: 800;
-            font-size: 0.085em; letter-spacing: 0.24em; text-indent: 0.24em;
-            pointer-events: none; z-index: 5;
+        /* Signal-fracture slits: dark chops over the sweep band so degraded
+           link reads as broken material, not just tint. Single radial mask
+           (same band geometry as the sweep above) — no compositing, works
+           everywhere masks do. Hidden default, zero box. */
+        .ring-slits {
+            position: absolute; inset: 0; border-radius: 50%;
+            display: none; pointer-events: none;
+            background: repeating-conic-gradient(from -90deg, transparent 0deg 5deg, rgba(0,0,0,0.85) 5deg 6deg);
+            -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
+            mask: radial-gradient(closest-side, transparent calc(100% - 0.042em), #000 calc(100% - 0.0375em));
         }
-        .speed-gauge.sig-lost #sig-slash {
-            display: flex;
-            animation: slash-in 0.35s cubic-bezier(0.2,0.9,0.25,1.15),
-                       slash-calm 0.8s ease 2.6s forwards;
+        .speed-gauge.sig-weak .ring-slits {
+            display: block;
+            background: repeating-conic-gradient(from -90deg, transparent 0deg 11deg, rgba(0,0,0,0.55) 11deg 12deg);
         }
-        @keyframes slash-in {
-            from { opacity: 0; transform: translateY(-50%) rotate(-12deg) scale(1.6); }
-            to { opacity: 1; transform: translateY(-50%) rotate(-12deg) scale(1); }
+        .speed-gauge.sig-lost .ring-slits { display: block; }
+        /* Construction hairline: engineering-drawing circle, always on for
+           cockpit density; tints with the tier. Static 1px, negligible paint. */
+        .ring-construct {
+            position: absolute; inset: -0.035em; border-radius: 50%;
+            border: 1px solid rgba(148,163,184,0.22);
+            pointer-events: none;
         }
-        @keyframes slash-calm { to { opacity: 0.22; } }
+        .speed-gauge.sig-weak .ring-construct { border-color: rgba(255,170,0,0.45); }
+        .speed-gauge.sig-lost .ring-construct { border-color: rgba(255,51,102,0.6); }
 
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
@@ -1019,11 +1013,10 @@
 
         @media (prefers-reduced-motion: reduce) {
             #status-indicator::before { animation: none !important; }
-            .gnss-alert.active, .timer-lbl.live::after, .timer-mini.live::after, .run-name.armed { animation: none; }
+            .timer-lbl.live::after, .timer-mini.live::after, .run-name.armed { animation: none; }
             .scanlines { animation: none !important; }
             .peak-marker::before { animation: none !important; }
             .speed-gauge.sig-lost #speed-ring { animation: none; }
-            .speed-gauge.sig-lost #sig-slash { animation: none; opacity: 0.35; }
             .action-btn { transition: none; }
             .action-btn:active { transform: none; }
             .v-bar-fill { transition: none; }
@@ -1098,7 +1091,6 @@
     </header>
 
     <!-- GNSS LOSS ALERT (tap to dismiss until next signal change) -->
-    <div id="gnss-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ GNSS SIGNAL LOST — 再取得中 // REACQUIRING</div>
     <div id="mount-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ MOUNT UNSTABLE — check phone mount // IMU accuracy reduced</div>
     <div id="drift-alert" class="gnss-alert" role="alert" title="Tap to dismiss">⚠ GNSS DEGRADED — slow drift suspected // accuracy reduced</div>
 
@@ -1117,9 +1109,11 @@
 
 <div class="gauge-wrap">
             <div class="speed-gauge">
+                <div class="ring-construct" aria-hidden="true"></div>
                 <div class="gauge-ticks" aria-hidden="true"></div>
                 <div id="speed-ring" aria-hidden="true"></div>
                 <div class="gauge-redline" aria-hidden="true"></div>
+                <div class="ring-slits" aria-hidden="true"></div>
                 <div id="peak-marker" class="peak-marker" aria-hidden="true"></div>
                 <div id="best-marker" class="peak-marker" aria-hidden="true" style="opacity: 0;"></div>
                 <!-- G-Force Ring: INSIDE speed-gauge just below peakmarker -->
@@ -1133,7 +1127,6 @@
                     <span class="gauge-caption">車両速度 // VELOCITY</span>
                     <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
                 </div>
-                <div id="sig-slash" aria-hidden="true">SIGNAL LOST</div>
             </div>
             <div class="speed-track" aria-hidden="true">
                 <div id="speed-bar" class="speed-bar-fill"></div>
@@ -1467,7 +1460,6 @@ let lastRenderTime  = performance.now();
             brakeLiveMax: document.getElementById('brake-live-max'),
 
             // Gundam HUD additions
-            gnssAlert:    document.getElementById('gnss-alert'),
             mountAlert:   document.getElementById('mount-alert'),
             driftAlert:   document.getElementById('drift-alert'),
             distDisplay:  document.getElementById('dist-display'),
@@ -1507,13 +1499,13 @@ let lastRenderTime  = performance.now();
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
-            alertOn: null, mountOn: null, driftOn: null, sigCls: null,
+            mountOn: null, driftOn: null, sigCls: null,
             bestDeg: null
         };
 
         // Session clock anchor: set when tracking initialises.
         let sessionStartMs = -1;
-        let gnssDismissed = false;
+
 
         // ─── HELPERS ──────────────────────────────────────────────────────────────
         function setDOM(el, key, val, baseCls = null, dynCls = null) {
@@ -1608,7 +1600,6 @@ let lastRenderTime  = performance.now();
             wakeRenderLoop();
             distanceMeters  = 0.0;
             displayDistanceM = 0.0;
-            gnssDismissed = false;
             mountDismissed = false;
             mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
             mountBad = false; mountBadT0 = 0; mountOkT0 = 0;
@@ -2758,7 +2749,6 @@ let lastRenderTime  = performance.now();
                 // Reset G-meter peaks and prev caches
                 maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
                 maxSpeedKmph = 0.0; pendingMaxKmph = 0.0; displayMaxKmph = 0.0; lastGpsConfidence = 0.0;
-                gnssDismissed = false;
                 mountDismissed = false;
                 mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
                 mountBad = false; mountBadT0 = 0; mountOkT0 = 0;
@@ -2944,10 +2934,6 @@ let lastRenderTime  = performance.now();
         }
         window.exportRun = exportRun;
 
-        if (dom.gnssAlert) dom.gnssAlert.addEventListener('click', function() {
-            gnssDismissed = true;
-            try { dom.gnssAlert.classList.remove("active"); dom.gnssAlert.style.display = "none"; } catch (e) {}
-        });
 
         // Manual motion re-ask from the GPS-ONLY hint. iOS still requires the
         // in-gesture grant; the tap itself is the gesture for the dialog.
@@ -3241,12 +3227,6 @@ let lastRenderTime  = performance.now();
             updateLiveSprint(dom.tQuarter, 'liveQuarter', timerQuarter, now);
             updateLiveBrake();
 
-            // GNSS loss banner (tap to dismiss until next signal change)
-            if (prev.alertOn !== gnssStale) {
-                if (!gnssStale) { gnssDismissed = false; if (dom.gnssAlert) dom.gnssAlert.style.display = ""; }
-                if (dom.gnssAlert && !(gnssStale && gnssDismissed)) dom.gnssAlert.classList.toggle("active", gnssStale);
-                prev.alertOn = gnssStale;
-            }
             // Mount-health banner: rare, amber, tap-to-dismiss until re-flagged
             const mountOn = mountBad && !mountDismissed;
             if (prev.mountOn !== mountOn) {
