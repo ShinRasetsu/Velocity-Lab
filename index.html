@@ -596,18 +596,16 @@
             font-size: 0.085em; letter-spacing: 0.24em; text-indent: 0.24em;
             pointer-events: none; z-index: 5;
         }
-        .speed-gauge.sig-lost #sig-slash { display: flex; }
-        /* Tier micro-tag (callout density): absolute overlay, tier text only. */
-        #sig-tag {
-            position: absolute; bottom: 0.22em; left: 50%; transform: translateX(-50%);
-            display: none; padding: 0.008em 0.05em;
-            border: 1px solid currentColor;
-            font-size: 0.042em; letter-spacing: 0.22em; text-indent: 0.22em;
-            font-family: ui-monospace, monospace; white-space: nowrap;
-            pointer-events: none; z-index: 5;
+        .speed-gauge.sig-lost #sig-slash {
+            display: flex;
+            animation: slash-in 0.35s cubic-bezier(0.2,0.9,0.25,1.15),
+                       slash-calm 0.8s ease 2.6s forwards;
         }
-        .speed-gauge.sig-weak #sig-tag { display: block; color: var(--amber); }
-        .speed-gauge.sig-lost #sig-tag { display: block; color: #ff8098; }
+        @keyframes slash-in {
+            from { opacity: 0; transform: translateY(-50%) rotate(-12deg) scale(1.6); }
+            to { opacity: 1; transform: translateY(-50%) rotate(-12deg) scale(1); }
+        }
+        @keyframes slash-calm { to { opacity: 0.22; } }
 
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
@@ -1025,6 +1023,7 @@
             .scanlines { animation: none !important; }
             .peak-marker::before { animation: none !important; }
             .speed-gauge.sig-lost #speed-ring { animation: none; }
+            .speed-gauge.sig-lost #sig-slash { animation: none; opacity: 0.35; }
             .action-btn { transition: none; }
             .action-btn:active { transform: none; }
             .v-bar-fill { transition: none; }
@@ -1135,7 +1134,6 @@
                     <span id="max-speed-gauge" class="gauge-max-speed lcd-text spd-green">MAX: 0.0</span>
                 </div>
                 <div id="sig-slash" aria-hidden="true">SIGNAL LOST</div>
-                <span id="sig-tag" aria-hidden="true"></span>
             </div>
             <div class="speed-track" aria-hidden="true">
                 <div id="speed-bar" class="speed-bar-fill"></div>
@@ -1489,7 +1487,6 @@ let lastRenderTime  = performance.now();
             maxSpeedGauge: document.getElementById('max-speed-gauge'),
             gForceRing:   document.querySelector('.g-force-ring'),
             speedGauge:   document.querySelector('.speed-gauge'),
-            sigTag:       document.getElementById('sig-tag'),
             bestMarker:   document.getElementById('best-marker'),
             exportBtn:    document.getElementById('export-btn'),
             best060:      document.getElementById('best-0-60'),
@@ -1510,7 +1507,7 @@ let lastRenderTime  = performance.now();
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
-            alertOn: null, mountOn: null, driftOn: null, sigCls: null, sigTag: null,
+            alertOn: null, mountOn: null, driftOn: null, sigCls: null,
             bestDeg: null
         };
 
@@ -3274,8 +3271,6 @@ let lastRenderTime  = performance.now();
                 }
                 prev.sigCls = sigCls;
             }
-            const sigTag = sigLost ? 'LINK LOST' : (sigWeak ? 'LINK WEAK' : '');
-            if (prev.sigTag !== sigTag) { if (dom.sigTag) dom.sigTag.textContent = sigTag; prev.sigTag = sigTag; }
 
             if (stateDirty) {
                 evaluateAndRenderScore();

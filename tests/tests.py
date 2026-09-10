@@ -759,15 +759,12 @@ lastGpsTime = __t - 20000; lastUsableGpsTime = __t - 20000;   // stale, no coast
 lastRenderTime = __t;
 renderLoop();
 __ok('ringsig: stale GNSS sets sig-lost on the gauge', dom.speedGauge.classList._t['sig-lost'] === true && dom.speedGauge.classList._t['sig-weak'] !== true, 't=' + JSON.stringify(dom.speedGauge.classList._t));
-__ok('ringsig: lost tag reads LINK LOST', dom.sigTag.textContent === 'LINK LOST', 'tag=' + dom.sigTag.textContent);
 lastGpsTime = __t; lastUsableGpsTime = __t; lastGpsConfidence = 0.9;
 renderLoop();
 __ok('ringsig: fresh FIX clears to no class', dom.speedGauge.classList._t['sig-lost'] === false && dom.speedGauge.classList._t['sig-weak'] === false, 't=' + JSON.stringify(dom.speedGauge.classList._t));
-__ok('ringsig: fix clears tag text', dom.sigTag.textContent === '', 'tag=' + dom.sigTag.textContent);
 lastGpsConfidence = 0.1;
 renderLoop();
 __ok('ringsig: fresh WEAK sets sig-weak (not lost)', dom.speedGauge.classList._t['sig-weak'] === true && dom.speedGauge.classList._t['sig-lost'] === false, 't=' + JSON.stringify(dom.speedGauge.classList._t));
-__ok('ringsig: weak tag reads LINK WEAK', dom.sigTag.textContent === 'LINK WEAK', 'tag=' + dom.sigTag.textContent);
 """
 
 
