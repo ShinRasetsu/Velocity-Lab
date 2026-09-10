@@ -547,6 +547,25 @@
         .speed-gauge { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1), font-size 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
         .gauge-wrap.large .speed-gauge { --gauge: calc(292px * var(--s-gauge)); }
 
+        /* Ring signal states (class-synced per frame with the GNSS banner):
+           weak = amber steady (acquiring / coast / low-confidence),
+           lost = red blink (stale, no coast). Color/filter/opacity only —
+           zero box impact, compositor-isolated like the base ring. */
+        .speed-gauge.sig-weak #speed-ring {
+            background: conic-gradient(from -90deg, var(--amber) calc(var(--deg, 0deg)), rgba(148,163,184,0.08) 0deg);
+            filter: drop-shadow(0 0 0.012em rgba(255,170,0,0.35));
+        }
+        .speed-gauge.sig-lost #speed-ring {
+            background: conic-gradient(from -90deg, var(--red) calc(var(--deg, 0deg)), rgba(148,163,184,0.08) 0deg);
+            filter: drop-shadow(0 0 0.012em rgba(255,51,102,0.4));
+            animation: sig-blink 0.9s steps(2, jump-none) infinite;
+        }
+        .speed-gauge.sig-lost .peak-marker::before {
+            background: var(--red);
+            box-shadow: 0 0 0.02em rgba(255,51,102,0.9);
+        }
+        @keyframes sig-blink { 50% { opacity: 0.35; } }
+
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
         .dashboard-shell .cmd-bar,
@@ -962,6 +981,7 @@
             .gnss-alert.active, .timer-lbl.live::after, .timer-mini.live::after, .run-name.armed { animation: none; }
             .scanlines { animation: none !important; }
             .peak-marker::before { animation: none !important; }
+            .speed-gauge.sig-lost #speed-ring { animation: none; }
             .action-btn { transition: none; }
             .action-btn:active { transform: none; }
             .v-bar-fill { transition: none; }
@@ -1423,6 +1443,7 @@ let lastRenderTime  = performance.now();
             vbarHdl:      document.getElementById('vbar-hdl'),
             maxSpeedGauge: document.getElementById('max-speed-gauge'),
             gForceRing:   document.querySelector('.g-force-ring'),
+            speedGauge:   document.querySelector('.speed-gauge'),
             bestMarker:   document.getElementById('best-marker'),
             exportBtn:    document.getElementById('export-btn'),
             best060:      document.getElementById('best-0-60'),
@@ -1443,7 +1464,7 @@ let lastRenderTime  = performance.now();
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
-            alertOn: null, mountOn: null, driftOn: null,
+            alertOn: null, mountOn: null, driftOn: null, sigCls: null,
             bestDeg: null
         };
 
@@ -3193,6 +3214,19 @@ let lastRenderTime  = performance.now();
             if (prev.driftOn !== driftOn) {
                 if (dom.driftAlert) dom.driftAlert.classList.toggle("active", driftOn);
                 prev.driftOn = driftOn;
+            }
+            // Ring signal cue (Gundam core mirrors the GNSS banner tiers):
+            // lost = stale with no coast (red blink), weak = acquiring /
+            // coast / low-confidence (amber). Class-swap only on change.
+            const sigLost = gnssStale && gpsAcquired && !imuCoast;
+            const sigWeak = !sigLost && (gnssStale || !gpsAcquired || lastGpsConfidence < GPS_QUALITY_MIN);
+            const sigCls = sigLost ? 'sig-lost' : (sigWeak ? 'sig-weak' : '');
+            if (prev.sigCls !== sigCls) {
+                if (dom.speedGauge) {
+                    dom.speedGauge.classList.toggle('sig-lost', sigLost);
+                    dom.speedGauge.classList.toggle('sig-weak', sigWeak);
+                }
+                prev.sigCls = sigCls;
             }
 
             if (stateDirty) {
