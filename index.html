@@ -1263,6 +1263,15 @@
         // (acceleration) phones — so any handling/shaking resets the count.
         const ORIENT_STILL_N           = 60;
         const ORIENT_STILL_TOL         = 0.6;
+        // Lateral-sign voter: GPS yaw-rate gives SIGNED lateral G in a
+        // corner; sustained disagreement with the IMU sign means a mirrored
+        // mount. 30-fix window, 80 % supermajority either way, then reset
+        // (esses/roundabouts mix votes and correctly decide nothing).
+        const LATSIGN_VOTES_N          = 30;
+        const LATSIGN_FLIP_FRAC        = 0.8;
+        const LATSIGN_MIN_GPS_G        = 0.15;
+        const LATSIGN_MIN_IMU_G        = 0.08;
+        const LATSIGN_MIN_CONF         = 0.6;
         const IMU_BIAS_CLAMP         = 0.5;
         const G_RING_VISIBLE         = false;
         const PHYSICAL_G_CLAMP_LONG  = 3.5;
@@ -1382,6 +1391,12 @@ let lastRenderTime  = performance.now();
         // (standard driver-facing mount assumed) — magnitudes are always
         // right, only left/right sign needs that mount.
         let mountYawMode    = 0;
+        // Lateral sign: +1 standard mount, -1 mirrored (screen faces away /
+        // mount flips left-right). GPS voter only — magnitudes never lie,
+        // only the sign needs the mount. Applied after axis select + tare.
+        let mountLatSign    = 1;
+        let latSignAgree    = 0;
+        let latSignDis      = 0;
         // Opportunistic snapshot state: still-sample run length + one-shot
         // per stop (re-armed when the standstill gate drops).
         let orientStillN    = 0;
@@ -1660,6 +1675,7 @@ let lastRenderTime  = performance.now();
             displayDistanceM = 0.0;
             mountDismissed = false;
             mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
+            mountLatSign = 1; latSignAgree = 0; latSignDis = 0;
             mountBad = false; mountBadT0 = 0; mountOkT0 = 0;
             fixLog = [];
             lastUsableGpsTime = -1;
@@ -1871,7 +1887,7 @@ let lastRenderTime  = performance.now();
             // Axis mapping follows the RESET RUN orientation snapshot:
             // landscape rotates lateral sensing from X to Y (Z stays forward).
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
-            imuLatG  = (mountYawMode === 1 ? filteredAccelY - mountOffsetY : filteredAccelX - mountOffsetX) / GRAVITY_MS2;
+            imuLatG  = mountLatSign * (mountYawMode === 1 ? filteredAccelY - mountOffsetY : filteredAccelX - mountOffsetX) / GRAVITY_MS2;
             imuFusionActive = true;
             // High-frequency IMU drives the live fused estimate; GPS nudge from
             // updateImuFusionFromGps pulls it toward GPS-derived truth per sample.
@@ -1930,6 +1946,22 @@ let lastRenderTime  = performance.now();
 
         function updateImuFusionFromGps(gpsLongG, gpsLatG, confidence, gpsDtSec) {
             if (!imuFusionActive || confidence <= 0) return;
+            // Lateral-sign voter (uses the RAW gpsLatG arg, pre-smoothing):
+            // cornering truth is signed, so a supermajority of disagreeing
+            // fixes means the mount mirrors left-right. Parked/straight
+            // fixes can't vote (gated on both magnitudes). Flip re-zeroes
+            // the lateral bias, which was learned under the old sign.
+            if (confidence >= LATSIGN_MIN_CONF && Math.abs(gpsLatG) > LATSIGN_MIN_GPS_G && Math.abs(imuLatG) > LATSIGN_MIN_IMU_G) {
+                if ((gpsLatG > 0) === (imuLatG > 0)) latSignAgree++;
+                else latSignDis++;
+                if (latSignAgree + latSignDis >= LATSIGN_VOTES_N) {
+                    if (latSignDis >= LATSIGN_VOTES_N * LATSIGN_FLIP_FRAC) {
+                        mountLatSign = -mountLatSign;
+                        imuLatGBias = 0;
+                    }
+                    latSignAgree = 0; latSignDis = 0;
+                }
+            }
             // Per-fix EMA on the GPS-derived G sample (rate-normalized): the
             // raw dv/dt sample arrives stepwise at fix rate and would stair
             // the fused estimate + accel bars. Smooth the sample, not the
@@ -2913,7 +2945,8 @@ let lastRenderTime  = performance.now();
                 peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
                 maxSpeedKmph = 0.0; pendingMaxKmph = 0.0; displayMaxKmph = 0.0; lastGpsConfidence = 0.0;
                 mountDismissed = false;
-                mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
+            mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
+            mountLatSign = 1; latSignAgree = 0; latSignDis = 0;
                 mountBad = false; mountBadT0 = 0; mountOkT0 = 0;
                 fixLog = [];
                 nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; stopLatched = false;
@@ -2956,6 +2989,7 @@ let lastRenderTime  = performance.now();
                 filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false;
                 imuLongG = 0; imuLatG = 0;
                 imuLongGBias = 0; imuLatGBias = 0;
+                mountLatSign = 1; latSignAgree = 0; latSignDis = 0;
                 imuFusionActive = false;
                 // Reset g-force ring CSS vars so hidden ring doesn't retain stale pos
                 const _ring = dom.gForceRing || document.querySelector('.g-force-ring');
@@ -3586,14 +3620,16 @@ let lastRenderTime  = performance.now();
                 if (shortcutAction) { try { const du = new URL(window.location.href); du.searchParams.delete('action'); window.history.replaceState({}, '', du.pathname + du.search + du.hash); } catch (e2) {} }
             } catch (e) {}
 
-            // Trigger boot animations — every readout/bar/panel + gauge/ring
-            setTimeout(() => {
+            // 1. Size pass (pre-paint, before any animation): apply .large to
+            // reserve final gauge geometry so --gauge doesn't shift during boot.
+            const gaugeWrap = document.querySelector('.gauge-wrap');
+            if (gaugeWrap) gaugeWrap.classList.add('large');
+            // 2. Animation pass (next frame): add .boot classes.
+            requestAnimationFrame(() => {
                 const shell = document.querySelector('.dashboard-shell');
-                const gaugeWrap = document.querySelector('.gauge-wrap');
                 const speedGauge = document.querySelector('.speed-gauge');
                 const gForceRing = document.querySelector('.g-force-ring');
                 if (shell) shell.classList.add('boot');
-                if (gaugeWrap) gaugeWrap.classList.add('large');
                 if (speedGauge) speedGauge.classList.add('boot');
                 if (gForceRing) gForceRing.classList.add('boot');
 
@@ -3790,8 +3826,9 @@ let lastRenderTime  = performance.now();
                 // growing, never gaps — but grow ONLY on settled layout
                 // (post-boot/orientation passes). Early passes shrink-only:
                 // pre-boot content measures small and would overshoot.
-                if (cur > 0 && isFinite(contentH) && contentH > 0) {
-                    if (contentH > vh || allowGrow) {
+                // ONLY grow if explicitly allowed AND content needs it.
+                if (cur > 0 && isFinite(contentH) && contentH > 0 && allowGrow) {
+                    if (contentH > vh) {
                         scale = Math.min(scale, cur * (vh - 20) / contentH);
                     }
                 }
@@ -3809,16 +3846,11 @@ let lastRenderTime  = performance.now();
             updateScale(true, false);
             window.addEventListener('resize', debouncedUpdateScale, { passive: true });
             window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true, true); }, 100));
-            // Bounded passes only: init (shrink-only), post-boot settle at
-            // 900 ms (gauge 0.7s done — exact solve), font arrival
-            // (exact — late webfont wrap/unwrap flips heights after the
-            // 900ms pass on slow networks, leaving permanent gaps), final
-            // backstop at 2500 ms. Fixed schedule, static after — can't pulse.
-            setTimeout(function(){ updateScale(true, true); }, 900);
-            if (document.fonts && document.fonts.ready) {
-                try { document.fonts.ready.then(function(){ updateScale(true, true); }); } catch (e5) {}
-            }
-            setTimeout(function(){ updateScale(true, true); }, 2500);
+            // One shrink-only init pass (pre-paint), then ONE exact-fit grow
+            // pass at 900 ms after .large is applied and boot animations
+            // finish. No font-ready or 2.5 s passes — they caused CLS by
+            // growing the layout after first paint.
+            setTimeout(function(){ updateScale(false, true); }, 900);
         }
 
         window.addEventListener('load', checkPermissionsAndInit);
