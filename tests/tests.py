@@ -363,6 +363,7 @@ function __resetEst() {
   pendingMaxKmph = 0;
   motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
   peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
+  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0;
   __t = 10000; __lat = 40.0;
 }
 
@@ -879,6 +880,81 @@ __resetEst();
 lastGpsConfidence = 0.9; lastGpsTime = __t; lastUsableGpsTime = __t;
 resetRun();
 __ok('resetrun: preserves live confidence (no phantom WEAK)', lastGpsConfidence === 0.9, 'conf=' + lastGpsConfidence);
+
+// --- Non-finite input: one poisoned sample must not brick the session ---
+__resetEst();
+filteredAccelX = 0; filteredAccelZ = 0;
+handleMotion({ acceleration: { x: NaN, z: NaN } });
+__ok('nan: poisoned sample dropped (never activates, clock untouched)', imuFusionActive === false && lastImuTime === 0 && filteredAccelX === 0 && filteredAccelZ === 0, 'active=' + imuFusionActive);
+handleMotion({ acceleration: { x: Infinity, z: 1 } });
+__ok('nan: infinite sample dropped too', imuFusionActive === false && lastImuTime === 0, 'active=' + imuFusionActive);
+handleMotion({ acceleration: { x: 0, z: 0.5 } });
+__ok('nan: valid samples still work after poison attempts', imuFusionActive === true && isFinite(fusedLongG), 'fused=' + fusedLongG);
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(20, 1));
+__t += 100; handleMotion({ acceleration: { x: 0, z: 0.5 } });
+__t += 100; handleMotion({ acceleration: { x: NaN, z: NaN } });
+__t += 100; handleMotion({ acceleration: { x: 0, z: 0.5 } });
+onPositionSuccess(__coords(20, 1));
+onPositionSuccess(__coords(20, 1));
+__ok('nan: estimator survives poison attempt (finite)', isFinite(currentSpeedMs) && isFinite(kalmanV) && isFinite(fusedLongG), 'cs=' + currentSpeedMs);
+__ok('nan: speed still tracks after poison attempt', Math.abs(currentSpeedMs - 20) < 2, 'cs=' + currentSpeedMs);
+
+// --- Malformed accuracy: distrust, never perfect trust ---
+__ok('acc: negative accuracy distrusts fully', gpsConfidence(-5) === 0 && gpsConfidence(-0.1) === 0, 'got ' + gpsConfidence(-5));
+__ok('acc: valid accuracy unchanged', gpsConfidence(5) > 0.9 && gpsConfidence(5) < 1.0, 'got ' + gpsConfidence(5));
+__resetEst();
+onPositionSuccess(__coords(0, 1));
+onPositionSuccess(__coords(10, 1));
+onPositionSuccess(__coords(20, 1));
+__t += 1000; __lat += 20 / __MPD;
+onPositionSuccess({ coords: { latitude: __lat, longitude: 0, accuracy: 5, altitudeAccuracy: null, speed: 120, speedAccuracy: -3 } });
+__ok('spdacc: negative speedAccuracy falls back to LS (not trusted Doppler)', fixLog[fixLog.length - 1].fl === 'U', 'fl=' + fixLog[fixLog.length - 1].fl);
+
+// --- Mount orientation: RESET RUN gravity snapshot remaps lateral ---
+// Driven through real handleMotion events (gravity fallback): the snapshot
+// reads the gravity mirror, which works on linear-API phones too.
+__resetEst();
+mountYawMode = 1;
+currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0;
+for (var __op = 0; __op < 30; __op++) { __t += 16; handleMotion({ accelerationIncludingGravity: { x: 0.2, y: 9.6, z: 0.3 } }); }
+resetRun();
+__ok('orient: portrait gravity restores legacy mapping', mountYawMode === 0, 'mode=' + mountYawMode);
+__resetEst();
+currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0;
+for (var __ol = 0; __ol < 30; __ol++) { __t += 16; handleMotion({ accelerationIncludingGravity: { x: 9.6, y: 0.2, z: 0.3 } }); }
+resetRun();
+__ok('orient: landscape gravity swaps lateral to Y', mountYawMode === 1, 'mode=' + mountYawMode);
+__ok('orient: landscape tares all three offsets', mountOffsetX > 9 && mountOffsetY < 1 && mountOffsetZ < 1, 'ox=' + mountOffsetX + ' oy=' + mountOffsetY);
+__resetEst();
+mountYawMode = 1;
+currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0;
+for (var __of = 0; __of < 30; __of++) { __t += 16; handleMotion({ accelerationIncludingGravity: { x: 0.5, y: 0.5, z: 9.6 } }); }
+resetRun();
+__ok('orient: flat/ambiguous never thrashes mapping', mountYawMode === 1, 'mode=' + mountYawMode);
+__resetEst();
+mountYawMode = 0;
+currentSpeedMs = 0; displaySpeedMs = 0;
+gravSmX = 9.6; gravSmY = 0.2; gravSmZ = 0.3;
+lastImuTime = 0;
+resetRun();
+__ok('orient: stale gravity never remaps', mountYawMode === 0, 'mode=' + mountYawMode);
+__resetEst();
+mountYawMode = 1;
+currentSpeedMs = 5; displaySpeedMs = 5;
+filteredAccelX = 0.2; filteredAccelY = 9.6; filteredAccelZ = 0.3;
+mountOffsetX = 0;
+resetRun();
+__ok('orient: moving reset never re-tares or remaps', mountYawMode === 1 && mountOffsetX === 0, 'mode=' + mountYawMode);
+__resetEst();
+mountYawMode = 1; mountOffsetX = 0; mountOffsetY = 0; mountOffsetZ = 0;
+imuLongGBias = 0; imuLatGBias = 0; lastImuTime = 0; lastGpsConfidence = 0;
+for (var __oi = 0; __oi < 30; __oi++) { __t += 16; handleMotion({ acceleration: { x: 0, y: 2.0, z: 0 } }); }
+__ok('orient: landscape reads lateral from Y', imuLatG > 0.15 && Math.abs(imuLongG) < 0.05, 'lat=' + imuLatG + ' lon=' + imuLongG);
+__resetEst();
+handleMotion({ acceleration: { x: 0, y: NaN, z: 0 } });
+__ok('orient: NaN Y dropped like other axes', imuFusionActive === false && lastImuTime === 0, 'active=' + imuFusionActive);
 """
 
 
