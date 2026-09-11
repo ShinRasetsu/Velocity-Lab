@@ -94,6 +94,8 @@ function __resetEst() {
   lastTimerSpeedKmh = NaN; lastTimerDistM = NaN; lastTimerTimeMs = NaN;
   maxSpeedKmph = 0; maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
   pendingMaxKmph = 0;
+  motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
+  peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
   __t = 10000; __lat = 40.0;
 }
 
@@ -498,6 +500,98 @@ __ok('ringsig: fresh FIX clears to no class', dom.speedGauge.classList._t['sig-l
 lastGpsConfidence = 0.1;
 renderLoop();
 __ok('ringsig: fresh WEAK sets sig-weak (not lost)', dom.speedGauge.classList._t['sig-weak'] === true && dom.speedGauge.classList._t['sig-lost'] === false, 't=' + JSON.stringify(dom.speedGauge.classList._t));
+
+// --- Motion lifecycle: tracked attach, permission-aware, watchdog ---
+window.DeviceMotionEvent = {};
+__ok('motion: no permission API + DME present -> should be on', motionShouldBeOn() === true, '');
+DeviceMotionEvent = { requestPermission: function(){} };
+__lsStore[IOS_CHOICE_KEY] = JSON.stringify({ s: '1', t: Date.now() });
+__ok('motion: stored grant -> should be on', motionShouldBeOn() === true, '');
+__lsStore[IOS_CHOICE_KEY] = JSON.stringify({ s: '0', t: Date.now() });
+__ok('motion: fresh denial -> should be off', motionShouldBeOn() === false, '');
+window.DeviceMotionEvent = undefined;
+__ok('motion: no hardware -> should be off', motionShouldBeOn() === false, '');
+DeviceMotionEvent = undefined;
+var __addN = 0, __remN = 0;
+window.addEventListener = function(){ __addN++; };
+window.removeEventListener = function(){ __remN++; };
+window.DeviceMotionEvent = {};
+setMotionListening(false); setMotionListening(true); setMotionListening(true);
+__ok('motion: setter dedups attach', __addN === 1, 'adds=' + __addN);
+setMotionListening(false); setMotionListening(false);
+__ok('motion: setter dedups detach', __remN === 1, 'rems=' + __remN);
+__lsStore[IOS_CHOICE_KEY] = JSON.stringify({ s: '0', t: Date.now() - 2592000001 });
+__ok('motion: stale denial re-asks (not denied forever)', getIosChoice() === 'expired-deny', 'got=' + getIosChoice());
+__lsStore[IOS_CHOICE_KEY] = JSON.stringify({ s: '0', t: Date.now() });
+__ok('motion: fresh denial stays denied', getIosChoice() === 'denied', 'got=' + getIosChoice());
+delete __lsStore[IOS_CHOICE_KEY];
+__ok('motion: no record asks (unknown, not denied)', getIosChoice() === 'unknown', 'got=' + getIosChoice());
+__resetEst(); __resetTimers(); stateDirty = false;
+window.DeviceMotionEvent = {};
+setMotionListening(false);
+lastImuTime = 0; imuFusionActive = false;
+lastGpsTime = __t - 20000; lastUsableGpsTime = __t - 20000;
+lastRenderTime = __t; lastMotionCheck = 0; lastMotionKick = 0;
+setMotionListening(true);
+var __wkA = __addN, __wkR = __remN;
+__t += 20000;
+renderLoop();
+__ok('motion: watchdog kicks silent subscription', __remN > __wkR && __addN > __wkA && motionListening === true && lastMotionKick === __t, 'adds=' + __addN + ' rems=' + __remN);
+window.DeviceMotionEvent = undefined;
+
+// --- Stationary re-tare: slow zero-point learn, frozen while moving ---
+function __imuState() {
+  currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0.9;
+  lastUsableGpsTime = __t; lastGpsTime = __t;
+  mountOffsetX = 0; mountOffsetZ = 0; imuLongGBias = 0; imuLatGBias = 0;
+  lastImuTime = 0;
+}
+__imuState();
+for (var __ri = 0; __ri < 500; __ri++) { __t += 16; handleMotion({ acceleration: { x: 2.0, z: 1.0 } }); }
+__ok('retare: stationary re-tare drifts toward filtered (slow)', mountOffsetX > 0.02 && mountOffsetX < 1.0 && mountOffsetZ > 0.02, 'ox=' + mountOffsetX + ' oz=' + mountOffsetZ);
+__imuState();
+currentSpeedMs = 5;
+for (var __rj = 0; __rj < 500; __rj++) { __t += 16; handleMotion({ acceleration: { x: 2.0, z: 1.0 } }); }
+__ok('retare: frozen while moving', mountOffsetX === 0 && mountOffsetZ === 0, 'ox=' + mountOffsetX);
+
+// --- Debounced peaks: single spike never latches, sustained does ---
+__resetEst(); __resetTimers();
+maxGpsAccelG = 0.5; imuFusionActive = false; fusedLongG = 0.9; fusedLatG = 0;
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: single exceedance arms, does not latch', maxGpsAccelG === 0.5, 'max=' + maxGpsAccelG);
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: sustained exceedance latches', maxGpsAccelG === 0.9, 'max=' + maxGpsAccelG);
+fusedLongG = 2.0;
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: lone spike does not latch', maxGpsAccelG === 0.9, 'max=' + maxGpsAccelG);
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: sustained spike latches higher', maxGpsAccelG === 2.0, 'max=' + maxGpsAccelG);
+__resetEst(); __resetTimers();
+bestGpsBrakingG = 0.4; imuFusionActive = false; fusedLongG = -0.6; fusedLatG = 0;
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: braking single exceedance arms only', bestGpsBrakingG === 0.4, 'max=' + bestGpsBrakingG);
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: braking sustained latches', bestGpsBrakingG === 0.6, 'max=' + bestGpsBrakingG);
+__resetEst(); __resetTimers();
+maxGpsLatG = 0.5; imuFusionActive = false; fusedLongG = 0; fusedLatG = 0.8;
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: lateral single exceedance arms only', maxGpsLatG === 0.5, 'max=' + maxGpsLatG);
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: lateral sustained latches', maxGpsLatG === 0.8, 'max=' + maxGpsLatG);
+__resetEst(); __resetTimers();
+maxGpsAccelG = 0.5; imuFusionActive = false; fusedLongG = 0.9; fusedLatG = 0;
+onPositionSuccess(__coords(20, 1));
+__t += 1000;
+onPositionSuccess({ coords: { latitude: __lat, longitude: 0, accuracy: 99, altitudeAccuracy: null, speed: null, speedAccuracy: null } });
+onPositionSuccess(__coords(20, 1));
+__ok('peaks: stale arm disarmed by weak gap (no instant latch)', maxGpsAccelG === 0.5, 'max=' + maxGpsAccelG);
+__resetEst(); __resetTimers();
+maxGpsAccelG = 0.5; imuFusionActive = false; fusedLongG = 0.9; fusedLatG = 0;
+onPositionSuccess(__coords(20, 0.1));
+onPositionSuccess(__coords(20, 0.1));
+__ok('peaks: 10 Hz needs ~5 fixes (200 ms is not enough)', maxGpsAccelG === 0.5, 'max=' + maxGpsAccelG);
+for (var __pz = 0; __pz < 5; __pz++) onPositionSuccess(__coords(20, 0.1));
+__ok('peaks: 10 Hz latches after 500 ms wall time', maxGpsAccelG === 0.9, 'max=' + maxGpsAccelG);
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";
