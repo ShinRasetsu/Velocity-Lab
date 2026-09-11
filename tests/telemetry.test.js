@@ -96,7 +96,7 @@ function __resetEst() {
   pendingMaxKmph = 0;
   motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
   peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
-  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false;
+  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0;
   __t = 10000; __lat = 40.0;
 }
 
@@ -727,6 +727,23 @@ __resetEst();
 currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0.8; lastUsableGpsTime = __t; lastGpsTime = __t;
 for (var __od = 0; __od < 80; __od++) { __t += 16; handleMotion({ acceleration: { x: 0.05, y: 0.04, z: 0.02 }, accelerationIncludingGravity: { x: 9.6, y: 0.2, z: 0.3 } }); }
 __ok('auto-orient: linear-API still rest re-snaps too', mountYawMode === 1 && orientSnapped === true, 'mode=' + mountYawMode);
+// --- Lateral sign: GPS yaw-rate resolves mirrored mounts ---
+// 12 m/s with +10 deg/fix turn = +0.21 g signed GPS truth per fix.
+function __hfix(head) { __t += 1000; __lat += 12 / __MPD; return { coords: { latitude: __lat, longitude: 0, accuracy: 5, altitudeAccuracy: null, speed: 12, speedAccuracy: 0.5, heading: head } }; }
+__resetEst();
+imuFusionActive = true; imuLatG = -0.21;
+onPositionSuccess(__hfix(0));
+onPositionSuccess(__hfix(0));
+for (var __sv = 1; __sv <= 30; __sv++) onPositionSuccess(__hfix(__sv * 10));
+__ok('latsign: sustained disagreement flips mirrored mount', mountLatSign === -1, 'sign=' + mountLatSign);
+resetRun();
+__ok('latsign: reset restores standard sign', mountLatSign === 1, 'sign=' + mountLatSign);
+__resetEst();
+imuFusionActive = true; imuLatG = 0.21;
+onPositionSuccess(__hfix(0));
+onPositionSuccess(__hfix(0));
+for (var __sw = 0; __sw < 30; __sw++) onPositionSuccess(__hfix(300 + __sw * 10));
+__ok('latsign: agreement keeps standard sign', mountLatSign === 1, 'sign=' + mountLatSign);
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";
