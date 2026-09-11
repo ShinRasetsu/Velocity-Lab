@@ -96,7 +96,7 @@ function __resetEst() {
   pendingMaxKmph = 0;
   motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
   peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
-  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0;
+  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false;
   __t = 10000; __lat = 40.0;
 }
 
@@ -688,6 +688,23 @@ __ok('orient: landscape reads lateral from Y', imuLatG > 0.15 && Math.abs(imuLon
 __resetEst();
 handleMotion({ acceleration: { x: 0, y: NaN, z: 0 } });
 __ok('orient: NaN Y dropped like other axes', imuFusionActive === false && lastImuTime === 0, 'active=' + imuFusionActive);
+// --- Mount orientation: opportunistic still-gated re-snapshot, no press ---
+__resetEst();
+currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0.8; lastUsableGpsTime = __t; lastGpsTime = __t;
+for (var __oa = 0; __oa < 80; __oa++) { __t += 16; handleMotion({ accelerationIncludingGravity: { x: 9.6, y: 0.2, z: 0.3 } }); }
+__ok('auto-orient: still rotated cradle re-snaps with no press', mountYawMode === 1 && orientSnapped === true, 'mode=' + mountYawMode);
+__resetEst();
+currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0.8; lastUsableGpsTime = __t; lastGpsTime = __t;
+for (var __ob = 0; __ob < 90; __ob++) { __t += 16; var __s = (__ob % 2 === 0) ? 2.5 : -2.5; handleMotion({ accelerationIncludingGravity: { x: 9.6 + __s, y: 0.2, z: 0.3 } }); }
+__ok('auto-orient: acceleration present never re-snaps', mountYawMode === 0 && orientSnapped === false, 'mode=' + mountYawMode);
+__resetEst();
+currentSpeedMs = 5; displaySpeedMs = 5; lastGpsConfidence = 0.8; lastUsableGpsTime = __t; lastGpsTime = __t;
+for (var __oc = 0; __oc < 80; __oc++) { __t += 16; handleMotion({ accelerationIncludingGravity: { x: 9.6, y: 0.2, z: 0.3 } }); }
+__ok('auto-orient: moving never re-snaps', mountYawMode === 0 && orientSnapped === false, 'mode=' + mountYawMode);
+__resetEst();
+currentSpeedMs = 0; displaySpeedMs = 0; lastGpsConfidence = 0.8; lastUsableGpsTime = __t; lastGpsTime = __t;
+for (var __od = 0; __od < 80; __od++) { __t += 16; handleMotion({ acceleration: { x: 0.05, y: 0.04, z: 0.02 }, accelerationIncludingGravity: { x: 9.6, y: 0.2, z: 0.3 } }); }
+__ok('auto-orient: linear-API still rest re-snaps too', mountYawMode === 1 && orientSnapped === true, 'mode=' + mountYawMode);
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";
