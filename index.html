@@ -1799,14 +1799,25 @@ let lastRenderTime  = performance.now();
             return true;
         }
 
+        // Resume paths: boot attach can die silently (no events, no error),
+        // and bfcache restore sheds the subscription without firing
+        // visibilitychange. One shared resume — re-attach when motion should
+        // be on, otherwise stay off (iOS denial respected). Duplicate-safe:
+        // setMotionListening(true) no-ops while already attached.
+        function resumeMotion() { if (motionShouldBeOn()) setMotionListening(true); }
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
                 setMotionListening(false);
             } else {
                 if (!wakeLock) requestWakeLock();
-                if (motionShouldBeOn()) setMotionListening(true);
+                resumeMotion();
             }
         });
+        // bfcache restore sheds the wake lock too — re-request it here, not
+        // just on visibilitychange. focus storms are harmless (both calls
+        // no-op while attached/locked).
+        window.addEventListener('pageshow', () => { if (!wakeLock) requestWakeLock(); resumeMotion(); });
+        window.addEventListener('focus', () => { if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock(); resumeMotion(); });
 
         window.addEventListener('pagehide', () => { if (stateDirty) saveSession(); });
         
@@ -3135,10 +3146,12 @@ let lastRenderTime  = performance.now();
             const imuLive = imuFusionActive && (now - lastImuTime) < 1000;
             const imuCoast = imuLive && lastUsableGpsTime > 0 && usableAgeSec < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG;
             // Motion watchdog: the listener is a single point of failure with
-            // no feedback (boot attach can die silently; fixed only by tab
-            // switching before this). If motion should be on but isn't
-            // attached, attach; if attached but the sensor went silent, kick
-            // re-subscription. Throttled to 1 Hz, kicks capped at 1/10 s.
+            // no feedback (boot attach can die silently — a 15 s blackout on
+            // every cold start reads as "G channels dead"). If motion should
+            // be on but isn't attached, attach; if attached but the sensor
+            // went silent, kick re-subscription (never-received heals in 4 s,
+            // mid-session silence in 8 s). Throttled to 1 Hz, kicks capped
+            // at 1/10 s.
             if (now - lastMotionCheck > 1000) {
                 lastMotionCheck = now;
                 if (motionShouldBeOn()) {
@@ -3148,7 +3161,7 @@ let lastRenderTime  = performance.now();
                         lastMotionKick = now;
                         setMotionListening(false);
                         setMotionListening(true);
-                    } else if (lastImuTime === 0 && (now - motionListenSince) > 15000 && (now - lastMotionKick) > 10000) {
+                    } else if (lastImuTime === 0 && !document.hidden && (now - motionListenSince) > 4000 && (now - lastMotionKick) > 10000) {
                         lastMotionKick = now;
                         setMotionListening(false);
                         setMotionListening(true);

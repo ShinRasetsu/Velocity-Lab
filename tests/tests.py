@@ -806,6 +806,25 @@ __t += 20000;
 renderLoop();
 __ok('motion: watchdog kicks silent subscription', __remN > __wkR && __addN > __wkA && motionListening === true && lastMotionKick === __t, 'adds=' + __addN + ' rems=' + __remN);
 window.DeviceMotionEvent = undefined;
+// --- Motion resume: refocus/bfcache re-attach without a full watchdog wait ---
+window.DeviceMotionEvent = {};
+setMotionListening(false);
+var __rmA = __addN;
+resumeMotion();
+__ok('motion: resume re-attaches when should-be-on', __addN > __rmA && motionListening === true, 'adds=' + __addN);
+window.DeviceMotionEvent = undefined;
+setMotionListening(false);
+var __rmA2 = __addN;
+resumeMotion();
+__ok('motion: resume stays off without hardware', __addN === __rmA2 && motionListening === false, 'adds=' + __addN);
+DeviceMotionEvent = { requestPermission: function(){} };
+window.DeviceMotionEvent = {};
+setMotionListening(false);
+var __rmA3 = __addN;
+resumeMotion();
+__ok('motion: resume respects iOS denial', __addN === __rmA3 && motionListening === false, 'adds=' + __addN);
+DeviceMotionEvent = undefined;
+window.DeviceMotionEvent = undefined;
 
 // --- Stationary re-tare: slow zero-point learn, frozen while moving ---
 function __imuState() {
