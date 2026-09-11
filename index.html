@@ -1251,6 +1251,12 @@
         const MOUNT_MIN_N            = 60;
         const MOUNT_BAD_MS           = 5000;
         const MOUNT_OK_MS            = 3000;
+        // Opportunistic orientation re-snapshot: consecutive still IMU
+        // samples (~1 s at 60 Hz) under the standstill gate. Magnitude must
+        // sit at its rest value — ~1 g on gravity-API phones, ~0 on linear
+        // (acceleration) phones — so any handling/shaking resets the count.
+        const ORIENT_STILL_N           = 60;
+        const ORIENT_STILL_TOL         = 0.6;
         const IMU_BIAS_CLAMP         = 0.5;
         const G_RING_VISIBLE         = false;
         const PHYSICAL_G_CLAMP_LONG  = 3.5;
@@ -1364,10 +1370,16 @@ let lastRenderTime  = performance.now();
         let mountOffsetZ    = 0.0;
         // Mount orientation class: 0 portrait (Z fwd, X lat — legacy mapping),
         // 1 landscape (Z fwd, Y lat). Flat/ambiguous keeps current mapping.
-        // Set ONLY by gravity snapshot at RESET RUN while stationary; yaw and
-        // per-axis signs stay legacy (standard driver-facing mount assumed) —
-        // magnitudes are always right, only left/right sign needs that mount.
+        // Set by gravity snapshot at stationary RESET RUN, plus the
+        // opportunistic still-gated re-snapshot below (mid-session remounts
+        // follow with no press). Yaw and per-axis signs stay legacy
+        // (standard driver-facing mount assumed) — magnitudes are always
+        // right, only left/right sign needs that mount.
         let mountYawMode    = 0;
+        // Opportunistic snapshot state: still-sample run length + one-shot
+        // per stop (re-armed when the standstill gate drops).
+        let orientStillN    = 0;
+        let orientSnapped   = false;
         let imuLongG        = 0.0;
         let imuLatG         = 0.0;
         let lastImuTime     = 0;
@@ -1611,6 +1623,22 @@ let lastRenderTime  = performance.now();
         }
 
         // ─── UI CONTROLS ──────────────────────────────────────────────────────────
+        // Orientation snapshot: gravity-mirror distribution at standstill
+        // reveals portrait vs landscape (90° swaps lateral X<->Y). Uses
+        // gravSm, NOT filteredAccel: linear-API phones read ~0 at standstill,
+        // which would pin mode 0 forever. Requires a LIVE mirror (stale
+        // gravity + remount = wrong guess). Confident reads only (1.6x
+        // margin + 4 m/s² floor); ambiguous/flat/stale keeps the current
+        // mapping. Returns true when a mode was confidently set. Yaw and
+        // per-axis signs stay legacy (need motion correlation to resolve).
+        function snapshotOrientation() {
+            const _imuFresh = lastImuTime > 0 && (performance.now() - lastImuTime) < 2000;
+            const _gx = Math.abs(gravSmX), _gy = Math.abs(gravSmY), _gz = Math.abs(gravSmZ);
+            if (!_imuFresh || _gx + _gy + _gz <= 4) return false;
+            if (_gy > _gx * 1.6 && _gy > _gz * 1.6) { mountYawMode = 0; return true; }
+            if (_gx > _gy * 1.6 && _gx > _gz * 1.6) { mountYawMode = 1; return true; }
+            return false;
+        }
         function resetRun() {
             wakeRenderLoop();
             // Motion revive: RESET RUN starts every drive, so a tap here also
@@ -1647,19 +1675,12 @@ let lastRenderTime  = performance.now();
                 mountOffsetX = filteredAccelX;
                 mountOffsetY = filteredAccelY;
                 mountOffsetZ = filteredAccelZ;
-                // Orientation snapshot: gravity-mirror distribution at
-                // standstill reveals portrait vs landscape (90° swaps lateral
-                // X<->Y). Uses gravSm, NOT filteredAccel: linear-API phones
-                // read ~0 at standstill, which would pin mode 0 forever.
-                // Requires a LIVE mirror (stale gravity + remount = wrong
-                // guess). Confident reads only (1.6x margin); ambiguous/flat
-                // keeps the current mapping. Yaw/signs stay legacy.
-                const _imuFreshReset = lastImuTime > 0 && (performance.now() - lastImuTime) < 2000;
-                const _gx = Math.abs(gravSmX), _gy = Math.abs(gravSmY), _gz = Math.abs(gravSmZ);
-                if (_imuFreshReset && _gx + _gy + _gz > 4) {
-                    if (_gy > _gx * 1.6 && _gy > _gz * 1.6) mountYawMode = 0;
-                    else if (_gx > _gy * 1.6 && _gx > _gz * 1.6) mountYawMode = 1;
-                }
+                // Orientation snapshot (+ opportunistic re-arm): same gravity
+                // read the still-gated path uses mid-session. Counter
+                // restarts post-tare and the one-shot re-arms, so an
+                // ambiguous press can still resolve once the phone rests.
+                snapshotOrientation();
+                orientStillN = 0; orientSnapped = false;
             }
             imuLongGBias = 0.0;
             imuLatGBias  = 0.0;
@@ -1870,8 +1891,21 @@ let lastRenderTime  = performance.now();
                 mountOffsetX += (filteredAccelX - mountOffsetX) * tareA;
                 mountOffsetY += (filteredAccelY - mountOffsetY) * tareA;
                 mountOffsetZ += (filteredAccelZ - mountOffsetZ) * tareA;
+                // Opportunistic orientation re-snapshot: a mid-session cradle
+                // rotation follows with no RESET RUN press. Fires only when
+                // NO acceleration is present on any axis — the raw sample
+                // magnitude must sit at its rest value (~1 g gravity-API,
+                // ~0 linear-API) for ORIENT_STILL_N straight samples. Any
+                // handling/shaking spikes the magnitude and restarts the
+                // count. One confident shot per stop; ambiguous reads keep
+                // retrying until one lands (slow rotations settle into one).
+                const _rawMag = Math.sqrt(rawX * rawX + rawY * rawY + rawZ * rawZ);
+                if (Math.abs(_rawMag - (hasLinear ? 0 : GRAVITY_MS2)) < ORIENT_STILL_TOL) orientStillN++;
+                else orientStillN = 0;
+                if (!orientSnapped && orientStillN >= ORIENT_STILL_N && snapshotOrientation()) orientSnapped = true;
             } else {
                 mountBadT0 = 0; mountOkT0 = 0;
+                orientStillN = 0; orientSnapped = false;
             }
         }
 
@@ -2900,7 +2934,7 @@ let lastRenderTime  = performance.now();
                 lastTimerDistM = NaN;
                 lastTimerTimeMs = NaN;
                 lastImuTime = 0;
-                filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0;
+                filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false;
                 imuLongG = 0; imuLatG = 0;
                 imuLongGBias = 0; imuLatGBias = 0;
                 imuFusionActive = false;
