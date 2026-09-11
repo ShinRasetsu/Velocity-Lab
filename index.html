@@ -1353,9 +1353,21 @@ let lastRenderTime  = performance.now();
 
         // High-Frequency IMU State 
         let filteredAccelX  = 0.0;
+        let filteredAccelY  = 0.0;
         let filteredAccelZ  = 0.0;
+        // Gravity mirror for the orientation snapshot: linear-API phones read
+        // ~0 at standstill, so filteredAccel can never reveal portrait vs
+        // landscape there. accelerationIncludingGravity always carries ~9.8G.
+        let gravSmX = 0.0, gravSmY = 0.0, gravSmZ = 0.0;
         let mountOffsetX    = 0.0;
+        let mountOffsetY    = 0.0;
         let mountOffsetZ    = 0.0;
+        // Mount orientation class: 0 portrait (Z fwd, X lat — legacy mapping),
+        // 1 landscape (Z fwd, Y lat). Flat/ambiguous keeps current mapping.
+        // Set ONLY by gravity snapshot at RESET RUN while stationary; yaw and
+        // per-axis signs stay legacy (standard driver-facing mount assumed) —
+        // magnitudes are always right, only left/right sign needs that mount.
+        let mountYawMode    = 0;
         let imuLongG        = 0.0;
         let imuLatG         = 0.0;
         let lastImuTime     = 0;
@@ -1524,7 +1536,9 @@ let lastRenderTime  = performance.now();
         }
 
         function gpsConfidence(accuracyMeters, altitudeAccuracy) {
-            if (typeof accuracyMeters !== 'number' || isNaN(accuracyMeters)) return 0.0;
+            // Malformed accuracy (non-number, NaN, negative) means distrust,
+            // never perfect trust: negative must not read as ideal.
+            if (typeof accuracyMeters !== 'number' || !(accuracyMeters >= 0)) return 0.0;
             let conf;
             if (accuracyMeters <= GPS_ACC_TRUST_MIN_M) conf = 1.0;
             else if (accuracyMeters >= GPS_ACC_TRUST_MAX_M) conf = 0.0;
@@ -1631,7 +1645,21 @@ let lastRenderTime  = performance.now();
             // mounts never do). Biases always re-zero (GPS relearns them).
             if (currentSpeedMs < 0.5 && displaySpeedMs < 0.5) {
                 mountOffsetX = filteredAccelX;
+                mountOffsetY = filteredAccelY;
                 mountOffsetZ = filteredAccelZ;
+                // Orientation snapshot: gravity-mirror distribution at
+                // standstill reveals portrait vs landscape (90° swaps lateral
+                // X<->Y). Uses gravSm, NOT filteredAccel: linear-API phones
+                // read ~0 at standstill, which would pin mode 0 forever.
+                // Requires a LIVE mirror (stale gravity + remount = wrong
+                // guess). Confident reads only (1.6x margin); ambiguous/flat
+                // keeps the current mapping. Yaw/signs stay legacy.
+                const _imuFreshReset = lastImuTime > 0 && (performance.now() - lastImuTime) < 2000;
+                const _gx = Math.abs(gravSmX), _gy = Math.abs(gravSmY), _gz = Math.abs(gravSmZ);
+                if (_imuFreshReset && _gx + _gy + _gz > 4) {
+                    if (_gy > _gx * 1.6 && _gy > _gz * 1.6) mountYawMode = 0;
+                    else if (_gx > _gy * 1.6 && _gx > _gz * 1.6) mountYawMode = 1;
+                }
             }
             imuLongGBias = 0.0;
             imuLatGBias  = 0.0;
@@ -1774,6 +1802,16 @@ let lastRenderTime  = performance.now();
             const rawZ = hasLinear
                 ? acc.z
                 : (typeof grav.z === 'number' ? grav.z : 0);
+            const rawY = hasLinear
+                ? (typeof acc.y === 'number' ? acc.y : 0)
+                : (typeof grav.y === 'number' ? grav.y : 0);
+            // Non-finite samples (NaN/Infinity from unconverged sensors) are
+            // dropped entirely, never zero-filled: typeof/isNaN guards pass
+            // NaN through, and one NaN permanently poisons the EMA, the
+            // fusion state, the mount offsets and the Kalman prediction
+            // (every downstream comparison is false for NaN, so no gate
+            // ever trips to recover). A dropped 16 ms sample is invisible.
+            if (!isFinite(rawX) || !isFinite(rawZ) || !isFinite(rawY)) return;
             // Adaptive alpha from arrival spacing on ONE clock. event.timeStamp
             // is epoch-based on some browsers and performance-based on others;
             // mixing it with a stored stamp from the other clock collapses dt
@@ -1783,9 +1821,17 @@ let lastRenderTime  = performance.now();
             lastImuTime = nowImu;
             const adaptAlpha = Math.max(0.08, Math.min(0.35, IMU_ALPHA * (0.016 / dtImu) * 0.6 + IMU_ALPHA * 0.4));
             filteredAccelX = adaptAlpha * rawX + (1 - adaptAlpha) * filteredAccelX;
+            filteredAccelY = adaptAlpha * rawY + (1 - adaptAlpha) * filteredAccelY;
             filteredAccelZ = adaptAlpha * rawZ + (1 - adaptAlpha) * filteredAccelZ;
+            // Gravity mirror (see decl): per-axis finite-guarded, so one bad
+            // axis never poisons the other two.
+            if (isFinite(grav.x)) gravSmX += (grav.x - gravSmX) * adaptAlpha;
+            if (isFinite(grav.y)) gravSmY += (grav.y - gravSmY) * adaptAlpha;
+            if (isFinite(grav.z)) gravSmZ += (grav.z - gravSmZ) * adaptAlpha;
+            // Axis mapping follows the RESET RUN orientation snapshot:
+            // landscape rotates lateral sensing from X to Y (Z stays forward).
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
-            imuLatG  = (filteredAccelX - mountOffsetX) / GRAVITY_MS2;
+            imuLatG  = (mountYawMode === 1 ? filteredAccelY - mountOffsetY : filteredAccelX - mountOffsetX) / GRAVITY_MS2;
             imuFusionActive = true;
             // High-frequency IMU drives the live fused estimate; GPS nudge from
             // updateImuFusionFromGps pulls it toward GPS-derived truth per sample.
@@ -1822,6 +1868,7 @@ let lastRenderTime  = performance.now();
                 // stays honest without needing RESET RUN. Never runs moving.
                 const tareA = 1 - Math.exp(-dtImu / 30);
                 mountOffsetX += (filteredAccelX - mountOffsetX) * tareA;
+                mountOffsetY += (filteredAccelY - mountOffsetY) * tareA;
                 mountOffsetZ += (filteredAccelZ - mountOffsetZ) * tareA;
             } else {
                 mountBadT0 = 0; mountOkT0 = 0;
@@ -2214,7 +2261,7 @@ let lastRenderTime  = performance.now();
             let hasJumpDist = false;
             const rawSpeed = (typeof c.speed === 'number' && !isNaN(c.speed)) ? Math.max(0, c.speed) : null;
             const speedAcc = (typeof c.speedAccuracy === 'number' && !isNaN(c.speedAccuracy)) ? c.speedAccuracy : null;
-            const trustSpeed = rawSpeed !== null && (speedAcc === null || speedAcc < 8) && (typeof c.accuracy !== 'number' || c.accuracy < GPS_ACC_TRUST_MAX_M);
+            const trustSpeed = rawSpeed !== null && (speedAcc === null || (speedAcc >= 0 && speedAcc < 8)) && (typeof c.accuracy !== 'number' || c.accuracy < GPS_ACC_TRUST_MAX_M);
             if (lastGpsLat !== undefined && lastGpsLon !== undefined && rawDt > 0) {
                 const R = 6371000;
                 const dLat = (c.latitude - lastGpsLat) * Math.PI / 180;
@@ -2853,7 +2900,7 @@ let lastRenderTime  = performance.now();
                 lastTimerDistM = NaN;
                 lastTimerTimeMs = NaN;
                 lastImuTime = 0;
-                filteredAccelX = 0; filteredAccelZ = 0;
+                filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0;
                 imuLongG = 0; imuLatG = 0;
                 imuLongGBias = 0; imuLatGBias = 0;
                 imuFusionActive = false;
