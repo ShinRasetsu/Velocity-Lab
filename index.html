@@ -1407,6 +1407,7 @@ let lastRenderTime  = performance.now();
         let bestGpsBrakingG = 0.0;
         let maxGpsAccelG    = 0.0;
         let maxGpsLatG      = 0.0;
+        let peakAccArmT = 0, peakBrkArmT = 0, peakLatArmT = 0;
         let stateDirty      = false;
         let allTimeBest     = {};
 
@@ -1612,6 +1613,7 @@ let lastRenderTime  = performance.now();
             bestGpsBrakingG = 0.0;
             maxGpsAccelG    = 0.0;
             maxGpsLatG      = 0.0;
+            peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
 
             // Auto-tare IMU mount only when stationary: taring mid-drive
             // bakes motion into the offsets permanently (biases relearn,
@@ -1710,12 +1712,39 @@ let lastRenderTime  = performance.now();
             } catch {}
         }
 
+        // Motion listener lifecycle: single tracked owner (the minimize-to-fix
+        // class of bug was an untracked boot add with no recovery). All
+        // attach/detach flows through the setter; a watchdog below heals
+        // anything the platform drops silently.
+        let motionListening = false;
+        let motionListenSince = 0;
+        let lastMotionKick = 0;
+        let lastMotionCheck = 0;
+        function setMotionListening(on) {
+            if (on && (typeof window === 'undefined' || !window.DeviceMotionEvent)) on = false;
+            if (on && !motionListening) {
+                try { window.addEventListener('devicemotion', handleMotion, false); } catch (e) {}
+                motionListening = true;
+                motionListenSince = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+            } else if (!on && motionListening) {
+                try { window.removeEventListener('devicemotion', handleMotion, false); } catch (e) {}
+                motionListening = false;
+            }
+        }
+        function motionShouldBeOn() {
+            if (typeof window === 'undefined' || !window.DeviceMotionEvent) return false;
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                return getIosChoice() === 'granted';
+            }
+            return true;
+        }
+
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
-                window.removeEventListener('devicemotion', handleMotion, false);
+                setMotionListening(false);
             } else {
                 if (!wakeLock) requestWakeLock();
-                window.addEventListener('devicemotion', handleMotion, false);
+                if (motionShouldBeOn()) setMotionListening(true);
             }
         });
 
@@ -1777,6 +1806,12 @@ let lastRenderTime  = performance.now();
                         mountOkT0 = 0;
                     }
                 }
+                // Opportunistic stationary re-tare: same standstill gate as the
+                // learner — slow EMA (~30 s) toward filtered so the zero point
+                // stays honest without needing RESET RUN. Never runs moving.
+                const tareA = 1 - Math.exp(-dtImu / 30);
+                mountOffsetX += (filteredAccelX - mountOffsetX) * tareA;
+                mountOffsetZ += (filteredAccelZ - mountOffsetZ) * tareA;
             } else {
                 mountBadT0 = 0; mountOkT0 = 0;
             }
@@ -2635,18 +2670,34 @@ let lastRenderTime  = performance.now();
                 } else {
                     pendingMaxKmph = 0;
                 }
-                if (fusedLongG > maxGpsAccelG) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; }
-                if (Math.abs(fusedLatG) > maxGpsLatG) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; }
+                // Debounced peaks: a single spiky fix must not latch forever —
+                // the exceedance must persist ~0.5 s (rate-independent), so a
+                // pothole can't crown a session but a real launch still does.
+                if (fusedLongG > maxGpsAccelG) {
+                    if (!peakAccArmT) peakAccArmT = now;
+                    if (now - peakAccArmT >= 500) { maxGpsAccelG = fusedLongG; setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G"); stateDirty = true; peakAccArmT = 0; }
+                } else peakAccArmT = 0;
+                if (Math.abs(fusedLatG) > maxGpsLatG) {
+                    if (!peakLatArmT) peakLatArmT = now;
+                    if (now - peakLatArmT >= 500) { maxGpsLatG = Math.abs(fusedLatG); stateDirty = true; peakLatArmT = 0; }
+                } else peakLatArmT = 0;
                 if (fusedLongG < -0.3) {
                     const decelG = Math.abs(fusedLongG);
-                    if (decelG > bestGpsBrakingG) { bestGpsBrakingG = decelG; setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G"); stateDirty = true; }
-                }
+                    if (decelG > bestGpsBrakingG) {
+                        if (!peakBrkArmT) peakBrkArmT = now;
+                        if (now - peakBrkArmT >= 500) { bestGpsBrakingG = decelG; setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G"); stateDirty = true; peakBrkArmT = 0; }
+                    } else peakBrkArmT = 0;
+                } else peakBrkArmT = 0;
 
                 if (gpsSpeedKmph > 0) {
                     // Fusion column: 1 = GPS+IMU fused, 0 = GPS-only fallback
                     const fusionFlag = imuFusionActive ? 1 : 0;
                     // telemetry logging removed
                 }
+            } else {
+                // Records skipped (weak/quarantine/gap): disarm peak latches so
+                // a stale arm can't fire instantly on the next good fix.
+                peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
             }
 
             // Drift monitor: 30 s LS vs Kalman — slow multipath honesty.
@@ -2748,6 +2799,7 @@ let lastRenderTime  = performance.now();
                 });
                 // Reset G-meter peaks and prev caches
                 maxGpsAccelG = 0; maxGpsLatG = 0; bestGpsBrakingG = 0;
+                peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
                 maxSpeedKmph = 0.0; pendingMaxKmph = 0.0; displayMaxKmph = 0.0; lastGpsConfidence = 0.0;
                 mountDismissed = false;
                 mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
@@ -2941,7 +2993,7 @@ let lastRenderTime  = performance.now();
             if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') return;
             if (imuFusionActive) return;
             requestIOSMotion(true).then(function(ok) {
-                if (ok && window.DeviceMotionEvent) { try { window.addEventListener('devicemotion', handleMotion, false); } catch (e) {} }
+                if (ok) setMotionListening(true);
                 updateFusionStatusUI();
             }).catch(function() {});
         }
@@ -2990,6 +3042,27 @@ let lastRenderTime  = performance.now();
             // Coast needs LIVE inertial data — a frozen sensor must not drive it.
             const imuLive = imuFusionActive && (now - lastImuTime) < 1000;
             const imuCoast = imuLive && lastUsableGpsTime > 0 && usableAgeSec < 20 && isFinite(fusedLongG) && Math.abs(fusedLongG) <= PHYSICAL_G_CLAMP_LONG;
+            // Motion watchdog: the listener is a single point of failure with
+            // no feedback (boot attach can die silently; fixed only by tab
+            // switching before this). If motion should be on but isn't
+            // attached, attach; if attached but the sensor went silent, kick
+            // re-subscription. Throttled to 1 Hz, kicks capped at 1/10 s.
+            if (now - lastMotionCheck > 1000) {
+                lastMotionCheck = now;
+                if (motionShouldBeOn()) {
+                    if (!motionListening) {
+                        setMotionListening(true);
+                    } else if (lastImuTime > 0 && (now - lastImuTime) > 8000 && (now - lastMotionKick) > 10000) {
+                        lastMotionKick = now;
+                        setMotionListening(false);
+                        setMotionListening(true);
+                    } else if (lastImuTime === 0 && (now - motionListenSince) > 15000 && (now - lastMotionKick) > 10000) {
+                        lastMotionKick = now;
+                        setMotionListening(false);
+                        setMotionListening(true);
+                    }
+                }
+            }
             if (!isErrorState) {
                 if (gnssStale) {
                     if (!gpsAcquired) {
@@ -3000,7 +3073,7 @@ let lastRenderTime  = performance.now();
                         currentSpeedMs = 0.0;
                         // Cold re-acquire on recovery: stale estimator state
                         // would snap the speedo on the next fix
-                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; innovHist = []; driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; lastAcc = null; stopLatched = false; pendingMaxKmph = 0.0; lastPosTs = -1; fixWindow = []; }
+                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; innovHist = []; driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; lastAcc = null; stopLatched = false; pendingMaxKmph = 0.0; peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0; lastPosTs = -1; fixWindow = []; }
                         setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
                     }
                     if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
@@ -3321,11 +3394,12 @@ let lastRenderTime  = performance.now();
             // Don't block GPS — show gate but auto-dismiss quickly
             if (dom.iosGate) dom.iosGate.style.display = 'flex';
             
-            // Return a promise that resolves when user acts or after short timeout
+            // Return a promise that resolves when user acts or after short timeout.
+            // A lapse is NOT a denial: only an explicit GPS-ONLY tap is stored,
+            // so missing the gate never locks the user to GPS-only for 30 days.
             return new Promise(resolve => {
                 const timeout = setTimeout(() => {
                     if (dom.iosGate) dom.iosGate.style.display = 'none';
-                    try { setIosChoice('0'); } catch(e) {}
                     resolve(false);
                 }, 3500);
                 
@@ -3382,7 +3456,7 @@ let lastRenderTime  = performance.now();
             // Handle iOS motion permission asynchronously (non-blocking)
             const motionPromise = requestIOSMotion();
             motionPromise.then(motionOk => {
-                if (motionOk && window.DeviceMotionEvent) window.addEventListener('devicemotion', handleMotion, false);
+                if (motionOk) setMotionListening(true);
                 updateFusionStatusUI();
             }).catch(() => { /* ignore */ });
             
