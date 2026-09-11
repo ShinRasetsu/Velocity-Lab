@@ -1643,10 +1643,12 @@ let lastRenderTime  = performance.now();
             wakeRenderLoop();
             // Motion revive: RESET RUN starts every drive, so a tap here also
             // heals a silently-dead motion subscription (remove+add is atomic
-            // in one task — no event can interleave). Permission-aware only:
-            // never pops a gate mid-drive, iOS-denied stays denied.
+            // in one task — no event can interleave) and restarts the
+            // watchdog clock, so a dead re-attach is kicked in 4 s instead
+            // of waiting out a recent kick's 10 s cap. Permission-aware
+            // only: never pops a gate mid-drive, iOS-denied stays denied.
             // Same ritual as the stationary hard tare below.
-            if (motionShouldBeOn()) { setMotionListening(false); setMotionListening(true); }
+            if (motionShouldBeOn()) { setMotionListening(false); setMotionListening(true); lastMotionKick = 0; }
             else setMotionListening(false);
             distanceMeters  = 0.0;
             displayDistanceM = 0.0;
