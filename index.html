@@ -1599,6 +1599,13 @@ let lastRenderTime  = performance.now();
         // ─── UI CONTROLS ──────────────────────────────────────────────────────────
         function resetRun() {
             wakeRenderLoop();
+            // Motion revive: RESET RUN starts every drive, so a tap here also
+            // heals a silently-dead motion subscription (remove+add is atomic
+            // in one task — no event can interleave). Permission-aware only:
+            // never pops a gate mid-drive, iOS-denied stays denied.
+            // Same ritual as the stationary hard tare below.
+            if (motionShouldBeOn()) { setMotionListening(false); setMotionListening(true); }
+            else setMotionListening(false);
             distanceMeters  = 0.0;
             displayDistanceM = 0.0;
             mountDismissed = false;

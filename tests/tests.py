@@ -845,6 +845,20 @@ onPositionSuccess(__coords(20, 1));
 __ok('peaks: lateral single exceedance arms only', maxGpsLatG === 0.5, 'max=' + maxGpsLatG);
 onPositionSuccess(__coords(20, 1));
 __ok('peaks: lateral sustained latches', maxGpsLatG === 0.8, 'max=' + maxGpsLatG);
+
+// --- RESET RUN revives motion (same ritual as the hard tare) ---
+window.DeviceMotionEvent = {};
+motionListening = true;
+lastImuTime = 0;
+var __rsA = __addN, __rsR = __remN;
+resetRun();
+__ok('resetrun: revive cycles dead subscription', __remN > __rsR && __addN > __rsA && motionListening === true, 'adds=' + __addN + ' rems=' + __remN);
+window.DeviceMotionEvent = undefined;
+motionListening = true;
+var __rsA2 = __addN, __rsR2 = __remN;
+resetRun();
+__ok('resetrun: no attach without hardware (denied stays denied)', __addN === __rsA2 && motionListening === false, 'adds=' + __addN + ' flag=' + motionListening);
+window.DeviceMotionEvent = {};
 __resetEst(); __resetTimers();
 maxGpsAccelG = 0.5; imuFusionActive = false; fusedLongG = 0.9; fusedLatG = 0;
 onPositionSuccess(__coords(20, 1));
