@@ -2,7 +2,7 @@
  * Phase-3 replay bench — tune the estimator against data, not vibes.
  *
  * Usage:
- *   node tests/replay.js [drive.csv] [--baseline base.html] [--strict] [--help]
+ *   node tests/replay.js [drive.csv] [--baseline base.html] [--strict] [--report] [--dump name] [--help]
  *
  * - No args: runs the built-in synthetic suite (truth-known drives) against
  *   the worktree index.html and prints a metrics table.
@@ -20,6 +20,20 @@
  *
  * Exit codes: 0 pass/bench-ok, 1 regression|violation, 2 runtime error.
  * Node-only bench (no python counterpart needed).
+ *
+ * --report field-tuning map (real drive → which conservative threshold to move):
+ *   estVsDoppler high → over-smoothing: CRUISE_Q_FLOOR/Q_MED, ADAPT_R_*,
+ *                       FUSION_GPS_WEIGHT, or slew-limit clipping on ramps.
+ *   dopplerUsed% low   → LS path dominates: validate lsVelocity window
+ *                       (FIX_WINDOW_SEC / FIX_WINDOW_MAX).
+ *   outliers (O) high  → NIS gate too tight for this platform, or outlier-time
+ *                       re-acquire mis-firing (see reacquire).
+ *   reacquire (R) high on a steady drive → outlier-time / regime gate too eager.
+ *   quarantine (Q)     → gap/provider provider failures (PROVIDER_JUMP_M).
+ *   coast high         → weak-fix coasting thresholds (GPS_QUALITY_MIN,
+ *                       lastUsableGpsTime).
+ *   (mount-health MOUNT_VAR_BAD/OK + ZUPT_STILL_* are live-alert only; not in
+ *    fixLog → validate on device, not via --report.)
  */
 const fs = require('fs'), path = require('path'), vm = require('vm');
 
@@ -338,6 +352,60 @@ function fmt(x, d) {
   return Number(x).toFixed(d === undefined ? 2 : d);
 }
 
+// --- field-log diagnostics (truth-free): surface what a real drive says to tune ---
+// Reads the estimator's own fixLog (flags W/D/Q/H/S/O/R/F/U/P + kv/sp), so it
+// needs NO ground truth — exactly what we have from exportRun on a real drive.
+function fieldReport(res) {
+  const log = res.log;
+  if (!log || !log.length) return null;
+  let residSq = 0, residMax = 0, doppler = 0;
+  let out = 0, reacq = 0, weak = 0, quar = 0, prov = 0;
+  let coast = 0;
+  const sts = res.st || [];
+  for (let i = 0; i < log.length; i++) {
+    const le = log[i];
+    if (!le) continue;
+    const fl = String(le.fl || '');
+    if (fl.indexOf('D') !== -1) doppler++;
+    if (fl.indexOf('O') !== -1) out++;
+    if (fl.indexOf('R') !== -1) reacq++;
+    if (fl.indexOf('W') !== -1) weak++;
+    if (fl.indexOf('Q') !== -1) quar++;
+    if (fl.indexOf('P') !== -1) prov++;
+    // estimator-vs-Doppler residual: kalmanV vs raw doppler on trusted fixes.
+    // A large value = the filter is diverging/lagging the trusted speed, or
+    // slew-limiting through ramps — the single most useful tuning signal.
+    if (fl.indexOf('D') !== -1 && isFinite(le.kv) && isFinite(le.sp)) {
+      const r = le.kv - le.sp;
+      residSq += r * r; residMax = Math.max(residMax, Math.abs(r));
+    }
+  }
+  for (let i = 0; i < sts.length; i++) if (!sts[i].clean) coast++;
+  const nDop = Math.min(log.length, sts.length);
+  return {
+    fixes: log.length,
+    dopplerPct: log.length ? 100 * doppler / log.length : 0,
+    residRMSE: doppler ? Math.sqrt(residSq / doppler) : null,
+    residMax: doppler ? residMax : null,
+    outliers: out, reacquire: reacq, weak: weak, quarantine: quar, providerSwitches: prov,
+    coast: coast, coastPct: nDop > 1 ? 100 * coast / nDop : 0
+  };
+}
+
+function printReport(name, rep) {
+  console.log('== tuning report (' + name + ') ==');
+  console.log(' fixes                 ' + rep.fixes);
+  console.log(' dopplerUsed           ' + fmt(rep.dopplerPct, 1) + '%   (% fixes with trusted speed)');
+  console.log(' estVsDoppler          ' + fmt(rep.residRMSE) + ' m/s  RMS(kalmanV - doppler) on trusted fixes  [lag/noise]');
+  console.log(' estVsDopplerMax       ' + fmt(rep.residMax) + ' m/s');
+  console.log(' outliers              ' + rep.outliers + '   (flags O: coasted/ignored fixes)');
+  console.log(' reacquire             ' + rep.reacquire + '   (flags R: regime re-acquire)');
+  console.log(' weakFixes             ' + rep.weak + '   (flags W: !usable)');
+  console.log(' quarantine            ' + rep.quarantine + '   (flags Q: gap quarantine)');
+  console.log(' providerSwitches      ' + rep.providerSwitches + '   (flags P: accuracy provider hop)');
+  console.log(' coast                 ' + rep.coast + ' fixes (' + fmt(rep.coastPct, 1) + '%)   (non-clean)');
+}
+
 function dumpRun(sc, row) {
   if (!row.dump) { console.log('(no series)'); return; }
   const skip = sc.skip || 0;
@@ -375,10 +443,11 @@ function printTable(rows, base) {
 function main() {
   const args = process.argv.slice(2);
   if (args.indexOf('--help') !== -1 || args.indexOf('-h') !== -1) {
-    console.log('usage: node tests/replay.js [drive.csv] [--baseline base.html] [--strict]');
+    console.log('usage: node tests/replay.js [drive.csv] [--baseline base.html] [--strict] [--report] [--dump name]');
     return 0;
   }
   const strict = args.indexOf('--strict') !== -1;
+  const reportFlag = args.indexOf('--report') !== -1;
   const bi = args.indexOf('--baseline');
   const baseFile = bi !== -1 ? args[bi + 1] : null;
   const di = args.indexOf('--dump');
@@ -413,7 +482,7 @@ function main() {
     let res, m;
     try { res = runScenario(body, prelude, sc); m = score(sc, res); }
     catch (e) { console.log(sc.name + ' | RUNTIME-ERROR ' + e.message); failed++; return; }
-    const row = { name: sc.name, m: m, note: '', dump: res.est ? { est: res.est, truth: sc.truth, log: res.log } : null };
+    const row = { name: sc.name, m: m, note: '', dump: res.est ? { est: res.est, truth: sc.truth, log: res.log } : null, rep: reportFlag && !m.error ? fieldReport(res) : null };
     if (m.error) { row.note = m.error; failed++; }
     if (m.deadlock) { row.note += (row.note ? '; ' : '') + 'DEADLOCK'; failed++; }
     if (m.teleportLeak) { row.note += (row.note ? '; ' : '') + 'TELEPORT-LEAKx' + m.teleportLeak; failed++; }
@@ -439,6 +508,9 @@ function main() {
     return failed ? 1 : 0;
   }
   printTable(rows, baseBody ? baseRows : null);
+  if (reportFlag) {
+    rows.forEach(function(r) { if (r.rep) printReport(r.name, r.rep); });
+  }
 
   if (strict && baseBody) {
     rows.forEach(function(r) {
