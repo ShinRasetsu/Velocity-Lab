@@ -873,6 +873,12 @@ onPositionSuccess(__coords(20, 0.1));
 __ok('peaks: 10 Hz needs ~5 fixes (200 ms is not enough)', maxGpsAccelG === 0.5, 'max=' + maxGpsAccelG);
 for (var __pz = 0; __pz < 5; __pz++) onPositionSuccess(__coords(20, 0.1));
 __ok('peaks: 10 Hz latches after 500 ms wall time', maxGpsAccelG === 0.9, 'max=' + maxGpsAccelG);
+
+// --- RESET RUN preserves live confidence (no phantom WEAK) ---
+__resetEst();
+lastGpsConfidence = 0.9; lastGpsTime = __t; lastUsableGpsTime = __t;
+resetRun();
+__ok('resetrun: preserves live confidence (no phantom WEAK)', lastGpsConfidence === 0.9, 'conf=' + lastGpsConfidence);
 """
 
 

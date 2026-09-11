@@ -1616,7 +1616,11 @@ let lastRenderTime  = performance.now();
             maxSpeedKmph    = 0.0;
             pendingMaxKmph  = 0.0;
             displayMaxKmph  = 0.0;
-            lastGpsConfidence = 0.0;
+            // NOTE: lastGpsConfidence is deliberately NOT reset — the GPS session
+            // continues uninterrupted across RESET RUN (lastGpsTime untouched),
+            // so the live value is at most one fix old. Zeroing it flashed a
+            // phantom GNSS WEAK until the next fix; preserving matches the
+            // steady-state behavior between fixes.
             bestGpsBrakingG = 0.0;
             maxGpsAccelG    = 0.0;
             maxGpsLatG      = 0.0;
