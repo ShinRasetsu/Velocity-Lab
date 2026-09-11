@@ -1,2 +1,4 @@
 deploy.bat
 temp.html
+
+.playwright-mcp/

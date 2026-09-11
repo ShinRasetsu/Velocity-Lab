@@ -41,9 +41,15 @@
         .text-center { text-align: center; }
 
         button { cursor: pointer; background: transparent; border-style: solid; color: inherit; }
+        /* Touch targets: base buttons hit ~32 px rendered, sys-row ~26 px.
+           Deliberately under HIG 44 pt — a full 44 px sys bar would wreck
+           the dense cockpit. Hit-slop (::after bleed) was rejected: the
+           0.4 rem sys gap means bleeds overlap and PURGE sits next to
+           EXPORT. Padding here is real layout, verified by layout.test.js. */
         .action-btn {
-            display: inline-flex; align-items: center;
-            padding: 0.38rem 0.95rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 2.0rem;
+            padding: 0.5rem 0.95rem;
             border-width: 1px; border-radius: 0;
             font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
             clip-path: polygon(0 0, calc(100% - 0.65rem) 0, 100% 50%, calc(100% - 0.65rem) 100%, 0 100%, 0.65rem 50%);
@@ -283,7 +289,7 @@
             content: ""; width: 0.2rem; height: 0.2rem; border-radius: 999px;
             background: currentColor; box-shadow: 0 0 3px currentColor; flex: none;
         }
-        .cmd-sys .action-btn { padding: 0.12rem 0.3rem; font-size: 0.4rem; min-height: 1.2rem; }
+        .cmd-sys .action-btn { padding: 0.3rem 0.45rem; font-size: 0.4rem; min-height: 1.6rem; }
 
         /* (GNSS loss banner removed — signal state lives on the gauge ring now;
            status text + aria-live region still announce it.)
