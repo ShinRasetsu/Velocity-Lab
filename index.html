@@ -3897,6 +3897,36 @@ let lastRenderTime  = performance.now();
                 try { document.fonts.ready.then(function(){ updateScale(true, false); }); } catch (e5) {}
             }
             setTimeout(function(){ updateScale(true, false); }, 2500);
+            // Self-healing fit: boot passes can't cover every late geometry
+            // change (webfont swap after a cache-busting purge, URL-bar
+            // show/hide on pull-to-refresh, dynamic content). Any of those
+            // pushing content past the viewport is shrunk back next frame.
+            // Strictly shrink-only + lastUiStr-guarded: monotonic, no loops,
+            // no CLS growth, battery-free (event-driven, zero polling).
+            let fitRaf = 0;
+            function requestFit() {
+                if (fitRaf) return;
+                fitRaf = requestAnimationFrame(function(){
+                    fitRaf = 0;
+                    try { updateScale(true, false); } catch (eF) {}
+                });
+            }
+            // Body-height changes (font swap growing content, late layout).
+            if (typeof ResizeObserver !== 'undefined') {
+                try {
+                    new ResizeObserver(function(){ requestFit(); }).observe(document.body);
+                } catch (eRO) {}
+            }
+            // URL-bar / pinch-zoom viewport moves (mobile Safari/Chrome).
+            try {
+                if (window.visualViewport) window.visualViewport.addEventListener('resize', function(){ requestFit(); });
+            } catch (eVV) {}
+            // Foreground return: viewport may have changed while hidden.
+            document.addEventListener('visibilitychange', function(){
+                if (document.visibilityState === 'visible') {
+                    try { updateScale(true, false); } catch (eVS) {}
+                }
+            });
         }
 
         window.addEventListener('load', checkPermissionsAndInit);
