@@ -607,6 +607,12 @@
         .speed-gauge.sig-weak .ring-construct { border-color: rgba(255,170,0,0.45); }
         .speed-gauge.sig-lost .ring-construct { border-color: rgba(255,51,102,0.6); }
 
+        /* Reveal gate: the shell stays hidden until the boot exact-solve
+           sets final --ui (class added synchronously right after the solve;
+           3 s backstop below it). visibility:hidden keeps layout boxes, so
+           the pre-paint measure is valid — and no unscaled frame can ever
+           reach the screen, even if first paint beats the solve. */
+        html:not(.scaled) .dashboard-shell { visibility: hidden; }
         /* ═══ HUD FULL-BOOT SEQUENCE — every readout/bar/panel ═══ */
         /* initial hidden state (before .boot) */
         .dashboard-shell .cmd-bar,
@@ -3620,11 +3626,10 @@ let lastRenderTime  = performance.now();
                 if (shortcutAction) { try { const du = new URL(window.location.href); du.searchParams.delete('action'); window.history.replaceState({}, '', du.pathname + du.search + du.hash); } catch (e2) {} }
             } catch (e) {}
 
-            // 1. Size pass (pre-paint, before any animation): apply .large to
-            // reserve final gauge geometry so --gauge doesn't shift during boot.
-            const gaugeWrap = document.querySelector('.gauge-wrap');
-            if (gaugeWrap) gaugeWrap.classList.add('large');
-            // 2. Animation pass (next frame): add .boot classes.
+            // Animation pass: add .boot classes (.boot is opacity/transform
+            // only — no layout). NOTE: .large is NOT applied here; it lives
+            // in the end-of-body scale block pre-paint, where the boot
+            // exact-solve can measure final gauge geometry.
             requestAnimationFrame(() => {
                 const shell = document.querySelector('.dashboard-shell');
                 const speedGauge = document.querySelector('.speed-gauge');
@@ -3719,13 +3724,22 @@ let lastRenderTime  = performance.now();
                 }, 450);
                 } // end boot self-test demo (skipped under prefers-reduced-motion)
             }, 20);
+        }
 
+        // Auto-scale runs TOP-LEVEL (synchronously during parse, pre-paint) —
+        // deliberately NOT inside checkPermissionsAndInit (window.load): the
+        // boot exact-solve must measure final geometry before first paint,
+        // or every boot starts small and rescales mid-boot. Skipped entirely
+        // without a real viewport (unit-test vm harness has no layout).
+        if (typeof window !== 'undefined' && typeof window.innerWidth === 'number' && typeof document !== 'undefined' && typeof document.querySelector === 'function') {
             // Auto-scale: uniform --ui = min(vw/390, vh/844), then exact-fit to
             // measured content (content scales ~linearly with --ui, so bounded
             // passes converge). Hysteresis ignores URL-bar height jitter
             // (<80 px) so scrolling never triggers a rescale loop. Floor 0.65
             // keeps the hero numerals huge while body text stays legible;
-            // below it the shell scrolls instead of clipping.
+            // below it the shell scrolls instead of clipping. Parse-time
+            // solve runs usually-but-not-guaranteed pre-paint (progressive
+            // rendering can paint mid-parse — the reveal gate covers that).
             let lastScaleW = 0, lastScaleH = 0;
             let lastUiStr = '';
             let resizeRaf = null;
@@ -3855,12 +3869,27 @@ let lastRenderTime  = performance.now();
                 if (resizeRaf) cancelAnimationFrame(resizeRaf);
                 resizeRaf = requestAnimationFrame(function(){ updateScale(false, false); });
             }
-            // Boot runs EXACT (grow allowed) synchronously pre-paint: .large
-            // is already applied above, so the pre-paint measure is final and
-            // first paint lands at the final scale — no post-paint rescale.
-            // All later passes are shrink-only backstops (overflow protection
-            // against late fonts/layout, never post-paint growth → no CLS).
+            // Final gauge geometry BEFORE the boot measure: .large is a pure
+            // size switch (no transition on --gauge), so applying it here —
+            // synchronously pre-paint — makes the boot exact-solve measure
+            // final geometry and first paint lands at the final scale.
+            // (Applying it on window.load instead left every boot measuring
+            // small, then growing mid-boot: overflow until a later pass.)
+            try { const gw0 = document.querySelector('.gauge-wrap'); if (gw0) gw0.classList.add('large'); } catch (eL) {}
+            // Boot runs EXACT (grow allowed) synchronously during parse —
+            // usually before first paint (progressive rendering can still
+            // paint mid-parse; the reveal gate above covers that race).
+            // Settle passes are SHRINK-ONLY: boot already measured final
+            // geometry (.large applied just above), so post-paint scale is
+            // monotonically non-increasing — later passes can only fix
+            // late-font overflow, never grow. Late fonts that shrink content
+            // leave harmless slack, never scroll.
+            // Backstop FIRST: if the solve below ever threw, both the reveal
+            // and this timer would be skipped and the shell would stay hidden
+            // forever. Registration itself cannot throw.
+            setTimeout(function(){ try { document.documentElement.classList.add('scaled'); } catch (eS2) {} }, 3000);
             updateScale(true, true);
+            try { document.documentElement.classList.add('scaled'); } catch (eS) {}
             window.addEventListener('resize', debouncedUpdateScale, { passive: true });
             window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true, true); }, 100));
             setTimeout(function(){ updateScale(true, false); }, 900);
