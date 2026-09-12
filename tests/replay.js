@@ -358,7 +358,7 @@ function fmt(x, d) {
 function fieldReport(res) {
   const log = res.log;
   if (!log || !log.length) return null;
-  let residSq = 0, residMax = 0, doppler = 0;
+  let residSq = 0, residMax = 0, residN = 0, doppler = 0;
   let out = 0, reacq = 0, weak = 0, quar = 0, prov = 0;
   let coast = 0;
   const sts = res.st || [];
@@ -377,24 +377,28 @@ function fieldReport(res) {
     // slew-limiting through ramps — the single most useful tuning signal.
     if (fl.indexOf('D') !== -1 && isFinite(le.kv) && isFinite(le.sp)) {
       const r = le.kv - le.sp;
-      residSq += r * r; residMax = Math.max(residMax, Math.abs(r));
+      residSq += r * r; residMax = Math.max(residMax, Math.abs(r)); residN++;
     }
   }
-  for (let i = 0; i < sts.length; i++) if (!sts[i].clean) coast++;
-  const nDop = Math.min(log.length, sts.length);
+  // Coast is counted over the same trailing window the fixLog ring covers:
+  // sts[] has one entry per fed fix (full run), log[] is capped at
+  // FIX_LOG_MAX, so align to the last log.length states.
+  const coastBase = Math.max(0, sts.length - log.length);
+  for (let i = coastBase; i < sts.length; i++) if (!sts[i].clean) coast++;
+  const coastWin = sts.length - coastBase;
   return {
     fixes: log.length,
     dopplerPct: log.length ? 100 * doppler / log.length : 0,
-    residRMSE: doppler ? Math.sqrt(residSq / doppler) : null,
-    residMax: doppler ? residMax : null,
+    residRMSE: residN ? Math.sqrt(residSq / residN) : null,
+    residMax: residN ? residMax : null,
     outliers: out, reacquire: reacq, weak: weak, quarantine: quar, providerSwitches: prov,
-    coast: coast, coastPct: nDop > 1 ? 100 * coast / nDop : 0
+    coast: coast, coastPct: coastWin > 1 ? 100 * coast / coastWin : 0
   };
 }
 
 function printReport(name, rep) {
   console.log('== tuning report (' + name + ') ==');
-  console.log(' fixes                 ' + rep.fixes);
+  console.log(' fixes (fixLog ring)   ' + rep.fixes);
   console.log(' dopplerUsed           ' + fmt(rep.dopplerPct, 1) + '%   (% fixes with trusted speed)');
   console.log(' estVsDoppler          ' + fmt(rep.residRMSE) + ' m/s  RMS(kalmanV - doppler) on trusted fixes  [lag/noise]');
   console.log(' estVsDopplerMax       ' + fmt(rep.residMax) + ' m/s');
