@@ -3727,6 +3727,7 @@ let lastRenderTime  = performance.now();
             // keeps the hero numerals huge while body text stays legible;
             // below it the shell scrolls instead of clipping.
             let lastScaleW = 0, lastScaleH = 0;
+            let lastUiStr = '';
             let resizeRaf = null;
             // True content height = NATURAL leaf-height SUM + real gaps + pad,
             // guarded by min() with the legacy box span. scrollHeight can't be
@@ -3824,16 +3825,27 @@ let lastRenderTime  = performance.now();
                 const contentH = measureContentH();
                 // Exact solve both directions so free space is absorbed by
                 // growing, never gaps — but grow ONLY on settled layout
-                // (post-boot/orientation passes). Early passes shrink-only:
-                // pre-boot content measures small and would overshoot.
-                // ONLY grow if explicitly allowed AND content needs it.
-                if (cur > 0 && isFinite(contentH) && contentH > 0 && allowGrow) {
-                    if (contentH > vh) {
+                // (boot exact + orientation passes). Every pass shrinks on
+                // overflow (never allowGrow-gated): a missing shrink is an
+                // overlapping, overflowing HUD.
+                if (cur > 0 && isFinite(contentH) && contentH > 0) {
+                    if (contentH > vh || allowGrow) {
                         scale = Math.min(scale, cur * (vh - 20) / contentH);
+                    }
+                    // Shrink-only passes must never exceed the live scale:
+                    // scale re-seeds to viewport min() every pass, so without
+                    // this clamp a fitting pass snaps --ui back up to min()
+                    // and leaves the HUD overflowing with no passes left.
+                    if (!allowGrow) {
+                        scale = Math.min(scale, cur);
                     }
                 }
                 scale = Math.max(0.65, Math.min(2.5, scale));
-                document.documentElement.style.setProperty('--ui', scale.toFixed(4));
+                const uiStr = scale.toFixed(4);
+                if (uiStr !== lastUiStr) {
+                    lastUiStr = uiStr;
+                    document.documentElement.style.setProperty('--ui', uiStr);
+                }
                 try {
                     const dbg = document.getElementById('scale-debug');
                     if (dbg) dbg.textContent = '· ui=' + scale.toFixed(2) + ' ' + vw + 'x' + vh;
@@ -3843,14 +3855,19 @@ let lastRenderTime  = performance.now();
                 if (resizeRaf) cancelAnimationFrame(resizeRaf);
                 resizeRaf = requestAnimationFrame(function(){ updateScale(false, false); });
             }
-            updateScale(true, false);
+            // Boot runs EXACT (grow allowed) synchronously pre-paint: .large
+            // is already applied above, so the pre-paint measure is final and
+            // first paint lands at the final scale — no post-paint rescale.
+            // All later passes are shrink-only backstops (overflow protection
+            // against late fonts/layout, never post-paint growth → no CLS).
+            updateScale(true, true);
             window.addEventListener('resize', debouncedUpdateScale, { passive: true });
             window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true, true); }, 100));
-            // One shrink-only init pass (pre-paint), then ONE exact-fit grow
-            // pass at 900 ms after .large is applied and boot animations
-            // finish. No font-ready or 2.5 s passes — they caused CLS by
-            // growing the layout after first paint.
-            setTimeout(function(){ updateScale(false, true); }, 900);
+            setTimeout(function(){ updateScale(true, false); }, 900);
+            if (document.fonts && document.fonts.ready) {
+                try { document.fonts.ready.then(function(){ updateScale(true, false); }); } catch (e5) {}
+            }
+            setTimeout(function(){ updateScale(true, false); }, 2500);
         }
 
         window.addEventListener('load', checkPermissionsAndInit);
