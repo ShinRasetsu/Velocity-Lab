@@ -3911,10 +3911,15 @@ let lastRenderTime  = performance.now();
                     try { updateScale(true, false); } catch (eF) {}
                 });
             }
-            // Body-height changes (font swap growing content, late layout).
+            // Body/shell-height changes (font swap growing content, late
+            // layout). Shell observed too: skips the one no-op wakeup per
+            // own-shrink (body alone re-fires when our shrink moves it).
             if (typeof ResizeObserver !== 'undefined') {
                 try {
-                    new ResizeObserver(function(){ requestFit(); }).observe(document.body);
+                    const fitRO = new ResizeObserver(function(){ requestFit(); });
+                    fitRO.observe(document.body);
+                    const shellEl = document.querySelector('.dashboard-shell');
+                    if (shellEl) fitRO.observe(shellEl);
                 } catch (eRO) {}
             }
             // URL-bar / pinch-zoom viewport moves (mobile Safari/Chrome).
@@ -3922,9 +3927,10 @@ let lastRenderTime  = performance.now();
                 if (window.visualViewport) window.visualViewport.addEventListener('resize', function(){ requestFit(); });
             } catch (eVV) {}
             // Foreground return: viewport may have changed while hidden.
+            // Routed through requestFit for coalescing consistency.
             document.addEventListener('visibilitychange', function(){
                 if (document.visibilityState === 'visible') {
-                    try { updateScale(true, false); } catch (eVS) {}
+                    try { requestFit(); } catch (eVS) {}
                 }
             });
         }
