@@ -3735,13 +3735,16 @@ let lastRenderTime  = performance.now();
             // Auto-scale: uniform --ui = min(vw/390, vh/844), then exact-fit to
             // measured content (content scales ~linearly with --ui, so bounded
             // passes converge). Hysteresis ignores URL-bar height jitter
-            // (<80 px) so scrolling never triggers a rescale loop. Floor 0.65
-            // keeps the hero numerals huge while body text stays legible;
-            // below it the shell scrolls instead of clipping. Parse-time
+            // (<80 px) so scrolling never triggers a rescale loop. NO
+            // legibility floor: the product rule is fit-always — whatever
+            // screen, the whole HUD fits with zero scroll. The 0.2 clamp in
+            // updateScale is anti-degenerate only (guards against a zero or
+            // negative solve), not a readability gate. Parse-time
             // solve runs usually-but-not-guaranteed pre-paint (progressive
             // rendering can paint mid-parse — the reveal gate covers that).
             let lastScaleW = 0, lastScaleH = 0;
             let lastUiStr = '';
+            let lastSideBySide = false;
             let resizeRaf = null;
             // True content height = NATURAL leaf-height SUM + real gaps + pad,
             // guarded by min() with the legacy box span. scrollHeight can't be
@@ -3786,37 +3789,98 @@ let lastRenderTime  = performance.now();
                         return c;
                     }
                     let top = Infinity, bottom = -Infinity, n = 0;
-                    let sum = 0, nLeaf = 0, gaps = 0;
+                    let nLeaf = 0;
+                    lastSideBySide = sideBySide(shell);
                     function span(el) {
                         if (!live(el)) return;
+                        // Boxless absorbers (display:contents .stage in
+                        // cockpit) hold real grid-item children: recurse so
+                        // columns count toward the union extent.
+                        if (skip.has(el)) {
+                            const k = el.children;
+                            for (let i = 0; i < k.length; i++) span(k[i]);
+                            return;
+                        }
                         const r = el.getBoundingClientRect();
                         if (!(r.height > 0)) return;
                         if (r.top < top) top = r.top;
                         if (r.bottom > bottom) bottom = r.bottom;
                         n++;
                     }
-                    function nat(el) {
-                        if (!live(el)) return;
+                    // True when el lays children side by side (row flex or
+                    // multi-column grid). display:contents children take part
+                    // in the PARENT layout, so ascend through it. Everything
+                    // else (block, column flex, 1-col grid) stacks. Any doubt
+                    // returns false = legacy sum behavior.
+                    function sideBySide(el) {
+                        try {
+                            let node = el, guard = 0;
+                            while (node && node.nodeType === 1 && guard++ < 4) {
+                                const cs = getComputedStyle(node);
+                                if (!cs) break;
+                                const dp = cs.display;
+                                if (dp === 'flex') return cs.flexDirection === 'row';
+                                if (dp === 'grid' || dp === 'inline-grid') {
+                                    const cols = (cs.gridTemplateColumns || '').split(' ').filter(function(s){ return s && s !== 'none'; });
+                                    return cols.length > 1;
+                                }
+                                if (dp === 'contents') { node = node.parentElement; continue; }
+                                return false;
+                            }
+                        } catch (eSB) {}
+                        return false;
+                    }
+                    function natH(el) {
+                        // Natural height of a subtree. Leaves contribute their
+                        // resolved box (layout already did the work — always
+                        // correct). Absorbers (.stage, .gauge-wrap, boxless in
+                        // cockpit) contribute children combined by arrangement:
+                        // stacked children SUM (portrait column), side-by-side
+                        // children MAX (cockpit columns — summing stretched
+                        // columns counted ~3x viewport and pinned landscape
+                        // to the readability floor).
+                        if (!live(el)) return 0;
                         if (skip.has(el)) {
-                            if (flowCount(el) > 1) gaps += (flowCount(el) - 1) * rowGap(el);
-                            const k = el.children;
-                            for (let i = 0; i < k.length; i++) nat(k[i]);
-                            return;
+                            const k = el.children, hs = [];
+                            for (let i = 0; i < k.length; i++) { const h = natH(k[i]); if (h > 0) hs.push(h); }
+                            if (!hs.length) return 0;
+                            if (sideBySide(el)) {
+                                let mx = 0;
+                                for (let i = 0; i < hs.length; i++) if (hs[i] > mx) mx = hs[i];
+                                return mx;
+                            }
+                            let s = 0;
+                            for (let i = 0; i < hs.length; i++) s += hs[i];
+                            if (hs.length > 1) {
+                                try { s += (hs.length - 1) * (parseFloat(getComputedStyle(el).rowGap) || 0); } catch (e3b) {}
+                            }
+                            return s;
                         }
                         const r = el.getBoundingClientRect();
-                        if (!(r.height > 0)) return;
+                        if (!(r.height > 0)) return 0;
+                        nLeaf++;
                         let mt = 0, mb = 0;
                         try {
                             const cs = getComputedStyle(el);
                             mt = parseFloat(cs.marginTop) || 0;
                             mb = parseFloat(cs.marginBottom) || 0;
                         } catch (e4) {}
-                        sum += r.height + mt + mb;
-                        nLeaf++;
+                        return r.height + mt + mb;
                     }
-                    const sk = shell.children;
-                    if (flowCount(shell) > 1) gaps += (flowCount(shell) - 1) * rowGap(shell);
-                    for (let i = 0; i < sk.length; i++) { span(sk[i]); nat(sk[i]); }
+                    const sk = shell.children, shHs = [];
+                    // Cockpit (side-by-side columns) has NO meaningful summed
+                    // height — stretched column boxes are layout artifacts, so
+                    // any sum/max over them is garbage that ratchet-locks
+                    // (shrink-only passes can never undo it). Position-union
+                    // spanH is definitionally the truth there: use it alone
+                    // (sum stays 0 → the min() below picks spanH).
+                    const shellSBS = sideBySide(shell);
+                    for (let i = 0; i < sk.length; i++) { span(sk[i]); if (!shellSBS) { const sh = natH(sk[i]); if (sh > 0) shHs.push(sh); } }
+                    let sum = 0;
+                    if (!shellSBS && shHs.length) {
+                        for (let i = 0; i < shHs.length; i++) sum += shHs[i];
+                        if (flowCount(shell) > 1) sum += (flowCount(shell) - 1) * rowGap(shell);
+                    }
                     let pad = 0;
                     try {
                         const cs = getComputedStyle(shell);
@@ -3824,7 +3888,7 @@ let lastRenderTime  = performance.now();
                     } catch (e5) {}
                     if (!n || !isFinite(top)) return 0;
                     const spanH = (bottom - top) + pad;
-                    if (nLeaf >= 8 && sum > 0) return Math.min(spanH, sum + gaps + pad);
+                    if (nLeaf >= 8 && sum > 0) return Math.min(spanH, sum + pad);
                     return spanH;
                 } catch (e6) { return 0; }
             }
@@ -3842,7 +3906,14 @@ let lastRenderTime  = performance.now();
                 // (boot exact + orientation passes). Every pass shrinks on
                 // overflow (never allowGrow-gated): a missing shrink is an
                 // overlapping, overflowing HUD.
-                if (cur > 0 && isFinite(contentH) && contentH > 0) {
+                // Cockpit (side-by-side columns) is EXEMPT from box-measured
+                // fit: its boxes stretch to fill by construction, so any
+                // measured solve ratchets (each shrink re-stretches, ad
+                // floor — observed live: 0.98→0.2 collapse with spanH flat).
+                // Structural stretch guarantees fill at any ui (probe-verified
+                // vScroll=0 for ui 0.2–2.5), so size by width-driven min-ratio
+                // (phone-consistent proportions) and skip the content branch.
+                if (!lastSideBySide && cur > 0 && isFinite(contentH) && contentH > 0) {
                     if (contentH > vh || allowGrow) {
                         scale = Math.min(scale, cur * (vh - 20) / contentH);
                     }
@@ -3854,7 +3925,9 @@ let lastRenderTime  = performance.now();
                         scale = Math.min(scale, cur);
                     }
                 }
-                scale = Math.max(0.65, Math.min(2.5, scale));
+                // Fit-always: no 0.65-style legibility floor — any screen fits
+                // with zero scroll. 0.2 is an anti-degenerate guard only.
+                scale = Math.max(0.2, Math.min(2.5, scale));
                 const uiStr = scale.toFixed(4);
                 if (uiStr !== lastUiStr) {
                     lastUiStr = uiStr;
