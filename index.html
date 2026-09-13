@@ -3759,7 +3759,9 @@ let lastRenderTime  = performance.now();
             // leaf heights + margins + container row-gaps is position-immune:
             // ui grows until real content fills the viewport and the absorber
             // keeps only the ~20px target residue. min() with the span keeps
-            // side-by-side cockpit layouts safe (summing overcounts there).
+            // slack-inflated boxes honest. Cockpit (side-by-side) skips the
+            // sum path entirely (see updateScale): stretched column boxes
+            // would ratchet any measured solve down to the floor.
             function measureContentH() {
                 try {
                     const shell = document.querySelector('.dashboard-shell');
