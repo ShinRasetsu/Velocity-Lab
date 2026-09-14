@@ -1216,7 +1216,7 @@
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
         <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.5.4 — Velocity-Lab <span id="scale-debug"></span></div>
+    <div id="app-version" class="version-tag">VER 1.5.6 — Velocity-Lab <span id="scale-debug"></span></div>
 </div>
 
 
@@ -1279,6 +1279,21 @@
         const LATSIGN_MIN_IMU_G        = 0.08;
         const LATSIGN_MIN_CONF         = 0.6;
         const IMU_BIAS_CLAMP         = 0.5;
+        // Gyro yaw-rate gate (rotationRate from the same devicemotion event):
+        // real cornering ROTATES, so a lateral spike without matching yaw is
+        // a jolt/pothole, not a corner. Clamps fused lateral toward the
+        // yaw-consistent envelope (v*yaw/g × margin). Generous by design:
+        // banked roads and body roll legitimately exceed pure centripetal,
+        // so only gross mismatches damp. A phone with no gyro (all-zero
+        // rotationRate stream) never arms the gate — safe fallback.
+        const GYRO_YAW_TAU_SEC        = 0.15;
+        const GYRO_LIVE_MS            = 1000;
+        const GYRO_MOVED_DPS          = 2.0;
+        const GYRO_MOVED_TTL_MS       = 120000;
+        const GYRO_GATE_MIN_G         = 0.35;
+        const GYRO_GATE_MARGIN        = 2.0;
+        const GYRO_GATE_V_MIN         = 0.5;
+        const GYRO_GATE_ALPHA         = 0.5;
         const G_RING_VISIBLE         = false;
         const PHYSICAL_G_CLAMP_LONG  = 3.5;
         // -- velocity estimator: least-squares window + 1D Kalman --
@@ -1402,6 +1417,11 @@ let lastRenderTime  = performance.now();
         // only the sign needs the mount. Applied after axis select + tare.
         let mountLatSign    = 1;
         let latSignAgree    = 0;
+        // Gyro yaw state: EMA of raw rotationRate (dps, mount-mapped axis),
+        // last-sample stamp + last-real-motion stamp (gate arming only).
+        let gyroYawSm       = 0.0;
+        let gyroLastLive    = 0;
+        let gyroLastMoved   = 0;
         let latSignDis      = 0;
         // Opportunistic snapshot state: still-sample run length + one-shot
         // per stop (re-armed when the standstill gate drops).
@@ -1890,6 +1910,20 @@ let lastRenderTime  = performance.now();
             if (isFinite(grav.x)) gravSmX += (grav.x - gravSmX) * adaptAlpha;
             if (isFinite(grav.y)) gravSmY += (grav.y - gravSmY) * adaptAlpha;
             if (isFinite(grav.z)) gravSmZ += (grav.z - gravSmZ) * adaptAlpha;
+            // Gyro yaw-rate (rotationRate from this same event): alpha is
+            // around device Z, beta around X, gamma around Y. Mount 0
+            // (portrait, Y vertical) yaws around Y -> gamma; mount 1
+            // (landscape, X vertical) yaws around X -> beta. EMA + NaN
+            // guard per sample; a dead/zero gyro never arms the gate.
+            const rr = event.rotationRate || {};
+            const rawYaw = (mountYawMode === 1
+                ? (typeof rr.beta === 'number' ? rr.beta : 0)
+                : (typeof rr.gamma === 'number' ? rr.gamma : 0));
+            if (isFinite(rawYaw)) {
+                gyroYawSm += (rawYaw - gyroYawSm) * Math.max(0.08, Math.min(0.6, 1 - Math.exp(-dtImu / GYRO_YAW_TAU_SEC)));
+                gyroLastLive = nowImu;
+                if (Math.abs(rawYaw) > GYRO_MOVED_DPS) gyroLastMoved = nowImu;
+            }
             // Axis mapping follows the RESET RUN orientation snapshot:
             // landscape rotates lateral sensing from X to Y (Z stays forward).
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
@@ -1899,6 +1933,21 @@ let lastRenderTime  = performance.now();
             // updateImuFusionFromGps pulls it toward GPS-derived truth per sample.
             fusedLongG = imuLongG - imuLongGBias;
             fusedLatG  = imuLatG  - imuLatGBias;
+            // Gyro yaw-consistency gate: magnitude-only comparison sidesteps
+            // sign conventions (mountLatSign stays the accelerometer's job).
+            // Arms only when the gyro is ALIVE (fresh samples) and has
+            // MOVED (recently shown real rotation) — an all-zero rotation
+            // stream (no gyro / broken sensor) can never damp corners.
+            const gyroFresh = gyroLastLive > 0 && (nowImu - gyroLastLive) < GYRO_LIVE_MS;
+            const gyroMoved = gyroLastMoved > 0 && (nowImu - gyroLastMoved) < GYRO_MOVED_TTL_MS;
+            if (gyroFresh && gyroMoved && currentSpeedMs > GYRO_GATE_V_MIN) {
+                const gyroLatG = Math.abs(currentSpeedMs * (gyroYawSm * Math.PI / 180) / GRAVITY_MS2);
+                const latMax = Math.max(gyroLatG * GYRO_GATE_MARGIN, GYRO_GATE_MIN_G);
+                if (Math.abs(fusedLatG) > latMax) {
+                    const clamped = (fusedLatG > 0 ? latMax : -latMax);
+                    fusedLatG = fusedLatG * (1 - GYRO_GATE_ALPHA) + clamped * GYRO_GATE_ALPHA;
+                }
+            }
             // Mount-health learn: standstill on good GPS only. Tracks the IMU
             // noise floor; a rattling mount raises it far above engine idle.
             // Frozen while moving (never learns driving as mount noise).
@@ -2992,7 +3041,7 @@ let lastRenderTime  = performance.now();
                 lastTimerDistM = NaN;
                 lastTimerTimeMs = NaN;
                 lastImuTime = 0;
-                filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false;
+                filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0;
                 imuLongG = 0; imuLatG = 0;
                 imuLongGBias = 0; imuLatGBias = 0;
                 mountLatSign = 1; latSignAgree = 0; latSignDis = 0;

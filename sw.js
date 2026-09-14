@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'velocity-lab-v1.5.5';
+const CACHE_VERSION = 'velocity-lab-v1.5.6';
 
 const APP_SHELL_CACHE = `shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE   = `runtime-${CACHE_VERSION}`;
@@ -74,6 +74,10 @@ self.addEventListener('fetch', event => {
 // ─────────────────────────────────────────────
 
 const MAX_RUNTIME = 100;
+// Shell cache holds STATIC_ASSETS + per-URL navigation puts — inherently
+// small, but trim defensively: any unforeseen growth (new assets, odd
+// request-URL variants) is capped instead of lingering forever.
+const MAX_SHELL = 12;
 async function trimCache(cacheName, max) {
     const cache = await caches.open(cacheName);
     const keys = await cache.keys();
@@ -92,7 +96,7 @@ async function appShellStrategy(event) {
     } catch(e) {}
     if (preload) {
         const copy = preload.clone();
-        caches.open(APP_SHELL_CACHE).then(c => c.put(req, copy));
+        caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
         return preload;
     }
     // True stale-while-revalidate: return cached immediately, revalidate in background
@@ -100,7 +104,7 @@ async function appShellStrategy(event) {
         fetch(req).then(res => {
             if (res && res.status === 200) {
                 const copy = res.clone();
-                caches.open(APP_SHELL_CACHE).then(c => c.put(req, copy));
+                caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
             }
         }).catch(()=>{});
         return cached;
@@ -111,7 +115,7 @@ async function appShellStrategy(event) {
         const res = await Promise.race([fetch(req), timeout]);
         if (res && res.status === 200) {
             const copy = res.clone();
-            caches.open(APP_SHELL_CACHE).then(c => c.put(req, copy));
+            caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
         }
         return res;
     } catch {
