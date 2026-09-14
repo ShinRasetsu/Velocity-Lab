@@ -96,7 +96,7 @@ function __resetEst() {
   pendingMaxKmph = 0;
   motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
   peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
-  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0;
+  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0;
   __t = 10000; __lat = 40.0;
 }
 
@@ -744,6 +744,33 @@ onPositionSuccess(__hfix(0));
 onPositionSuccess(__hfix(0));
 for (var __sw = 0; __sw < 30; __sw++) onPositionSuccess(__hfix(300 + __sw * 10));
 __ok('latsign: agreement keeps standard sign', mountLatSign === 1, 'sign=' + mountLatSign);
+// --- Gyro yaw-rate gate: cornering rotates; spikes without yaw damp ---
+__resetEst();
+for (var __g1 = 0; __g1 < 40; __g1++) { __t += 16; handleMotion({ acceleration: { x: 0, y: 0, z: 0 }, rotationRate: { gamma: 30 } }); }
+__ok('gyro: portrait yaw reads gamma axis', gyroYawSm > 25 && gyroYawSm < 35, 'yawSm=' + gyroYawSm.toFixed(1));
+__resetEst();
+mountYawMode = 1;
+for (var __g2 = 0; __g2 < 40; __g2++) { __t += 16; handleMotion({ acceleration: { x: 0, y: 0, z: 0 }, rotationRate: { beta: 25 } }); }
+__ok('gyro: landscape yaw reads beta axis', gyroYawSm > 20 && gyroYawSm < 30, 'yawSm=' + gyroYawSm.toFixed(1));
+__resetEst();
+var __g3s = gyroYawSm;
+handleMotion({ acceleration: { x: 0, y: 0, z: 0 }, rotationRate: { gamma: NaN } });
+__ok('gyro: NaN yaw dropped like accel axes', gyroYawSm === __g3s && gyroLastLive === 0, 'yawSm=' + gyroYawSm);
+__resetEst();
+mountYawMode = 0; currentSpeedMs = 20; displaySpeedMs = 20;
+for (var __g4 = 0; __g4 < 20; __g4++) { __t += 16; handleMotion({ acceleration: { x: 0, y: 0, z: 0 }, rotationRate: { gamma: 20 } }); }
+for (var __g5 = 0; __g5 < 30; __g5++) { __t += 16; handleMotion({ acceleration: { x: 0, y: 0, z: 0 }, rotationRate: { gamma: 0 } }); }
+for (var __g6 = 0; __g6 < 6; __g6++) { __t += 16; handleMotion({ acceleration: { x: 12, y: 0, z: 0 }, rotationRate: { gamma: 0 } }); }
+__ok('gyro: lateral spike without yaw damped', Math.abs(fusedLatG) < 0.6, 'lat=' + fusedLatG.toFixed(2));
+__resetEst();
+mountYawMode = 0; currentSpeedMs = 20; displaySpeedMs = 20;
+for (var __g7 = 0; __g7 < 20; __g7++) { __t += 16; handleMotion({ acceleration: { x: 0, y: 0, z: 0 }, rotationRate: { gamma: 25.8 } }); }
+for (var __g8 = 0; __g8 < 20; __g8++) { __t += 16; handleMotion({ acceleration: { x: 9, y: 0, z: 0 }, rotationRate: { gamma: 25.8 } }); }
+__ok('gyro: real corner matching yaw preserved', fusedLatG > 0.8, 'lat=' + fusedLatG.toFixed(2));
+__resetEst();
+mountYawMode = 0; currentSpeedMs = 20; displaySpeedMs = 20;
+for (var __g9 = 0; __g9 < 20; __g9++) { __t += 16; handleMotion({ acceleration: { x: 12, y: 0, z: 0 }, rotationRate: { gamma: 0 } }); }
+__ok('gyro: dead gyro (never moved) never gates', Math.abs(fusedLatG) > 1.0, 'lat=' + fusedLatG.toFixed(2));
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";
