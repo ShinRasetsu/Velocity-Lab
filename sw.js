@@ -95,18 +95,24 @@ async function appShellStrategy(event) {
         }
     } catch(e) {}
     if (preload) {
+        if (!preload.ok) return preload;
+        const url = new URL(req.url);
+        if (url.search) return preload;
         const copy = preload.clone();
         caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
         return preload;
     }
     // True stale-while-revalidate: return cached immediately, revalidate in background
     if (cached) {
-        fetch(req).then(res => {
-            if (res && res.status === 200) {
-                const copy = res.clone();
-                caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
-            }
-        }).catch(()=>{});
+        const url = new URL(req.url);
+        if (!url.search) {
+            fetch(req).then(res => {
+                if (res && res.status === 200) {
+                    const copy = res.clone();
+                    caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
+                }
+            }).catch(()=>{});
+        }
         return cached;
     }
     // No cache — network with 5s timeout
@@ -114,6 +120,8 @@ async function appShellStrategy(event) {
     try {
         const res = await Promise.race([fetch(req), timeout]);
         if (res && res.status === 200) {
+            const url = new URL(req.url);
+            if (url.search) return res;
             const copy = res.clone();
             caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
         }

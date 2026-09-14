@@ -1417,12 +1417,15 @@ let lastRenderTime  = performance.now();
         // only the sign needs the mount. Applied after axis select + tare.
         let mountLatSign    = 1;
         let latSignAgree    = 0;
+        let latSignDis      = 0;
+        let latSignLastFlip = 0;
         // Gyro yaw state: EMA of raw rotationRate (dps, mount-mapped axis),
         // last-sample stamp + last-real-motion stamp (gate arming only).
         let gyroYawSm       = 0.0;
         let gyroLastLive    = 0;
         let gyroLastMoved   = 0;
-        let latSignDis      = 0;
+        // Stuck-zero detector: real IMU never sits at exactly 0.0.
+        let imuZeroMs       = 0;
         // Opportunistic snapshot state: still-sample run length + one-shot
         // per stop (re-armed when the standstill gate drops).
         let orientStillN    = 0;
@@ -1620,7 +1623,10 @@ let lastRenderTime  = performance.now();
         // ─── PERSISTENCE LAYER ────────────────────────────────────────────────────
         //  • localStorage: small summary (peaks + timer results) — synchronous, fast.
 
+        let purgePending = false;
         function saveSession() {
+            // P1 #8: purgeData runs saveSession via idle callback; don't resurrect a just-deleted key.
+            if (purgePending) return;
             try {
                 const data = {
                     maxSpeedKmph, bestGpsBrakingG, maxGpsAccelG, maxGpsLatG,
@@ -1929,6 +1935,14 @@ let lastRenderTime  = performance.now();
             imuLongG = (filteredAccelZ - mountOffsetZ) / GRAVITY_MS2;
             imuLatG  = mountLatSign * (mountYawMode === 1 ? filteredAccelY - mountOffsetY : filteredAccelX - mountOffsetX) / GRAVITY_MS2;
             imuFusionActive = true;
+            // P1 #6: stuck-zero guard — a frozen sensor reporting 0.0 forever would keep imuCoast alive
+            // and hold currentSpeedMs for 20 s on a ghost coast after GPS drops. Track zero variance.
+            if (rawX === 0 && rawY === 0 && rawZ === 0) imuZeroMs += dtImu * 1000;
+            else imuZeroMs = 0;
+            if (imuZeroMs > 3000) {
+                imuFusionActive = false;
+                imuZeroMs = 0;
+            }
             // High-frequency IMU drives the live fused estimate; GPS nudge from
             // updateImuFusionFromGps pulls it toward GPS-derived truth per sample.
             fusedLongG = imuLongG - imuLongGBias;
@@ -2006,13 +2020,15 @@ let lastRenderTime  = performance.now();
             // fixes means the mount mirrors left-right. Parked/straight
             // fixes can't vote (gated on both magnitudes). Flip re-zeroes
             // the lateral bias, which was learned under the old sign.
+            // P1 #7: 120 s cooldown after a flip — prevents GPS-spoof oscillation mid-corner.
             if (confidence >= LATSIGN_MIN_CONF && Math.abs(gpsLatG) > LATSIGN_MIN_GPS_G && Math.abs(imuLatG) > LATSIGN_MIN_IMU_G) {
                 if ((gpsLatG > 0) === (imuLatG > 0)) latSignAgree++;
                 else latSignDis++;
                 if (latSignAgree + latSignDis >= LATSIGN_VOTES_N) {
-                    if (latSignDis >= LATSIGN_VOTES_N * LATSIGN_FLIP_FRAC) {
+                    if (latSignDis >= LATSIGN_VOTES_N * LATSIGN_FLIP_FRAC && (!latSignLastFlip || (performance.now() - latSignLastFlip) > 120000)) {
                         mountLatSign = -mountLatSign;
                         imuLatGBias = 0;
+                        latSignLastFlip = performance.now();
                     }
                     latSignAgree = 0; latSignDis = 0;
                 }
@@ -2365,6 +2381,10 @@ let lastRenderTime  = performance.now();
         function onPositionSuccess(position) {
             wakeRenderLoop();
             const c = position.coords;
+            // P0 #2: reject poisoned coordinates before they enter any window or distance.
+            if (!isFinite(c.latitude) || !isFinite(c.longitude) || Math.abs(c.latitude) > 90 || Math.abs(c.longitude) > 180) return;
+            // Null Island (0,0) is a common provider fallback for "no fix" — treat as no fix.
+            if (c.latitude === 0 && c.longitude === 0) return;
             const now = performance.now();
             let gpsDt = 0;
             let rawDt = 0;
@@ -2387,7 +2407,8 @@ let lastRenderTime  = performance.now();
                     tFix = posTs / 1000;
                 }
             }
-            if (typeof posTs === 'number' && isFinite(posTs) && posTs > 0) lastPosTs = posTs;
+            // P0 #4: monotonic posTs — don't let a rejected/replayed timestamp poison the next stampDt.
+            if (typeof posTs === 'number' && isFinite(posTs) && posTs > 0 && posTs > lastPosTs) lastPosTs = posTs;
             // Healthy fix: a dead provider is back, drop back to fast retry.
             // (gpsRetryPending stays owned by the queued timer, which stands
             // down on recency when it fires — keeps one recovery max.)
@@ -2401,7 +2422,8 @@ let lastRenderTime  = performance.now();
             let hasJumpDist = false;
             const rawSpeed = (typeof c.speed === 'number' && !isNaN(c.speed)) ? Math.max(0, c.speed) : null;
             const speedAcc = (typeof c.speedAccuracy === 'number' && !isNaN(c.speedAccuracy)) ? c.speedAccuracy : null;
-            const trustSpeed = rawSpeed !== null && (speedAcc === null || (speedAcc >= 0 && speedAcc < 8)) && (typeof c.accuracy !== 'number' || c.accuracy < GPS_ACC_TRUST_MAX_M);
+            // P0 #1: negative accuracy is a spoof (some providers emit -1 on failure) — must not be trusted.
+            const trustSpeed = rawSpeed !== null && (speedAcc === null || (speedAcc >= 0 && speedAcc < 8)) && (typeof c.accuracy !== 'number' || (c.accuracy >= 0 && c.accuracy < GPS_ACC_TRUST_MAX_M));
             if (lastGpsLat !== undefined && lastGpsLon !== undefined && rawDt > 0) {
                 const R = 6371000;
                 const dLat = (c.latitude - lastGpsLat) * Math.PI / 180;
@@ -2672,10 +2694,11 @@ let lastRenderTime  = performance.now();
                         const adaptScale = Math.max(ADAPT_R_MIN, Math.min(ADAPT_R_MAX, Math.sqrt(Math.max(0.3, nisEma))));
                         rMeas = Math.min(KALMAN_R_MAX, rMeas * adaptScale);
                         let rawGpsLatG = 0;
+                        // P0 #3: heading must be finite 0-360, not just !NaN — Infinity/540 would spoof yaw.
                         // Heading is garbage at standstill / over gaps: phone
                         // compass/GPS bearing swings randomly below ~5 m/s, so
                         // gating avoids false latSpike vetoes on correct speed.
-                        if (typeof c.heading === 'number' && !isNaN(c.heading) && typeof lastGpsHeading === 'number' && gpsDt > 0 && gpsDt < 2.5 && vPred > 5.0) {
+                        if (typeof c.heading === 'number' && isFinite(c.heading) && c.heading >= 0 && c.heading < 360 && typeof lastGpsHeading === 'number' && gpsDt > 0 && gpsDt < 2.5 && vPred > 5.0) {
                             let dHead = c.heading - lastGpsHeading;
                             dHead = ((dHead + 540) % 360) - 180;
                             const yawRate = dHead * Math.PI / 180 / gpsDt;
@@ -2943,7 +2966,10 @@ let lastRenderTime  = performance.now();
             const cDenied = (err && err.PERMISSION_DENIED) || 1;
             const cUnavail = (err && err.POSITION_UNAVAILABLE) || 2;
             const cTimeout = (err && err.TIMEOUT) || 3;
-            const code = (err && typeof err.code === 'number') ? err.code : 0;
+            // P1 #5: distinguish explicit {code:0} (malformed PositionError, treat as POSITION_UNAVAILABLE)
+            // from bare {} / null / undefined (no code property — truly inert, matches test contract).
+            const hasExplicitCode = !!(err && typeof err === 'object' && 'code' in err && typeof err.code === 'number');
+            const code = hasExplicitCode ? err.code : -1;
             let msg = "ERR: NO SIGNAL";
             if (code === cDenied) msg = "ERR: GPS PERMISSION DENIED";
             else if (code === cUnavail) msg = "ERR: POSITION UNAVAILABLE";
@@ -2955,7 +2981,9 @@ let lastRenderTime  = performance.now();
             // clearWatch + fresh watchPosition forces a cold re-acquisition
             // that gaps lastGpsTime past GPS_STALE_MS and trips SIGNAL LOST +
             // speed snap + estimator wipe. Re-watch ONLY a dead provider.
-            if (code === cDenied || code === cTimeout || code === 0) return;
+            if (hasExplicitCode && code === 0) { scheduleGpsRewatch(gpsBackoffDelay(gpsFailCount)); gpsFailCount++; return; }
+            if (code === cDenied || code === cTimeout) return;
+            if (!hasExplicitCode) return;
             scheduleGpsRewatch(gpsBackoffDelay(gpsFailCount));
             gpsFailCount++;
         }
@@ -3041,7 +3069,7 @@ let lastRenderTime  = performance.now();
                 lastTimerDistM = NaN;
                 lastTimerTimeMs = NaN;
                 lastImuTime = 0;
-                filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0;
+                filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0; imuZeroMs = 0;
                 imuLongG = 0; imuLatG = 0;
                 imuLongGBias = 0; imuLatGBias = 0;
                 mountLatSign = 1; latSignAgree = 0; latSignDis = 0;
@@ -3095,6 +3123,7 @@ let lastRenderTime  = performance.now();
                 if (dom.glitchCount) dom.glitchCount.textContent = "0";
                 prev.glitchN = -1;
                 // Reset localStorage (session + all-time bests + retired text-scale pref)
+                purgePending = true;
                 try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
                 try { localStorage.removeItem(BEST_KEY); } catch(e) {}
                 try { localStorage.removeItem('VelocityLab_text_scale'); } catch(e) {}
@@ -3120,7 +3149,7 @@ let lastRenderTime  = performance.now();
                             }));
                         }).catch(function(){}));
                     }
-                    if (navigator.serviceWorker) busts.push(navigator.serviceWorker.getRegistration().then(function(r){ if (r) return r.update(); }).catch(function(){}));
+                    if (navigator.serviceWorker) busts.push(navigator.serviceWorker.getRegistration().then(function(r){ if(r) try{ r.update(); }catch(eU){} if (r) return r.update(); }).catch(function(){}));
                     Promise.all(busts).then(bustThenReload).catch(bustThenReload);
                     setTimeout(bustThenReload, 900);
                 } catch(e) { bustThenReload(); }
@@ -3135,10 +3164,13 @@ let lastRenderTime  = performance.now();
         }
         window.purgeData = purgeData;
 
+        // P1 #9: guard double-watch race — restartGPS and scheduleGpsRewatch both clear+watch; without
+        // cancelling the pending slot they'd create two live watches and double-step the estimator.
         function restartGPS() {
             wakeRenderLoop();
             setDOM(dom.status, 'status', "RESTARTING GPS...", "text-yellow-500 neon-warning");
             if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
+            gpsRetryPending = false;
             if ("geolocation" in navigator) {
                 if (gpsWatchId !== null) try { navigator.geolocation.clearWatch(gpsWatchId); } catch(e) {}
                 gpsWatchId = navigator.geolocation.watchPosition(onPositionSuccess, onPositionError,

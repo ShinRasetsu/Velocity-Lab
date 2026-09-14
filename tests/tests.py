@@ -363,7 +363,7 @@ function __resetEst() {
   pendingMaxKmph = 0;
   motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
   peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
-  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0;
+  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0; imuZeroMs = 0; latSignLastFlip = 0;
   __t = 10000; __lat = 40.0;
 }
 
