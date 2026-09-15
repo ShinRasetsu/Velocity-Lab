@@ -1645,32 +1645,44 @@ let lastRenderTime  = performance.now();
             } catch (e) { console.warn("Storage quota exceeded or disabled."); }
         }
 
+        // Sane-number restore (same poison family as BEST_KEY): corrupt-but-parseable session
+        // values must not resurrect as live state — negative MAX, string timer results ("abc" is
+        // truthy and would NaN-poison crossFraction), absurd peaks. Missing stamp = corrupt (our own
+        // saveSession always writes one) → expire.
+        function numOr(v, fb, lo, hi) {
+            return (typeof v === 'number' && isFinite(v) && v >= lo && v <= hi) ? v : fb;
+        }
         function loadSession() {
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (!raw) return;
                 
                 const data = JSON.parse(raw);
-                if (Date.now() - data.lastUpdated > 86400000) {
+                if (!isFinite(data.lastUpdated) || Date.now() - data.lastUpdated > 86400000) {
                     localStorage.removeItem(STORAGE_KEY);
                     return; 
                 }
 
-                maxSpeedKmph    = data.maxSpeedKmph || 0.0;
+                maxSpeedKmph    = numOr(data.maxSpeedKmph, 0.0, 0, 2000);
                 displayMaxKmph  = maxSpeedKmph;
-                bestGpsBrakingG = data.bestGpsBrakingG || 0.0;
-                maxGpsAccelG    = data.maxGpsAccelG || 0.0;
-                maxGpsLatG      = data.maxGpsLatG || 0.0;
+                bestGpsBrakingG = numOr(data.bestGpsBrakingG, 0.0, 0, 10);
+                maxGpsAccelG    = numOr(data.maxGpsAccelG, 0.0, 0, 10);
+                maxGpsLatG      = numOr(data.maxGpsLatG, 0.0, 0, 10);
+                timer0_60.result = numOr(data.t0_60, 0, 0, 3600000);
+                timer0_100.result = numOr(data.t0_100, 0, 0, 3600000);
+                timer100_200.result = numOr(data.t100_200, 0, 0, 3600000);
+                timerQuarter.result = numOr(data.tQuarter, 0, 0, 3600000);
+                timer100_0.result = numOr(data.t100_0, 0, 0, 100000);
                 
                 if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: " + fmt2.format(maxSpeedKmph);
                 setDOM(dom.peakG, 'peakG', fmt2.format(maxGpsAccelG) + " G");
                 setDOM(dom.brakeScore, 'brakeScore', fmt2.format(bestGpsBrakingG) + " G");
                 
-                if (data.t0_60)  { timer0_60.result = data.t0_60; setDOM(dom.t0_60, 't0_60', fmt3.format(data.t0_60 / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange"); }
-                if (data.t0_100) { timer0_100.result = data.t0_100; setDOM(dom.t0_100, 't0_100', fmt3.format(data.t0_100 / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue"); }
-                if (data.t100_200) { timer100_200.result = data.t100_200; setDOM(dom.t100_200, 't100_200', fmt3.format(data.t100_200 / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple"); }
-                if (data.tQuarter) { timerQuarter.result = data.tQuarter; setDOM(dom.tQuarter, 'tQuarter', fmt3.format(data.tQuarter / 1000) + " s", CLS_TIMER_BASE, "text-yellow-400 neon-warning"); }
-                if (data.t100_0) { timer100_0.result = data.t100_0; setDOM(dom.t100_0, 't100_0', fmt1.format(data.t100_0) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger"); }
+                if (timer0_60.result > 0)  { setDOM(dom.t0_60, 't0_60', fmt3.format(timer0_60.result / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange"); }
+                if (timer0_100.result > 0) { setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue"); }
+                if (timer100_200.result > 0) { setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple"); }
+                if (timerQuarter.result > 0) { setDOM(dom.tQuarter, 'tQuarter', fmt3.format(timerQuarter.result / 1000) + " s", CLS_TIMER_BASE, "text-yellow-400 neon-warning"); }
+                if (timer100_0.result > 0) { setDOM(dom.t100_0, 't100_0', fmt1.format(timer100_0.result) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger"); }
                 
                 loadAllTimeBest();
                 refreshTimerGhosts();
