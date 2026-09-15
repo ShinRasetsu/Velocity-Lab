@@ -1051,6 +1051,7 @@
             .speed-gauge { transition: none !important; }
         }
     </style>
+    <noscript><style>html:not(.scaled) .dashboard-shell{visibility:visible}</style></noscript>
     </head>
 <body>
 <div class="scanlines" aria-hidden="true"></div>
@@ -1674,7 +1675,7 @@ let lastRenderTime  = performance.now();
                 loadAllTimeBest();
                 refreshTimerGhosts();
                 evaluateAndRenderScore();
-            } catch (e) { console.warn("Failed to load session"); }
+            } catch (e) { console.warn("Failed to load session"); try { localStorage.removeItem(STORAGE_KEY); } catch (e2) {} }
         }
 
         // ─── UI CONTROLS ──────────────────────────────────────────────────────────
@@ -1816,8 +1817,13 @@ let lastRenderTime  = performance.now();
         });
 
         // ─── SENSORS ──────────────────────────────────────────────────────────────
+        let wakeLockPending = false;
         async function requestWakeLock() {
             if (!('wakeLock' in navigator)) return;
+            // Resume fires visibilitychange+pageshow+focus together: without the pending guard the
+            // concurrent requests race (NotAllowedError swallowed, wakeLock stays null though held).
+            if (wakeLock || wakeLockPending) return;
+            wakeLockPending = true;
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
                 if (wakeLock) {
@@ -1828,6 +1834,7 @@ let lastRenderTime  = performance.now();
                 }
                 if (dom.wakeLock) { dom.wakeLock.textContent = "WAKELOCK: ON"; dom.wakeLock.className   = "text-green-500 neon-accent"; }
             } catch {}
+            wakeLockPending = false;
         }
 
         // Motion listener lifecycle: single tracked owner (the minimize-to-fix
@@ -1924,9 +1931,11 @@ let lastRenderTime  = performance.now();
             // (landscape, X vertical) yaws around X -> beta. EMA + NaN
             // guard per sample; a dead/zero gyro never arms the gate.
             const rr = event.rotationRate || {};
-            const rawYaw = (mountYawMode === 1
+            // Clamp absurd rates (tumbling-phone garbage; real driving never exceeds ~60 dps) so a
+            // saturated gyro can't inflate the gate envelope into meaninglessness.
+            const rawYaw = Math.max(-500, Math.min(500, (mountYawMode === 1
                 ? (typeof rr.beta === 'number' ? rr.beta : 0)
-                : (typeof rr.gamma === 'number' ? rr.gamma : 0));
+                : (typeof rr.gamma === 'number' ? rr.gamma : 0))));
             if (isFinite(rawYaw)) {
                 gyroYawSm += (rawYaw - gyroYawSm) * Math.max(0.08, Math.min(0.6, 1 - Math.exp(-dtImu / GYRO_YAW_TAU_SEC)));
                 gyroLastLive = nowImu;
@@ -2355,14 +2364,22 @@ let lastRenderTime  = performance.now();
                 const raw = localStorage.getItem(BEST_KEY);
                 if (!raw) { allTimeBest = {}; return; }
                 const data = JSON.parse(raw);
-                allTimeBest = (data && typeof data.v === 'object' && data.v) ? data.v : {};
-            } catch (e) { allTimeBest = {}; }
+                const v = (data && typeof data.v === 'object' && data.v) ? data.v : {};
+                // Scrub poisoned entries on load (see saneBest): a corrupt-but-parseable record
+                // must not DoS future bests.
+                Object.keys(v).forEach(function(k) { if (!saneBest(v[k])) delete v[k]; });
+                allTimeBest = v;
+            } catch (e) { allTimeBest = {}; try { localStorage.removeItem(BEST_KEY); } catch (e2) {} }
         }
 
+        // Sane-record bounds (ms for times, m for t1000): rejects timer-glitch absurdities and
+        // localStorage-injected poison (e.g. {"t060":-999} would DoS the record forever, since no
+        // real val < -999 ever overwrites it).
+        function saneBest(v) { return typeof v === 'number' && isFinite(v) && v > 0 && v <= 1e7; }
         function noteTimerBest(key, val, isDist) {
-            if (!(val > 0)) return;
+            if (!saneBest(val)) return;
             const prevBest = allTimeBest[key];
-            if (typeof prevBest !== 'number' || val < prevBest) {
+            if (!saneBest(prevBest) || val < prevBest) {
                 allTimeBest[key] = val;
                 try { localStorage.setItem(BEST_KEY, JSON.stringify({ v: allTimeBest, ts: Date.now() })); } catch (e) {}
                 refreshTimerGhosts();
@@ -3616,7 +3633,9 @@ let lastRenderTime  = performance.now();
                     const o = JSON.parse(raw);
                     if (o && o.s === '1') return 'granted';
                     if (o && (o.s === '0' || o.s === 'gps-only')) {
-                        if (typeof o.t === 'number' && Date.now() - o.t < IOS_DENY_REASK_MS) return 'denied';
+                        // Future timestamps (clock skew / storage tampering) would otherwise read as
+                        // "denied 30 days ago in the future" = denied forever. Treat as expired: re-ask.
+                        if (typeof o.t === 'number' && o.t <= Date.now() && Date.now() - o.t < IOS_DENY_REASK_MS) return 'denied';
                         return 'expired-deny';
                     }
                 } catch (e) {}
