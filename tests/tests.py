@@ -363,7 +363,7 @@ function __resetEst() {
   pendingMaxKmph = 0;
   motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
   peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
-  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0; imuZeroMs = 0; latSignLastFlip = 0;
+  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0; imuZeroMs = 0; latSignLastFlip = 0; purgeStamp = 0;
   __t = 10000; __lat = 40.0;
 }
 
@@ -1003,6 +1003,11 @@ onPositionSuccess(__hfix(0));
 onPositionSuccess(__hfix(0));
 for (var __sv = 1; __sv <= 30; __sv++) onPositionSuccess(__hfix(__sv * 10));
 __ok('latsign: sustained disagreement flips mirrored mount', mountLatSign === -1, 'sign=' + mountLatSign);
+for (var __sd = 31; __sd <= 60; __sd++) onPositionSuccess(__hfix(__sd * 10));
+__ok('latsign: cooldown blocks flip-back inside 120 s', mountLatSign === -1, 'sign=' + mountLatSign);
+__t += 121000;
+for (var __se = 61; __se <= 91; __se++) onPositionSuccess(__hfix(__se * 10));
+__ok('latsign: flip re-arms after cooldown', mountLatSign === 1, 'sign=' + mountLatSign);
 resetRun();
 __ok('latsign: reset restores standard sign', mountLatSign === 1, 'sign=' + mountLatSign);
 __resetEst();
@@ -1038,6 +1043,22 @@ __resetEst();
 mountYawMode = 0; currentSpeedMs = 20; displaySpeedMs = 20;
 for (var __g9 = 0; __g9 < 20; __g9++) { __t += 16; handleMotion({ acceleration: { x: 12, y: 0, z: 0 }, rotationRate: { gamma: 0 } }); }
 __ok('gyro: dead gyro (never moved) never gates', Math.abs(fusedLatG) > 1.0, 'lat=' + fusedLatG.toFixed(2));
+// --- Stuck-zero latch: exact triple-zero for 3 s+ reads DEAD, revives on motion ---
+__resetEst();
+mountYawMode = 0; currentSpeedMs = 20; displaySpeedMs = 20;
+for (var __sz = 0; __sz < 40; __sz++) { __t += 100; handleMotion({ acceleration: { x: 0, y: 0, z: 0 } }); }
+__ok('stuckzero: 4 s of exact zeros latches IMU dead', imuFusionActive === false, 'active=' + imuFusionActive);
+__t += 100; handleMotion({ acceleration: { x: 0.5, y: 0, z: 0 } });
+__ok('stuckzero: first nonzero sample revives', imuFusionActive === true, 'active=' + imuFusionActive);
+// --- Purge window: idle saveSession blocked 5 s after purge, then resumes ---
+__resetEst();
+delete __lsStore[STORAGE_KEY];
+purgeStamp = __t;
+saveSession();
+__ok('purge: save blocked inside 5 s window', !Object.prototype.hasOwnProperty.call(__lsStore, STORAGE_KEY), 'stored=' + (__lsStore[STORAGE_KEY] !== undefined));
+__t += 6000;
+saveSession();
+__ok('purge: save resumes after window', Object.prototype.hasOwnProperty.call(__lsStore, STORAGE_KEY), 'stored');
 """
 
 
