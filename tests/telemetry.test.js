@@ -792,6 +792,24 @@ __ok('purge: save blocked inside 5 s window', !Object.prototype.hasOwnProperty.c
 __t += 6000;
 saveSession();
 __ok('purge: save resumes after window', Object.prototype.hasOwnProperty.call(__lsStore, STORAGE_KEY), 'stored');
+// --- Bests validation: poison/absurd records rejected, legit records kept ---
+__resetEst();
+allTimeBest = {};
+noteTimerBest('t060', -999, false);
+__ok('bests: negative record rejected', allTimeBest.t060 === undefined, 't060=' + allTimeBest.t060);
+noteTimerBest('t060', 1e12, false);
+__ok('bests: absurd record rejected', allTimeBest.t060 === undefined, 't060=' + allTimeBest.t060);
+noteTimerBest('t060', 8500, false);
+__ok('bests: legit record kept', allTimeBest.t060 === 8500, 't060=' + allTimeBest.t060);
+noteTimerBest('t060', 9000, false);
+__ok('bests: slower time does not overwrite', allTimeBest.t060 === 8500, 't060=' + allTimeBest.t060);
+allTimeBest = { t060: -999, t0100: 12000 };
+__lsStore[BEST_KEY] = JSON.stringify({ v: { t060: -999, t0100: 12000 }, ts: Date.now() });
+loadAllTimeBest();
+__ok('bests: poison scrubbed on load, legit kept', allTimeBest.t060 === undefined && allTimeBest.t0100 === 12000, JSON.stringify(allTimeBest));
+__lsStore[BEST_KEY] = '{corrupt json';
+loadAllTimeBest();
+__ok('bests: corrupt JSON cleared, not sticky', allTimeBest.t060 === undefined && __lsStore[BEST_KEY] === undefined, 'store=' + __lsStore[BEST_KEY]);
 `;
 
 const full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);";
