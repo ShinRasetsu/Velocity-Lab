@@ -277,12 +277,13 @@ __ok('t100_0: below 100 -> stays IDLE',
     timer100_0.state === T_IDLE,
     'state=' + timer100_0.state);
 updateTimers(110, 50, 2000);
-__ok('t100_0: cruise >= 100 arms RUNNING with startDist',
-    timer100_0.state === T_RUNNING && timer100_0.startDist === 50 && timer100_0.start === 2000,
+__ok('t100_0: cruise >= 100 arms RUNNING with interpolated start',
+    timer100_0.state === T_RUNNING && nearly(timer100_0.startDist, 100 / 3, 1e-6) && nearly(timer100_0.start, 5000 / 3, 1e-6),
     'state=' + timer100_0.state + ' startDist=' + timer100_0.startDist);
 // Stop point rewinds to the speed-snap crossing (108.5/110 between fixes) and
-// walks distance back along the segment: ~414.95 m => braking dist ~= 364.95 m
-var __expBrake = (50 + 370 * (110 - SPEED_ZERO_SNAP_KMPH) / 110) - 50;
+// walks distance back along the segment: ~414.95 m => braking dist ~= 381.62 m
+// (arm point now interpolated to the 100-crossing at 33.33 m, like 100-200).
+var __expBrake = (50 + 370 * (110 - SPEED_ZERO_SNAP_KMPH) / 110) - 100 / 3;
 updateTimers(0, 420, 30000);
 __ok('t100_0: stop -> DONE with interpolated positive braking distance',
     timer100_0.state === T_DONE && nearly(timer100_0.result, __expBrake, 1e-6),

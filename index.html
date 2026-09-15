@@ -2343,8 +2343,13 @@ let lastRenderTime  = performance.now();
             }
 
             // ── 100-0 km/h braking (arms at cruise >= 100, finishes on stop) ──
+            // Arm point interpolated back to the 100-crossing (same as 100-200): arming at the late
+            // fix undermeasures by up to one fix of travel (~28 m at 100 km/h 1 Hz on a ~50 m stop).
             if (timer100_0.state === T_IDLE && speedKmh >= 100.0) {
-                timer100_0.state = T_RUNNING; timer100_0.startDist = distanceM; timer100_0.start = nowMs;
+                timer100_0.state = T_RUNNING;
+                const fa = crossFraction(lastTimerSpeedKmh, speedKmh, 100.0);
+                timer100_0.startDist = fa === null ? distanceM : lerp(lastTimerDistM, distanceM, fa);
+                timer100_0.start = fa === null ? nowMs : lerp(lastTimerTimeMs, nowMs, fa);
                 setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
             } else if (timer100_0.state === T_RUNNING && stopped) {
                 // Rewind to the speed-snap crossing, then walk distance back to
