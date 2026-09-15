@@ -1077,6 +1077,16 @@ __ok('bests: poison scrubbed on load, legit kept', allTimeBest.t060 === undefine
 __lsStore[BEST_KEY] = '{corrupt json';
 loadAllTimeBest();
 __ok('bests: corrupt JSON cleared, not sticky', allTimeBest.t060 === undefined && __lsStore[BEST_KEY] === undefined, 'store=' + __lsStore[BEST_KEY]);
+// --- Session restore: poison numerics sanitized, missing stamp expires ---
+__resetEst();
+__lsStore[STORAGE_KEY] = JSON.stringify({ maxSpeedKmph: -50, bestGpsBrakingG: 1e18, maxGpsLatG: 0.8, t0_60: "abc", t0_100: 9000, lastUpdated: Date.now() });
+loadSession();
+__ok('session: poison numerics sanitized', maxSpeedKmph === 0 && bestGpsBrakingG === 0 && maxGpsLatG === 0.8 && timer0_60.result === 0 && timer0_100.result === 9000, 'max=' + maxSpeedKmph + ' t060=' + timer0_60.result);
+__resetEst();
+maxSpeedKmph = 55;
+__lsStore[STORAGE_KEY] = JSON.stringify({ maxSpeedKmph: 100 });
+loadSession();
+__ok('session: missing stamp expires, memory untouched', maxSpeedKmph === 55 && __lsStore[STORAGE_KEY] === undefined, 'max=' + maxSpeedKmph);
 """
 
 
