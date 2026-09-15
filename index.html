@@ -2125,7 +2125,7 @@ let lastRenderTime  = performance.now();
             setDOM(dom.vScoreHdl, 'vHdl', score.hdl);
             // category progress bars to their ceilings (SPD 20 / ACC 10 / BRK 15 / HDL 25)
             const bars = [[dom.vbarSpd, score.spd, 20], [dom.vbarAcc, score.acc, 10], [dom.vbarBrk, score.brk, 15], [dom.vbarHdl, score.hdl, 25]];
-            for (const [el, val, max] of bars) el.style.width = ((val / max) * 100).toFixed(1) + "%";
+            for (const [el, val, max] of bars) { if (!el) continue; el.style.width = ((val / max) * 100).toFixed(1) + "%"; }
         }
 
         // ─── SUB-SAMPLE INTERPOLATION ─────────────────────────────────────────────
