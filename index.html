@@ -1076,7 +1076,6 @@ body.night .timer-best, body.night .metric-caption, body.night .side-lbl, body.n
 /* Overspeed warning flash on the hero readout. */
 .speed-base.over-red { color: var(--red); text-shadow: 0 0 14px rgba(255,51,102,0.9); }
 /* Diagnostics strip: one quiet row, collapsed by default. */
-.diag-strip { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0.6rem; border-top: 1px solid var(--line); }
 .diag-body { display: none; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 body.diag-open .diag-body { display: inline-flex; }
 body.diag-open #diag-toggle { opacity: 1; }
@@ -1135,22 +1134,20 @@ body.diag-open #diag-toggle { opacity: 1; }
             <button id="mirror-btn" class="action-btn gap-1 neon-purple" onclick="toggleMirror()" aria-label="Mirror HUD for windshield" title="Mirror HUD">🪞</button>
             <button id="night-btn" class="action-btn gap-1 neon-purple" onclick="toggleNight()" aria-label="Night mode" title="Night mode">🌙</button>
             <button id="units-btn" class="action-btn gap-1 neon-blue" onclick="toggleUnits()" aria-label="Toggle km h mph" title="Units">KM/H</button>
+            <button id="diag-toggle" class="action-btn gap-1 neon-blue" onclick="toggleDiag()" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
             <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS">⟳ GPS</button>
             <button id="export-btn" class="action-btn gap-1.5 neon-blue" onclick="exportRun()" aria-label="Export run CSV" title="Download run summary CSV">CSV</button>
             <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
         </div>
         </div>
-        <!-- DIAGNOSTICS (nested in cmd-bar: no new shell child) -->
-        <div class="diag-strip" id="diag-strip">
-            <button id="diag-toggle" class="action-btn gap-1 neon-blue" onclick="toggleDiag()" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
-            <div class="diag-body" id="diag-body">
+        <!-- DIAGNOSTICS BODY (toggle lives in cmd-sys row above; body hidden = zero height) -->
+        <div class="diag-body" id="diag-body">
                 <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
                 <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
                 <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
                 <button id="redline-btn" class="action-btn gap-1 neon-orange" onclick="cycleRedline()" aria-label="Overspeed warning" title="Overspeed warning">RL OFF</button>
                 <button id="mute-btn" class="action-btn gap-1 neon-blue" onclick="toggleMute()" aria-label="Sound on off" title="Sound">🔔</button>
                 <div id="app-version" class="version-tag">VER 1.5.6 — Velocity-Lab <span id="scale-debug"></span></div>
-            </div>
         </div>
     </header>
 
@@ -1855,7 +1852,7 @@ let lastRenderTime  = performance.now();
             unitMph = !unitMph; saveUiPrefs(); applyUiModes();
             prev.speed = null; prev.displayMax = null; prev.speedBar = null; prev.ringDeg = null; prev.distKm = null; prev.peakDeg = null;
         }
-        function toggleDiag() { diagOpen = !diagOpen; saveUiPrefs(); applyUiModes(); }
+        function toggleDiag() { diagOpen = !diagOpen; saveUiPrefs(); applyUiModes(); try { requestFit(); } catch (eRF) {} }
         function toggleMute() { muted = !muted; saveUiPrefs(); applyUiModes(); }
         function cycleRedline() {
             const steps = [200, 80, 100, 120, 140, 160];
