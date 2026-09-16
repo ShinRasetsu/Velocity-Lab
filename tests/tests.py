@@ -1088,6 +1088,37 @@ maxSpeedKmph = 55;
 __lsStore[STORAGE_KEY] = JSON.stringify({ maxSpeedKmph: 100 });
 loadSession();
 __ok('session: missing stamp expires, memory untouched', maxSpeedKmph === 55 && __lsStore[STORAGE_KEY] === undefined, 'max=' + maxSpeedKmph);
+// --- Units + lap helpers (pure) ---
+unitMph = false;
+__ok('units: metric passthrough', spdU(100) === 100 && distU(10) === 10, '');
+unitMph = true;
+__ok('units: mph conversion', Math.abs(spdU(100) - 62.1371) < 1e-4 && Math.abs(distU(10) - 6.21371) < 1e-4, 'spdU=' + spdU(100));
+unitMph = false;
+__ok('units: lap format', fmtLap(61234) === '1:01.2' && fmtLap(0) === '--:--.-' && fmtLap(59999) === '0:59.9', fmtLap(61234));
+var __ln = { lat: 40, lon: 0, hdg: 0 };
+__ok('lap: behind stripe is negative', lapAlong(39.9999, 0.0001, __ln) < 0, 'a=' + lapAlong(39.9999, 0.0001, __ln));
+__ok('lap: ahead of stripe is positive', lapAlong(40.0001, 0.0001, __ln) > 0, 'a=' + lapAlong(40.0001, 0.0001, __ln));
+__ok('lap: too far abeam is null', lapAlong(40, 0.01, __ln) === null, '');
+// --- Lap state machine via real fixes (eastbound line, drive across) ---
+function __lfix(lat, lon) { __t += 1000; return { coords: { latitude: lat, longitude: lon, accuracy: 5, altitudeAccuracy: null, speed: 12, speedAccuracy: 0.5 } }; }
+__resetEst();
+lapLine = { lat: 40, lon: 0, hdg: 90 };
+lapRunning = true; lapStartMs = __t; lapPrevAlong = null; lapCount = 0; lastLapMs = 0; bestLapMs = 0;
+currentSpeedMs = 12; displaySpeedMs = 12;
+onPositionSuccess(__lfix(40, -0.0002));
+onPositionSuccess(__lfix(40, -0.0001));
+onPositionSuccess(__lfix(40, 0.0002));
+__ok('lap: crossing inside min-time does not count', lapCount === 0 && lapPrevAlong > 0, 'count=' + lapCount);
+lapStartMs = __t - 25000; lapPrevAlong = -5;
+onPositionSuccess(__lfix(40, 0.0003));
+__ok('lap: crossing after min-time counts + sets best', lapCount === 1 && lastLapMs > 20000 && bestLapMs === lastLapMs, 'count=' + lapCount + ' last=' + lastLapMs);
+// --- Session trace ring ---
+__resetEst();
+currentSpeedMs = 20;
+for (var __tr = 0; __tr < 1305; __tr++) { __t += 100; tracePush(); }
+__ok('trace: ring capped at TRACE_MAX', traceV.length === 1200 && traceG.length === 1200, 'len=' + traceV.length);
+drawTrace();
+__ok('trace: draw safe on stub canvas', true, 'no-throw');
 """
 
 
