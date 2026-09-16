@@ -956,7 +956,11 @@
         .run-time { font-size: 1.35rem; }
         .run-name { font-size: 0.7rem; }
         .run-hint { display: none; }
-        .score-card { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; }
+        .score-card { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+        .lap-card { grid-column: 2; grid-row: 1; min-width: 0; }
+        #lap-live { font-size: 1.15rem; }
+        .lap-btns .action-btn { padding: 0.12rem 0.25rem; font-size: 0.38rem; }
+        .lap-sub { font-size: 0.55rem; }
         .score-total { font-size: 1.5rem; line-height: 0.95; letter-spacing: -0.02em; }
         .v-rows { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; justify-content: center; }
 
@@ -1050,6 +1054,40 @@
             }
             .speed-gauge { transition: none !important; }
         }
+/* ── glanceability / modes / new panels ───────────────────────────── */
+/* Mirror mode (windshield reflection): whole shell flipped, nothing else moves. */
+body.mirror .dashboard-shell { transform: scaleX(-1); }
+/* The iOS permission gate must stay readable when mirrored (it is inside the shell). */
+body.mirror #ios-gate { transform: scaleX(-1); }
+/* Night mode: dim chrome, keep speed + warnings bright. Layout untouched (colors/opacity only). */
+body.night { --line: rgba(148,163,184,0.10); }
+body.night .panel { background: linear-gradient(180deg, rgba(4,6,10,0.94), rgba(1,2,4,0.96)); }
+body.night .neon-accent, body.night .neon-warning, body.night .neon-blue, body.night .neon-purple, body.night .neon-orange { text-shadow: 0 0 4px currentColor; }
+body.night .spd-green, body.night .spd-yellow { text-shadow: 0 0 4px currentColor; }
+body.night .scanlines { opacity: 0.06; }
+body.night .gauge-ticks, body.night .hazard-strip { opacity: 0.5; }
+body.night .timer-best, body.night .metric-caption, body.night .side-lbl, body.night .t-lbl { opacity: 0.5; }
+/* Timer cards rest dim; the armed/running one goes full bright. Dimmed on the
+   CHILDREN, not the card: hud-boot-card holds opacity:1 fill on .metric-card
+   and would override a card-level dim. */
+.metric-card .timer-lbl, .metric-card .timer-mini, .metric-card .timer-best, .metric-card .metric-caption { opacity: 0.55; }
+.metric-card.t-live .timer-lbl, .metric-card.t-live .timer-mini, .metric-card.t-live .timer-best, .metric-card.t-live .metric-caption { opacity: 1; }
+.metric-card.t-done .timer-lbl, .metric-card.t-done .timer-mini, .metric-card.t-done .timer-best, .metric-card.t-done .metric-caption { opacity: 0.85; }
+/* Overspeed warning flash on the hero readout. */
+.speed-base.over-red { color: var(--red); text-shadow: 0 0 14px rgba(255,51,102,0.9); }
+/* Diagnostics strip: one quiet row, collapsed by default. */
+.diag-strip { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0.6rem; border-top: 1px solid var(--line); }
+.diag-body { display: none; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+body.diag-open .diag-body { display: inline-flex; }
+body.diag-open #diag-toggle { opacity: 1; }
+#diag-toggle { opacity: 0.7; }
+.diag-note { font-size: 0.4rem; letter-spacing: 0.14em; color: var(--amber); }
+/* Lap card + trace strip. */
+.lap-sub { display: flex; gap: 0.8rem; justify-content: center; font-size: 0.62rem; }
+.lap-btns { display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.35rem; }
+.trace-box { padding: 0.2rem 0.6rem 0.25rem; margin-top: 0.4rem; border-top: 1px solid var(--line); }
+.trace-box .t-lbl { display: block; margin-bottom: 0.1rem; font-size: 0.5rem; }
+#trace-canvas { width: 100%; height: 2.0rem; display: block; }
     </style>
     <noscript><style>html:not(.scaled) .dashboard-shell{visibility:visible}</style></noscript>
     </head>
@@ -1093,13 +1131,26 @@
                     <span id="fusion-display" class="text-gray-600" tabindex="0" role="button" aria-label="Enable motion fusion">FUSION: GPS ONLY</span>
                 </span>
             </div>
-<div class="cmd-sys" aria-live="polite">
-            <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
-            <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
+        <div class="cmd-sys" aria-live="polite">
+            <button id="mirror-btn" class="action-btn gap-1 neon-purple" onclick="toggleMirror()" aria-label="Mirror HUD for windshield" title="Mirror HUD">🪞</button>
+            <button id="night-btn" class="action-btn gap-1 neon-purple" onclick="toggleNight()" aria-label="Night mode" title="Night mode">🌙</button>
+            <button id="units-btn" class="action-btn gap-1 neon-blue" onclick="toggleUnits()" aria-label="Toggle km h mph" title="Units">KM/H</button>
             <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS">⟳ GPS</button>
             <button id="export-btn" class="action-btn gap-1.5 neon-blue" onclick="exportRun()" aria-label="Export run CSV" title="Download run summary CSV">CSV</button>
             <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
         </div>
+        </div>
+        <!-- DIAGNOSTICS (nested in cmd-bar: no new shell child) -->
+        <div class="diag-strip" id="diag-strip">
+            <button id="diag-toggle" class="action-btn gap-1 neon-blue" onclick="toggleDiag()" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
+            <div class="diag-body" id="diag-body">
+                <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
+                <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
+                <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
+                <button id="redline-btn" class="action-btn gap-1 neon-orange" onclick="cycleRedline()" aria-label="Overspeed warning" title="Overspeed warning">RL OFF</button>
+                <button id="mute-btn" class="action-btn gap-1 neon-blue" onclick="toggleMute()" aria-label="Sound on off" title="Sound">🔔</button>
+                <div id="app-version" class="version-tag">VER 1.5.6 — Velocity-Lab <span id="scale-debug"></span></div>
+            </div>
         </div>
     </header>
 
@@ -1188,10 +1239,24 @@
                 <span class="score-denom">/70</span>
             </div>
             <div class="v-rows">
-                <div class="v-row"><span>SPD</span><div class="v-bar"><div id="vbar-spd" class="v-bar-fill v-spd"></div></div><span id="v-score-spd" class="score-rdout lcd-text text-white">0</span></div>
-                <div class="v-row"><span>ACC</span><div class="v-bar"><div id="vbar-acc" class="v-bar-fill v-acc"></div></div><span id="v-score-acc" class="score-rdout lcd-text clr-blue">0</span></div>
-                <div class="v-row"><span>BRK</span><div class="v-bar"><div id="vbar-brk" class="v-bar-fill v-brk"></div></div><span id="v-score-brk" class="score-rdout lcd-text text-red-400">0</span></div>
-                <div class="v-row"><span>HDL</span><div class="v-bar"><div id="vbar-hdl" class="v-bar-fill v-hdl"></div></div><span id="v-score-hdl" class="score-rdout lcd-text clr-purple">0</span></div>
+                <div class="v-row"><span>SPD</span><div class="v-bar"><div id="vbar-spd" class="v-bar-fill v-spd"></div></div><span id="v-score-spd" class="score-rdout clr-green lcd-text">0</span></div>
+                <div class="v-row"><span>ACC</span><div class="v-bar"><div id="vbar-acc" class="v-bar-fill v-acc"></div></div><span id="v-score-acc" class="score-rdout clr-green lcd-text">0</span></div>
+                <div class="v-row"><span>BRK</span><div class="v-bar"><div id="vbar-brk" class="v-bar-fill v-brk"></div></div><span id="v-score-brk" class="score-rdout clr-green lcd-text">0</span></div>
+                <div class="v-row"><span>HDL</span><div class="v-bar"><div id="vbar-hdl" class="v-bar-fill v-hdl"></div></div><span id="v-score-hdl" class="score-rdout clr-green lcd-text">0</span></div>
+            </div>
+        </div>
+        <div class="t-card panel lap-card">
+            <span class="t-lbl">周回 // LAP <span id="lap-count" class="score-src">—</span></span>
+            <div class="score-top">
+                <span id="lap-live" class="score-total clr-blue neon-blue lcd-text" aria-live="polite">--:--.-</span>
+            </div>
+            <div class="lap-sub">
+                <span>LAST <span id="lap-last" class="lcd-text">--:--.-</span></span>
+                <span>BEST <span id="lap-best" class="lcd-text">--:--.-</span></span>
+            </div>
+            <div class="lap-btns">
+                <button id="lap-set-btn" class="action-btn gap-1 neon-blue" onclick="setLapLine()" aria-label="Set start finish line">SET LINE</button>
+                <button id="lap-reset-btn" class="action-btn gap-1 neon-blue" onclick="resetLaps()" aria-label="Reset laps">RESET</button>
             </div>
         </div>
     </section>
@@ -1209,15 +1274,18 @@
             </div>
             <!-- hidden peaks kept for JS (already mirrored in live G // max) -->
             <div style="display:none"><span id="peak-g">0.00 G</span><span id="brake-score">0.00 G</span><span id="peak-lat-g-metric">0.00 G</span><span id="peak-lon-g-metric">0.00 G</span></div>
+            <!-- SESSION TRACE (nested in footer: no new shell child, no grid impact) -->
+            <div class="trace-box" aria-label="Session trace">
+                <span class="t-lbl">履歴 // TRACE</span>
+                <canvas id="trace-canvas"></canvas>
+            </div>
         </div>
     </section>
 
     <!-- HAZARD STRIP -->
     <footer class="hazard-strip">
         <span>VL-CORE // GNSS+IMU FUSION ONLINE</span>
-        <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
     </footer>
-    <div id="app-version" class="version-tag">VER 1.5.6 — Velocity-Lab <span id="scale-debug"></span></div>
 </div>
 
 
@@ -1434,6 +1502,30 @@ let lastRenderTime  = performance.now();
         let imuLongG        = 0.0;
         let imuLatG         = 0.0;
         let lastImuTime     = 0;
+        // ─── USER MODES (display + assists; SI internally, converted at display) ───
+        const KMH_TO_MPH = 0.621371;
+        const UI_PREF_KEY = 'VelocityLab_ui_prefs';
+        const LAP_KEY = 'VelocityLab_lap';
+        const LAP_MIN_MS = 20000;
+        const LAP_CORRIDOR_M = 25;
+        const LAP_MPD = 6371000 * Math.PI / 180;
+        const TRACE_MAX = 1200;
+        let unitMph = false;
+        let nightOn = false;
+        let mirrorOn = false;
+        let diagOpen = false;
+        let muted = false;
+        let redlineKmh = 200; // BAR_MAX default = effectively off
+        let audioCtx = null;
+        let lapLine = null;      // {lat, lon, hdg} start/finish anchor + heading-deg
+        let lapRunning = false;
+        let lapStartMs = 0;
+        let lapCount = 0;
+        let lastLapMs = 0;
+        let bestLapMs = 0;
+        let lapPrevAlong = null;
+        let traceV = [];
+        let traceG = [];
         let fixWindow       = [];
         let kalmanV         = 0.0;
         let kalmanP         = 1.0;
@@ -1523,6 +1615,16 @@ let lastRenderTime  = performance.now();
             installBtn:   document.getElementById('pwa-install-btn'),
             speedGaugeBtn: document.getElementById('speed-gauge-btn'),
             gpsRetryBtn:   document.getElementById('gps-retry-btn'),
+            mirrorBtn:    document.getElementById('mirror-btn'),
+            nightBtn:     document.getElementById('night-btn'),
+            unitsBtn:     document.getElementById('units-btn'),
+            diagToggle:   document.getElementById('diag-toggle'),
+            muteBtn:      document.getElementById('mute-btn'),
+            redlineBtn:   document.getElementById('redline-btn'),
+            lapLive:      document.getElementById('lap-live'),
+            lapLast:      document.getElementById('lap-last'),
+            lapBest:      document.getElementById('lap-best'),
+            lapCount:     document.getElementById('lap-count'),
             
             iosGate:      document.getElementById('ios-gate'),
             iosGrantBtn:  document.getElementById('ios-grant-btn'),
@@ -1557,6 +1659,7 @@ let lastRenderTime  = performance.now();
             speedGauge:   document.querySelector('.speed-gauge'),
             bestMarker:   document.getElementById('best-marker'),
             exportBtn:    document.getElementById('export-btn'),
+            traceCanvas:  document.getElementById('trace-canvas'),
             best060:      document.getElementById('best-0-60'),
             best0100:     document.getElementById('best-0-100'),
             best100200:   document.getElementById('best-100-200'),
@@ -1576,7 +1679,9 @@ let lastRenderTime  = performance.now();
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
             mountOn: null, driftOn: null, sigCls: null,
-            bestDeg: null
+            bestDeg: null, sigLostAud: false,
+            lapLive: null, lapLast: null, lapBest: null, lapCount: null,
+            cardSig: null
         };
 
         // Session clock anchor: set when tracking initialises.
@@ -1707,6 +1812,187 @@ let lastRenderTime  = performance.now();
             if (_gx > _gy * 1.6 && _gx > _gz * 1.6) { mountYawMode = 1; return true; }
             return false;
         }
+        // Units: SI internally, converted only at display. Timers/scores stay native.
+        function spdU(kmh) { return unitMph ? kmh * KMH_TO_MPH : kmh; }
+        function distU(km) { return unitMph ? km * KMH_TO_MPH : km; }
+        function fmtLap(ms) {
+            if (!(ms > 0)) return "--:--.-";
+            const t = Math.floor(ms / 100) / 10;
+            const m = Math.floor(t / 60), s = t - m * 60;
+            return m + ":" + (s < 10 ? "0" : "") + s.toFixed(1);
+        }
+        function loadUiPrefs() {
+            let o = null;
+            try { o = JSON.parse(localStorage.getItem(UI_PREF_KEY) || '{}'); } catch (e) {}
+            if (!o || typeof o !== 'object') return;
+            unitMph = o.mph === true;
+            nightOn = o.night === true;
+            mirrorOn = o.mirror === true;
+            diagOpen = o.diag === true;
+            muted = o.mute === true;
+            if (typeof o.rl === 'number' && isFinite(o.rl) && o.rl >= 60 && o.rl <= 200) redlineKmh = o.rl;
+        }
+        function saveUiPrefs() {
+            try { localStorage.setItem(UI_PREF_KEY, JSON.stringify({ mph: unitMph, night: nightOn, mirror: mirrorOn, diag: diagOpen, mute: muted, rl: redlineKmh })); } catch (e) {}
+        }
+        function applyUiModes() {
+            try {
+                document.body.classList.toggle('night', !!nightOn);
+                document.body.classList.toggle('mirror', !!mirrorOn);
+                document.body.classList.toggle('diag-open', !!diagOpen);
+                if (dom.unitsBtn) dom.unitsBtn.textContent = unitMph ? "MPH" : "KM/H";
+                if (dom.nightBtn) dom.nightBtn.textContent = nightOn ? "☀️" : "🌙";
+                if (dom.diagToggle) dom.diagToggle.textContent = diagOpen ? "DIAG ▾" : "DIAG ▸";
+                if (dom.muteBtn) dom.muteBtn.textContent = muted ? "🔇" : "🔔";
+                if (dom.redlineBtn) dom.redlineBtn.textContent = redlineKmh >= BAR_MAX_SPEED ? "RL OFF" : "RL " + Math.round(spdU(redlineKmh));
+                const sul = document.querySelector('.speed-unit');
+                if (sul) sul.textContent = unitMph ? "MPH" : "KM/H";
+            } catch (e) {}
+        }
+        function toggleMirror() { mirrorOn = !mirrorOn; saveUiPrefs(); applyUiModes(); }
+        function toggleNight() { nightOn = !nightOn; saveUiPrefs(); applyUiModes(); }
+        function toggleUnits() {
+            unitMph = !unitMph; saveUiPrefs(); applyUiModes();
+            prev.speed = null; prev.displayMax = null; prev.speedBar = null; prev.ringDeg = null; prev.distKm = null; prev.peakDeg = null;
+        }
+        function toggleDiag() { diagOpen = !diagOpen; saveUiPrefs(); applyUiModes(); }
+        function toggleMute() { muted = !muted; saveUiPrefs(); applyUiModes(); }
+        function cycleRedline() {
+            const steps = [200, 80, 100, 120, 140, 160];
+            redlineKmh = steps[(steps.indexOf(redlineKmh) + 1) % steps.length] || 200;
+            saveUiPrefs(); applyUiModes();
+            prev.speed = null;
+        }
+        window.toggleMirror = toggleMirror;
+        window.toggleNight = toggleNight;
+        window.toggleUnits = toggleUnits;
+        window.toggleDiag = toggleDiag;
+        window.toggleMute = toggleMute;
+        window.cycleRedline = cycleRedline;
+        // Audio: lazy AudioContext (needs a user gesture; pointerdown unlocks), muted-aware, guarded.
+        function ensureAudio() {
+            if (audioCtx) return true;
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return false;
+                audioCtx = new AC();
+            } catch (e) { return false; }
+            return !!audioCtx;
+        }
+        function beep(freq, ms) {
+            if (muted) return;
+            try {
+                if (!ensureAudio()) return;
+                if (audioCtx.state === 'suspended') { try { audioCtx.resume().catch(function(){}); } catch (e2) {} }
+                const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+                o.type = 'sine'; o.frequency.value = freq;
+                g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms / 1000);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(); o.stop(audioCtx.currentTime + ms / 1000 + 0.02);
+            } catch (e) {}
+        }
+        // Lap timer: start/finish stripe = anchor + heading; the stripe is perpendicular to
+        // travel, so a crossing = ALONG-track sign flip (-behind to +ahead) while the cross-track
+        // offset stays inside the corridor. (Side-of-travel never flips on a straight crossing —
+        // an earlier revision keyed on it and could never fire.) Returns null when too far abeam.
+        function lapAlong(lat, lon, line) {
+            const dx = (lon - line.lon) * LAP_MPD * Math.cos(line.lat * Math.PI / 180);
+            const dy = (lat - line.lat) * LAP_MPD;
+            const hr = line.hdg * Math.PI / 180;
+            const perp = Math.abs(dx * Math.cos(hr) - dy * Math.sin(hr));
+            if (perp > LAP_CORRIDOR_M) return null;
+            return dx * Math.sin(hr) + dy * Math.cos(hr);
+        }
+        function validLapLine(o) {
+            return !!(o && isFinite(o.lat) && isFinite(o.lon) && isFinite(o.hdg) &&
+                Math.abs(o.lat) <= 90 && Math.abs(o.lon) <= 180 && o.hdg >= 0 && o.hdg < 360);
+        }
+        function saveLap() {
+            try { localStorage.setItem(LAP_KEY, JSON.stringify({ line: lapLine, best: bestLapMs })); } catch (e) {}
+        }
+        function loadLap() {
+            try {
+                const o = JSON.parse(localStorage.getItem(LAP_KEY) || 'null');
+                if (o && validLapLine(o.line)) lapLine = o.line;
+                if (o && typeof o.best === 'number' && isFinite(o.best) && o.best > 0 && o.best <= 36e5) bestLapMs = o.best;
+            } catch (e) {}
+            renderLap(performance.now());
+        }
+        function setLapLine() {
+            // Needs a fresh GPS fix with heading; otherwise the button is inert (no garbage lines).
+            if (!(lastGpsTime > 0) || performance.now() - lastGpsTime > 5000) return;
+            if (typeof lastGpsHeading !== 'number' || !isFinite(lastGpsHeading)) return;
+            if (lastGpsLat === undefined || lastGpsLon === undefined) return;
+            lapLine = { lat: lastGpsLat, lon: lastGpsLon, hdg: ((lastGpsHeading % 360) + 360) % 360 };
+            lapRunning = true; lapStartMs = performance.now();
+            lapCount = 0; lastLapMs = 0; lapPrevAlong = null;
+            saveLap(); renderLap(performance.now());
+        }
+        function resetLaps() {
+            lapRunning = false; lapCount = 0; lastLapMs = 0; lapPrevAlong = null;
+            renderLap(performance.now());
+        }
+        function completeLap(now) {
+            const ms = now - lapStartMs;
+            if (!(ms > 0)) return;
+            lastLapMs = ms; lapCount++;
+            if (!bestLapMs || ms < bestLapMs) bestLapMs = ms;
+            lapStartMs = now;
+            saveLap(); renderLap(now);
+            beep(880, 150);
+        }
+        function renderLap(now) {
+            const live = lapRunning ? fmtLap(now - lapStartMs) : "--:--.-";
+            if (prev.lapLive !== live) { if (dom.lapLive) dom.lapLive.textContent = live; prev.lapLive = live; }
+            const last = fmtLap(lastLapMs), best = fmtLap(bestLapMs), cnt = lapLine ? String(lapCount) : "—";
+            if (prev.lapLast !== last) { if (dom.lapLast) dom.lapLast.textContent = last; prev.lapLast = last; }
+            if (prev.lapBest !== best) { if (dom.lapBest) dom.lapBest.textContent = best; prev.lapBest = best; }
+            if (prev.lapCount !== cnt) { if (dom.lapCount) dom.lapCount.textContent = cnt; prev.lapCount = cnt; }
+        }
+        window.setLapLine = setLapLine;
+        window.resetLaps = resetLaps;
+        // Session trace: decimated speed/G ring, pushed per fix (never per frame).
+        function tracePush() {
+            traceV.push(currentSpeedMs * MS_TO_KMPH);
+            traceG.push(Math.hypot(fusedLatG, fusedLongG));
+            if (traceV.length > TRACE_MAX) { traceV.shift(); traceG.shift(); }
+            drawTrace();
+        }
+        function drawTrace() {
+            const cv = dom.traceCanvas;
+            if (!cv) return;
+            const w = cv.clientWidth, h = cv.clientHeight;
+            if (!(w > 0 && h > 0) || traceV.length < 2) return;
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+            const g2 = cv.getContext('2d');
+            if (!g2) return;
+            g2.clearRect(0, 0, cv.width, cv.height);
+            let vMax = 10, gMax = 0.5;
+            for (let i = 0; i < traceV.length; i++) {
+                if (traceV[i] > vMax) vMax = traceV[i];
+                if (traceG[i] > gMax) gMax = traceG[i];
+            }
+            g2.strokeStyle = 'rgba(148,163,184,0.25)';
+            g2.beginPath(); g2.moveTo(0, cv.height / 2); g2.lineTo(cv.width, cv.height / 2); g2.stroke();
+            const n = traceV.length;
+            g2.strokeStyle = '#00ff88'; g2.lineWidth = Math.max(1, dpr);
+            g2.beginPath();
+            for (let i = 0; i < n; i++) {
+                const x = (i / (n - 1)) * cv.width, y = cv.height - (traceV[i] / vMax) * cv.height;
+                if (i === 0) g2.moveTo(x, y); else g2.lineTo(x, y);
+            }
+            g2.stroke();
+            g2.strokeStyle = '#00bfff';
+            g2.beginPath();
+            for (let i = 0; i < n; i++) {
+                const x = (i / (n - 1)) * cv.width, y = cv.height - (traceG[i] / gMax) * cv.height;
+                if (i === 0) g2.moveTo(x, y); else g2.lineTo(x, y);
+            }
+            g2.stroke();
+        }
         function resetRun() {
             wakeRenderLoop();
             // Motion revive: RESET RUN starts every drive, so a tap here also
@@ -1800,6 +2086,12 @@ let lastRenderTime  = performance.now();
             setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
             setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
             refreshTimerGhosts();
+            refreshTimerCards();
+            // New measurement: stop lap timing (line + best kept), clear the trace.
+            lapRunning = false; lapCount = 0; lastLapMs = 0; lapPrevAlong = null;
+            renderLap(performance.now());
+            traceV = []; traceG = [];
+            drawTrace();
             
             if (dom.peakG) dom.peakG.textContent      = "0.00 G";
             if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.00";
@@ -2291,7 +2583,7 @@ let lastRenderTime  = performance.now();
             } else if (timer0_60.state === T_RUNNING && speedKmh >= MPH_60_IN_KMPH) {
                 const f = crossFraction(lastTimerSpeedKmh, speedKmh, MPH_60_IN_KMPH);
                 timer0_60.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timer0_60.start);
-                timer0_60.state = T_DONE;
+                timer0_60.state = T_DONE; beep(880, 150);
                 setDOM(dom.t0_60, 't0_60', fmt3.format(timer0_60.result / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange");
                 stateDirty = true;
             }
@@ -2305,7 +2597,7 @@ let lastRenderTime  = performance.now();
             } else if (timer0_100.state === T_RUNNING && speedKmh >= 100.0) {
                 const f = crossFraction(lastTimerSpeedKmh, speedKmh, 100.0);
                 timer0_100.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timer0_100.start);
-                timer0_100.state = T_DONE;
+                timer0_100.state = T_DONE; beep(880, 150);
                 setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue");
                 stateDirty = true;
             }
@@ -2319,7 +2611,7 @@ let lastRenderTime  = performance.now();
             } else if (timer100_200.state === T_RUNNING && speedKmh >= 200.0) {
                 const f = crossFraction(lastTimerSpeedKmh, speedKmh, 200.0);
                 timer100_200.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timer100_200.start);
-                timer100_200.state = T_DONE;
+                timer100_200.state = T_DONE; beep(880, 150);
                 setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple");
                 stateDirty = true;
             } else if (timer100_200.state === T_DONE && stopped) {
@@ -2337,7 +2629,7 @@ let lastRenderTime  = performance.now();
             } else if (timerQuarter.state === T_RUNNING && (distanceM - timerQuarter.startDist) >= QUARTER_MILE_METERS) {
                 const f = crossFraction(lastTimerDistM, distanceM, timerQuarter.startDist + QUARTER_MILE_METERS);
                 timerQuarter.result = Math.max(1, (f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f)) - timerQuarter.start);
-                timerQuarter.state = T_DONE;
+                timerQuarter.state = T_DONE; beep(880, 150);
                 setDOM(dom.tQuarter, 'tQuarter', fmt3.format(timerQuarter.result / 1000) + " s", CLS_TIMER_BASE, "text-yellow-400 neon-warning");
                 stateDirty = true;
             }
@@ -2357,7 +2649,7 @@ let lastRenderTime  = performance.now();
                 const f = crossFraction(lastTimerSpeedKmh, speedKmh, SPEED_ZERO_SNAP_KMPH);
                 const stopDistM = f === null ? distanceM : lerp(lastTimerDistM, distanceM, f);
                 timer100_0.result = Math.max(0, stopDistM - timer100_0.startDist);
-                timer100_0.state = T_DONE;
+                timer100_0.state = T_DONE; beep(880, 150);
                 setDOM(dom.t100_0, 't100_0', fmt1.format(Math.max(0, timer100_0.result)) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger");
                 stateDirty = true;
             } else if (timer100_0.state === T_DONE && speedKmh >= 100.0) {
@@ -2367,6 +2659,7 @@ let lastRenderTime  = performance.now();
             lastTimerSpeedKmh = speedKmh;
             lastTimerDistM    = distanceM;
             lastTimerTimeMs   = nowMs;
+            refreshTimerCards();
 
             // All-time bests (lower wins): idempotent, only improves
             noteTimerBest('t060', timer0_60.result, false);
@@ -2409,6 +2702,26 @@ let lastRenderTime  = performance.now();
             setDOM(el, key, txt);
         }
 
+        // Timer card highlight: the armed/running card goes full bright, the rest dim.
+        // Toggled only on transitions + resets (updateTimers runs per fix, never per frame).
+        function setCardCls(el, st) {
+            if (!el) return;
+            const card = el.parentNode;
+            if (!card || !card.classList) return;
+            if (st === T_RUNNING) { card.classList.add('t-live'); card.classList.remove('t-done'); }
+            else if (st === T_DONE) { card.classList.remove('t-live'); card.classList.add('t-done'); }
+            else { card.classList.remove('t-live'); card.classList.remove('t-done'); }
+        }
+        function refreshTimerCards() {
+            const sig = timer0_60.state + '' + timer0_100.state + timer100_200.state + timerQuarter.state + timer100_0.state;
+            if (prev.cardSig === sig) return;
+            prev.cardSig = sig;
+            setCardCls(dom.t0_60, timer0_60.state);
+            setCardCls(dom.t0_100, timer0_100.state);
+            setCardCls(dom.t100_200, timer100_200.state);
+            setCardCls(dom.tQuarter, timerQuarter.state);
+            setCardCls(dom.t100_0, timer100_0.state);
+        }
         function refreshTimerGhosts() {
             setGhost(dom.best060, 'best060', timer0_60.result, allTimeBest.t060, false);
             setGhost(dom.best0100, 'best0100', timer0_100.result, allTimeBest.t0100, false);
@@ -2965,6 +3278,17 @@ let lastRenderTime  = performance.now();
                 peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
             }
 
+            // Lap crossing: along-track sign flip across the stripe, gated on usable fix,
+            // motion, and the 20 s anti-bounce (re-crossing the line in traffic must not count).
+            if (lapLine && usable && currentSpeedMs > 1 && lastGpsLat !== undefined && lastGpsLon !== undefined) {
+                const a = lapAlong(c.latitude, c.longitude, lapLine);
+                if (a !== null) {
+                    if (lapPrevAlong !== null && lapPrevAlong < 0 && a >= 0 && lapRunning && (now - lapStartMs) > LAP_MIN_MS) completeLap(now);
+                    lapPrevAlong = a;
+                }
+            }
+            // Session trace sample (per fix; draw is internally throttled by canvas size checks).
+            tracePush();
             // Drift monitor: 30 s LS vs Kalman — slow multipath honesty.
             if (usable && driftWindow.length > 1 && tFix - driftWindow[0].t >= 15) {
                 const vLong = lsVelocityRaw(driftWindow);
@@ -3173,6 +3497,12 @@ let lastRenderTime  = performance.now();
                 try { localStorage.removeItem('VelocityLab_text_scale'); } catch(e) {}
                 allTimeBest = {};
                 refreshTimerGhosts();
+                refreshTimerCards();
+                try { localStorage.removeItem(LAP_KEY); } catch (eL) {}
+                lapLine = null; lapRunning = false; lapCount = 0; lastLapMs = 0; bestLapMs = 0; lapPrevAlong = null;
+                renderLap(performance.now());
+                traceV = []; traceG = [];
+                drawTrace();
                 // Bust SW cache so updates take effect instantly (was stale-while-revalidate).
                 // Version-proof: delete by prefix, never by a hardcoded version
                 // (the page has no CACHE_VERSION symbol — the old template hit
@@ -3459,11 +3789,13 @@ let lastRenderTime  = performance.now();
             }
 
             const displaySpeedKmph = displaySpeedMs * MS_TO_KMPH;
-            setDOM(dom.speed, 'speed', String(Math.min(999, Math.max(0, Math.round(displaySpeedKmph)))), "speed-base font-extrabold lcd-text ", displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green");
-            const maxDispStr = "MAX: " + displayMaxKmph.toFixed(1);
+            const spdDisp = spdU(displaySpeedKmph);
+            const overRed = displaySpeedKmph >= redlineKmh && redlineKmh < BAR_MAX_SPEED;
+            setDOM(dom.speed, 'speed', String(Math.min(999, Math.max(0, Math.round(spdDisp)))), "speed-base font-extrabold lcd-text ", (displaySpeedKmph >= 80 ? "spd-yellow" : "spd-green") + (overRed ? " over-red" : ""));
+            const maxDispStr = "MAX: " + spdU(displayMaxKmph).toFixed(1);
             if (prev.displayMax !== maxDispStr) { if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = maxDispStr; prev.displayMax = maxDispStr; }
 
-            const barPct = Math.max(0, Math.min(1, displaySpeedKmph / BAR_MAX_SPEED)) * 100;
+            const barPct = Math.max(0, Math.min(1, spdDisp / (BAR_MAX_SPEED * (unitMph ? KMH_TO_MPH : 1)))) * 100;
             const barW   = barPct.toFixed(2) + "%";
             if (prev.speedBar !== barW) { if (dom.speedBar) dom.speedBar.style.width = barW; prev.speedBar = barW; }
 
@@ -3528,8 +3860,10 @@ let lastRenderTime  = performance.now();
                 const distErr = distanceMeters - displayDistanceM;
                 displayDistanceM += distErr * (1 - Math.exp(-dtSec * 0.5));
             }
-            const distKm = (displayDistanceM / 1000).toFixed(2) + " KM";
+            const distKm = distU(displayDistanceM / 1000).toFixed(2) + " " + (unitMph ? "MI" : "KM");
             if (prev.distKm !== distKm) { if (dom.distDisplay) dom.distDisplay.textContent = distKm; prev.distKm = distKm; }
+            // Lap live tick (prev-guarded 0.1 s resolution inside fmtLap).
+            if (lapRunning) renderLap(now);
             if (prev.glitchN !== gpsGlitchCount) { if (dom.glitchCount) dom.glitchCount.textContent = String(gpsGlitchCount); prev.glitchN = gpsGlitchCount; }
 
             // Live accel / brake / lateral G bars (1.0G / 1.2G / 1.5G full-scale) — fractional 0.1% steps to avoid 1% stair
@@ -3600,6 +3934,10 @@ let lastRenderTime  = performance.now();
                     dom.speedGauge.classList.toggle('sig-lost', sigLost);
                     dom.speedGauge.classList.toggle('sig-weak', sigWeak);
                 }
+                // Audio signal cues on tier transitions only (prev-guarded, never per frame).
+                if (sigLost && !prev.sigLostAud) beep(220, 300);
+                if (!sigLost && prev.sigLostAud) beep(660, 120);
+                prev.sigLostAud = sigLost;
                 prev.sigCls = sigCls;
             }
 
@@ -3715,6 +4053,11 @@ let lastRenderTime  = performance.now();
             loadSession();
             loadAllTimeBest();
             refreshTimerGhosts();
+            loadUiPrefs();
+            applyUiModes();
+            loadLap();
+            refreshTimerCards();
+            try { document.addEventListener('pointerdown', function() { ensureAudio(); }, { once: true }); } catch (eAU) {}
             
             // Check GPS permission status first (non-blocking)
             try {
