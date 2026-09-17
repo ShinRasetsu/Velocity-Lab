@@ -1710,7 +1710,8 @@ let lastRenderTime  = performance.now();
             else if (accuracyMeters >= GPS_ACC_TRUST_MAX_M) conf = 0.0;
             else conf = 1.0 - (accuracyMeters - GPS_ACC_TRUST_MIN_M) / (GPS_ACC_TRUST_MAX_M - GPS_ACC_TRUST_MIN_M);
             // L5-grade / barometer-assisted vertical fix lifts trust (capped, never masks bad horizontal)
-            if (conf > 0 && typeof altitudeAccuracy === 'number' && isFinite(altitudeAccuracy) && altitudeAccuracy < 12) {
+            // Negative altitudeAccuracy is the same failure-sentinel class as negative accuracy — no lift.
+            if (conf > 0 && typeof altitudeAccuracy === 'number' && isFinite(altitudeAccuracy) && altitudeAccuracy >= 0 && altitudeAccuracy < 12) {
                 conf = Math.min(1.0, conf + 0.15);
             }
             return conf;

@@ -30,6 +30,7 @@ __ok('gpsConf: <= trust_min -> 1.0', nearly(gpsConfidence(0),1.0) && nearly(gpsC
 __ok('gpsConf: >= trust_max -> 0.0', nearly(gpsConfidence(GPS_ACC_TRUST_MAX_M),0.0) && nearly(gpsConfidence(1000),0.0), gpsConfidence(1000)+" expected 0.0");
 __ok('gpsConf: midpoint -> 0.5 (linear interp)', nearly(gpsConfidence((GPS_ACC_TRUST_MIN_M+GPS_ACC_TRUST_MAX_M)/2),0.5), "expected 0.5 at midpoint");
 __ok('gpsConf: NaN / undefined / string -> 0.0', nearly(gpsConfidence(NaN),0.0) && nearly(gpsConfidence(undefined),0.0) && nearly(gpsConfidence('x'),0.0), "non-number inputs must clamp to 0");
+__ok('gpsConf: negative altitudeAccuracy grants no lift', nearly(gpsConfidence(5, -1), gpsConfidence(5, null)) && gpsConfidence(5, 8) > gpsConfidence(5, null), "neg alt must not lift; good alt must");
 __ok('gpsConf: monotonic non-increasing in accuracy radius', gpsConfidence(2) >= gpsConfidence(5) && gpsConfidence(10) >= gpsConfidence(15) && gpsConfidence(20) >= gpsConfidence(25), "confidence must not increase as accuracy radius grows");
 function __setPeaks(maxSpd, maxAcc, maxBrk, maxLat){ maxSpeedKmph=maxSpd; maxGpsAccelG=maxAcc; bestGpsBrakingG=maxBrk; maxGpsLatG=maxLat; }
 __setPeaks(0,0,0,0); var z=calculateVehicleScore(); __ok('vScore: all-zero -> all-zero', z.total===0 && z.spd===0 && z.acc===0 && z.brk===0 && z.hdl===0, 'got total='+z.total);

@@ -136,6 +136,9 @@ __ok('gpsConf: midpoint -> 0.5 (linear interp)',
 __ok('gpsConf: NaN / undefined / string -> 0.0',
     nearly(gpsConfidence(NaN), 0.0) && nearly(gpsConfidence(undefined), 0.0) && nearly(gpsConfidence('x'), 0.0),
     "non-number inputs must clamp to 0");
+__ok('gpsConf: negative altitudeAccuracy grants no lift',
+    nearly(gpsConfidence(5, -1), gpsConfidence(5, null)) && gpsConfidence(5, 8) > gpsConfidence(5, null),
+    "neg alt must not lift; good alt must");
 
 __ok('gpsConf: monotonic non-increasing in accuracy radius',
     gpsConfidence(2) >= gpsConfidence(5) && gpsConfidence(10) >= gpsConfidence(15) && gpsConfidence(20) >= gpsConfidence(25),
