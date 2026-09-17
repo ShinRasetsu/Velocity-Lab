@@ -1446,6 +1446,13 @@ body.diag-open #diag-toggle { opacity: 1; }
         let gpsWatchId      = null;
         let gpsRetryPending = false;
         let gpsFailCount    = 0;
+        // JS mirror of the ERR: status tier (avoids a DOM textContent read
+        // at 60 Hz in renderLoop). Set by onPositionError, cleared by any
+        // valid fix in onPositionSuccess or by the renderLoop recovery path.
+        let gpsErrorState   = false;
+        // Prev-guard for the retry-button visibility (was an unconditional
+        // style.display write every frame).
+        let retryVisible    = null;
         
 let lastRenderTime  = performance.now();
         let lastSaveTime    = 0;
@@ -1676,6 +1683,8 @@ let lastRenderTime  = performance.now();
             accelBar: null, brakeBar: null, latBar: null, peakDeg: null,
             peakLatGMetric: null, peakLonGMetric: null, glitchN: -1,
             live0_60: null, live0_100: null, live100_200: null, liveQuarter: null, live100_0: null,
+            live0_60Run: null, live0_100Run: null, live100_200Run: null, liveQuarterRun: null, live100_0Run: null,
+            gRing: null,
             mountOn: null, driftOn: null, sigCls: null,
             bestDeg: null, sigLostAud: false,
             lapLive: null, lapLast: null, lapBest: null, lapCount: null,
@@ -2072,6 +2081,8 @@ let lastRenderTime  = performance.now();
             prev.accelBar = null; prev.brakeBar = null; prev.latBar = null; prev.peakDeg = null;
             prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
             prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
+            prev.live0_60Run = null; prev.live0_100Run = null; prev.live100_200Run = null; prev.liveQuarterRun = null; prev.live100_0Run = null;
+            prev.gRing = null;
 
             timer0_60.state = T_IDLE; timer0_60.result = 0;
             timer0_100.state = T_IDLE; timer0_100.result = 0;
@@ -2741,6 +2752,9 @@ let lastRenderTime  = performance.now();
             let rawDt = 0;
             if (lastGpsTime > 0) { rawDt = (now - lastGpsTime) / 1000.0; gpsDt = Math.min(rawDt, GPS_MAX_DT_SEC); }
             lastGpsTime = now;
+            // Valid provider contact clears the ERR: tier (renderLoop mirrors
+            // this flag instead of reading dom.status.textContent per frame).
+            gpsErrorState = false;
             // GPS-clock intervals (immune to event-loop delivery jitter):
             // prefer position.timestamp deltas when sane, else arrival dt.
             // tFix is the window clock for this fix (stamp when trusted).
@@ -3350,6 +3364,7 @@ let lastRenderTime  = performance.now();
             if (code === cDenied) msg = "ERR: GPS PERMISSION DENIED";
             else if (code === cUnavail) msg = "ERR: POSITION UNAVAILABLE";
             else if (code === cTimeout) msg = "ERR: GPS TIMEOUT";
+            gpsErrorState = true;
             setDOM(dom.status, 'status', msg, "text-red-500 neon-danger");
 
             // Never tear down the watch on TIMEOUT: it only means "no fix
@@ -3368,24 +3383,38 @@ let lastRenderTime  = performance.now();
         // While a sprint machine is T_RUNNING its card ticks with live elapsed and
         // carries the blinking LIVE tag; setDOM keeps ownership of idle/done text.
         function updateLiveSprint(el, key, t, now) {
+            if (!el) return;
             const running = t.state === T_RUNNING;
-            const txt = running ? fmt3.format(Math.max(0, now - t.start) / 1000) + " s" : "";
-            const sig = txt + "|" + running;
-            if (prev[key] !== sig) {
-                prev[key] = sig;
-                if (running) el.textContent = txt;
+            // Toggle only on running transitions (txt ticks every frame while
+            // running, so folding it into the toggle signal re-toggled 60x/s).
+            const runKey = key + 'Run';
+            if (prev[runKey] !== running) {
+                prev[runKey] = running;
                 el.classList.toggle("live", running);
+            }
+            if (!running) return;
+            // toFixed: identical output to fmt3 here, ~10x cheaper than Intl
+            // on the 60 Hz tick path.
+            const txt = (Math.max(0, now - t.start) / 1000).toFixed(3) + " s";
+            if (prev[key] !== txt) {
+                prev[key] = txt;
+                el.textContent = txt;
             }
         }
 
         function updateLiveBrake() {
+            const el = dom.t100_0;
+            if (!el) return;
             const running = timer100_0.state === T_RUNNING;
-            const txt = running ? fmt1.format(Math.max(0, distanceMeters - timer100_0.startDist)) + " m" : "";
-            const sig = txt + "|" + running;
-            if (prev.live100_0 !== sig) {
-                prev.live100_0 = sig;
-                if (running) dom.t100_0.textContent = txt;
-                dom.t100_0.classList.toggle("live", running);
+            if (prev.live100_0Run !== running) {
+                prev.live100_0Run = running;
+                el.classList.toggle("live", running);
+            }
+            if (!running) return;
+            const txt = Math.max(0, distanceMeters - timer100_0.startDist).toFixed(1) + " m";
+            if (prev.live100_0 !== txt) {
+                prev.live100_0 = txt;
+                el.textContent = txt;
             }
         }
 
@@ -3478,6 +3507,8 @@ let lastRenderTime  = performance.now();
                 else if (dom.peakG) dom.peakG.textContent = "0.00 G";
                 if (dom.brakeScore) setDOM(dom.brakeScore, 'brakeScore', "0.00 G");
                 prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
+                prev.live0_60Run = null; prev.live0_100Run = null; prev.live100_200Run = null; prev.liveQuarterRun = null; prev.live100_0Run = null;
+                prev.gRing = null;
                 updateLiveSprint(dom.t0_60, 'live0_60', timer0_60, performance.now());
                 updateLiveSprint(dom.t0_100, 'live0_100', timer0_100, performance.now());
                 updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, performance.now());
@@ -3632,6 +3663,14 @@ let lastRenderTime  = performance.now();
             if (parkedSlow) { parkedSlow = false; parkedGen++; requestAnimationFrame(renderLoop); }
         }
 
+        // Prev-guarded retry-button visibility (was 4 unconditional
+        // style.display writes per frame at 60 Hz).
+        function setRetryVisible(show) {
+            if (retryVisible === show) return;
+            retryVisible = show;
+            if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = show ? 'flex' : 'none';
+        }
+
         function renderLoop() {
             const now = performance.now();
             const dt  = now - lastRenderTime;
@@ -3644,9 +3683,9 @@ let lastRenderTime  = performance.now();
             const gnssStale = (now - lastGpsTime) > GPS_STALE_MS;
             const gpsAcquired = lastGpsTime > 0;
             
-            // Don't clobber explicit error states set by onPositionError
-            const currentStatus = dom.status ? dom.status.textContent : "";
-            const isErrorState = currentStatus.indexOf("ERR:") === 0;
+            // Don't clobber explicit error states set by onPositionError.
+            // JS-mirrored flag (was a dom.status.textContent read every frame).
+            const isErrorState = gpsErrorState;
             // Usable age drives coast/decay: weak fixes feed the arrival watchdog
             // but carry no trustworthy speed, so a weak-only stream must not
             // pin the speedo at its last good value forever (looks like a cap).
@@ -3692,7 +3731,7 @@ let lastRenderTime  = performance.now();
                         if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; innovHist = []; driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; lastAcc = null; stopLatched = false; pendingMaxKmph = 0.0; peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0; lastPosTs = -1; fixWindow = []; }
                         setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
                     }
-                    if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'flex';
+                    setRetryVisible(true);
                 } else if (gpsAcquired) {
                     if (lastGpsConfidence >= GPS_QUALITY_MIN) {
                         setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
@@ -3707,18 +3746,19 @@ let lastRenderTime  = performance.now();
                             currentSpeedMs = Math.max(0, kalmanV);
                         }
                     }
-                    if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
+                    setRetryVisible(false);
                 } else {
                     setDOM(dom.status, 'status', "ACQUIRING GNSS...", "text-yellow-500 neon-warning");
-                    if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = 'none';
+                    setRetryVisible(false);
                 }
             } else {
                 if (!gnssStale && gpsAcquired) {
                     // Real fix recovers from error
                     if (lastGpsConfidence >= GPS_QUALITY_MIN) setDOM(dom.status, 'status', "GNSS FIX", "text-green-500 neon-accent");
                     else setDOM(dom.status, 'status', "GNSS WEAK", "text-yellow-500 neon-warning");
+                    gpsErrorState = false;
                 }
-                if (dom.gpsRetryBtn) dom.gpsRetryBtn.style.display = gnssStale ? 'flex' : 'none';
+                setRetryVisible(!!gnssStale);
             }
             const dtClamped = Math.min(dt, 32);
             const dtSec = dtClamped / 1000;
@@ -3828,23 +3868,28 @@ let lastRenderTime  = performance.now();
 
             // G-Force quadrant bars (max 1.5G) - set CSS custom properties on ring — 0.1% steps (was 1% stair)
             const ring = dom.gForceRing || (dom.gForceRing = document.querySelector('.g-force-ring'));
-            const frontPos = (Math.max(0, Math.min(100,  uiLongG / gMax * 100))).toFixed(1);
-            const backPos = (Math.max(0, Math.min(100, -uiLongG / gMax * 100))).toFixed(1);
-            const rightPos = (Math.max(0, Math.min(100,  uiLatG / gMax * 100))).toFixed(1);
-            const leftPos = (Math.max(0, Math.min(100, -uiLatG / gMax * 100))).toFixed(1);
-
             if (G_RING_VISIBLE && ring) {
-                ring.style.setProperty('--front-pos', frontPos + '%');
-                ring.style.setProperty('--back-pos', backPos + '%');
-                ring.style.setProperty('--right-pos', rightPos + '%');
-                ring.style.setProperty('--left-pos', leftPos + '%');
-                // legacy 8-var compat for boot animation
-                ring.style.setProperty('--fore-pos', frontPos + '%');
-                ring.style.setProperty('--fore-neg', backPos + '%');
-                ring.style.setProperty('--right-neg', leftPos + '%');
-                ring.style.setProperty('--aft-pos', frontPos + '%');
-                ring.style.setProperty('--aft-neg', backPos + '%');
-                ring.style.setProperty('--left-neg', rightPos + '%');
+                const frontPos = (Math.max(0, Math.min(100,  uiLongG / gMax * 100))).toFixed(1);
+                const backPos = (Math.max(0, Math.min(100, -uiLongG / gMax * 100))).toFixed(1);
+                const rightPos = (Math.max(0, Math.min(100,  uiLatG / gMax * 100))).toFixed(1);
+                const leftPos = (Math.max(0, Math.min(100, -uiLatG / gMax * 100))).toFixed(1);
+                // Prev-guarded: 10 setProperty/frame at 60 Hz even when parked
+                // is pure style churn. Single signature covers all 10 vars.
+                const gSig = frontPos + '|' + backPos + '|' + rightPos + '|' + leftPos;
+                if (prev.gRing !== gSig) {
+                    prev.gRing = gSig;
+                    ring.style.setProperty('--front-pos', frontPos + '%');
+                    ring.style.setProperty('--back-pos', backPos + '%');
+                    ring.style.setProperty('--right-pos', rightPos + '%');
+                    ring.style.setProperty('--left-pos', leftPos + '%');
+                    // legacy 8-var compat for boot animation
+                    ring.style.setProperty('--fore-pos', frontPos + '%');
+                    ring.style.setProperty('--fore-neg', backPos + '%');
+                    ring.style.setProperty('--right-neg', leftPos + '%');
+                    ring.style.setProperty('--aft-pos', frontPos + '%');
+                    ring.style.setProperty('--aft-neg', backPos + '%');
+                    ring.style.setProperty('--left-neg', rightPos + '%');
+                }
             }
 
             // ── Gundam HUD live telemetry ─────────────────────────────────────
@@ -4198,7 +4243,7 @@ let lastRenderTime  = performance.now();
                     if (dom.updateRate) { dom.updateRate.textContent = 'GPS 0.0 HZ'; dom.updateRate.style.filter=''; }
                     document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = '');
                     // restore prev caches so live updates repaint
-                    prev.speed=null; prev.displayMax=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null;
+                    prev.speed=null; prev.displayMax=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null; prev.gRing=null; prev.live0_60Run=null; prev.live0_100Run=null; prev.live100_200Run=null; prev.liveQuarterRun=null; prev.live100_0Run=null;
                 }, 450);
                 } // end boot self-test demo (skipped under prefers-reduced-motion)
             }, 20);
