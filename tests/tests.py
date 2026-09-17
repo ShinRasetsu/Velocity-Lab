@@ -367,7 +367,7 @@ function __resetEst() {
   pendingMaxKmph = 0;
   motionListening = false; motionListenSince = 0; lastMotionKick = 0; lastMotionCheck = 0;
   peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
-  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0; imuZeroMs = 0; latSignLastFlip = 0; purgeStamp = 0;
+  mountYawMode = 0; mountOffsetY = 0; filteredAccelY = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; mountLatSign = 1; latSignAgree = 0; latSignDis = 0; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0; imuZeroMs = 0; latSignLastFlip = 0; purgeStamp = 0; lapRunning = false; lapStartMs = 0; lapCount = 0; lastLapMs = 0; lapPrevAlong = null; lapPrevT = 0;
   __t = 10000; __lat = 40.0;
 }
 
@@ -1123,6 +1123,31 @@ for (var __tr = 0; __tr < 1305; __tr++) { __t += 100; tracePush(); }
 __ok('trace: ring capped at TRACE_MAX', traceV.length === 1200 && traceG.length === 1200, 'len=' + traceV.length);
 drawTrace();
 __ok('trace: draw safe on stub canvas', true, 'no-throw');
+// --- Redline cycle + UI prefs round-trip ---
+__resetEst();
+redlineKmh = 200; cycleRedline();
+__ok('redline: 200 -> 80', redlineKmh === 80, 'rl=' + redlineKmh);
+redlineKmh = 60; cycleRedline();
+__ok('redline: off-steps value normalizes to 200', redlineKmh === 200, 'rl=' + redlineKmh);
+__resetEst();
+unitMph = false; nightOn = false; mirrorOn = false; diagOpen = false; muted = false; redlineKmh = 120;
+saveUiPrefs();
+unitMph = true; nightOn = true; redlineKmh = 200;
+loadUiPrefs();
+__ok('prefs: round-trip restores all modes', unitMph === false && nightOn === false && redlineKmh === 120, 'mph=' + unitMph + ' rl=' + redlineKmh);
+__lsStore[UI_PREF_KEY] = '{corrupt';
+unitMph = true;
+loadUiPrefs();
+__ok('prefs: corrupt JSON keeps current values', unitMph === true, 'mph=' + unitMph);
+__resetEst();
+unitMph = false; prev.speed = 'x'; prev.distKm = 'y';
+toggleUnits();
+__ok('units: toggle invalidates display caches', unitMph === true && prev.speed === null && prev.distKm === null, 'mph=' + unitMph);
+unitMph = false;
+__resetEst();
+lastGpsTime = 0; lapLine = null;
+setLapLine();
+__ok('lap: set inert without fresh GPS', lapLine === null && lapRunning === false, 'line=' + lapLine);
 """
 
 
