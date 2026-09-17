@@ -1109,9 +1109,10 @@ onPositionSuccess(__lfix(40, -0.0002));
 onPositionSuccess(__lfix(40, -0.0001));
 onPositionSuccess(__lfix(40, 0.0002));
 __ok('lap: crossing inside min-time does not count', lapCount === 0 && lapPrevAlong > 0, 'count=' + lapCount);
-lapStartMs = __t - 25000; lapPrevAlong = -5;
+lapStartMs = __t - 25000; lapPrevAlong = -5; lapPrevT = __t;
 onPositionSuccess(__lfix(40, 0.0003));
-__ok('lap: crossing after min-time counts + sets best', lapCount === 1 && lastLapMs > 20000 && bestLapMs === lastLapMs, 'count=' + lapCount + ' last=' + lastLapMs);
+__ok('lap: crossing after min-time counts + sets best', lapCount === 1 && lastLapMs > 24000 && lastLapMs < 26000 && bestLapMs === lastLapMs, 'count=' + lapCount + ' last=' + lastLapMs);
+__ok('lap: next anchor advances to crossing (no drift)', lapStartMs > __t - 2000 && lapStartMs <= __t, 'start=' + lapStartMs + ' t=' + __t);
 // --- Session trace ring ---
 __resetEst();
 currentSpeedMs = 20;

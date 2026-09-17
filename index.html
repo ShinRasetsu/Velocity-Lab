@@ -1521,6 +1521,7 @@ let lastRenderTime  = performance.now();
         let lastLapMs = 0;
         let bestLapMs = 0;
         let lapPrevAlong = null;
+        let lapPrevT = 0;
         let traceV = [];
         let traceG = [];
         let fixWindow       = [];
@@ -1924,11 +1925,11 @@ let lastRenderTime  = performance.now();
             if (lastGpsLat === undefined || lastGpsLon === undefined) return;
             lapLine = { lat: lastGpsLat, lon: lastGpsLon, hdg: ((lastGpsHeading % 360) + 360) % 360 };
             lapRunning = true; lapStartMs = performance.now();
-            lapCount = 0; lastLapMs = 0; lapPrevAlong = null;
+            lapCount = 0; lastLapMs = 0; lapPrevAlong = null; lapPrevT = 0;
             saveLap(); renderLap(performance.now());
         }
         function resetLaps() {
-            lapRunning = false; lapCount = 0; lastLapMs = 0; lapPrevAlong = null;
+            lapRunning = false; lapCount = 0; lastLapMs = 0; lapPrevAlong = null; lapPrevT = 0;
             renderLap(performance.now());
         }
         function completeLap(now) {
@@ -2085,7 +2086,7 @@ let lastRenderTime  = performance.now();
             refreshTimerGhosts();
             refreshTimerCards();
             // New measurement: stop lap timing (line + best kept), clear the trace.
-            lapRunning = false; lapCount = 0; lastLapMs = 0; lapPrevAlong = null;
+            lapRunning = false; lapCount = 0; lastLapMs = 0; lapPrevAlong = null; lapPrevT = 0;
             renderLap(performance.now());
             traceV = []; traceG = [];
             drawTrace();
@@ -3275,13 +3276,22 @@ let lastRenderTime  = performance.now();
                 peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0;
             }
 
-            // Lap crossing: along-track sign flip across the stripe, gated on usable fix,
-            // motion, and the 20 s anti-bounce (re-crossing the line in traffic must not count).
+            // Lap crossing: along-track sign flip across the stripe, TIMESTAMPED BY INTERPOLATION
+            // (same crossFraction trick as the sprint timers): the crossing instant is fraction f of the
+            // prev→curr segment, not the late fix arrival — ~0.1 s class instead of ±1 fix interval.
+            // Gated on usable fix, motion, and the 20 s anti-bounce (traffic re-crosses don't count).
             if (lapLine && usable && currentSpeedMs > 1 && lastGpsLat !== undefined && lastGpsLon !== undefined) {
                 const a = lapAlong(c.latitude, c.longitude, lapLine);
                 if (a !== null) {
-                    if (lapPrevAlong !== null && lapPrevAlong < 0 && a >= 0 && lapRunning && (now - lapStartMs) > LAP_MIN_MS) completeLap(now);
+                    if (lapPrevAlong !== null && lapPrevAlong < 0 && a >= 0 && lapRunning) {
+                        // Single-sourced crossing idiom (same as sprint timers); null only when the
+                        // crossing lands exactly on this fix (f=1 edge) — fall back to arrival time.
+                        const f = crossFraction(lapPrevAlong, a, 0);
+                        const crossMs = (f === null) ? now : lapPrevT + f * (now - lapPrevT);
+                        if (crossMs - lapStartMs > LAP_MIN_MS) completeLap(crossMs);
+                    }
                     lapPrevAlong = a;
+                    lapPrevT = now;
                 }
             }
             // Session trace sample (per fix; draw is internally throttled by canvas size checks).
@@ -3496,7 +3506,7 @@ let lastRenderTime  = performance.now();
                 refreshTimerGhosts();
                 refreshTimerCards();
                 try { localStorage.removeItem(LAP_KEY); } catch (eL) {}
-                lapLine = null; lapRunning = false; lapCount = 0; lastLapMs = 0; bestLapMs = 0; lapPrevAlong = null;
+                lapLine = null; lapRunning = false; lapCount = 0; lastLapMs = 0; bestLapMs = 0; lapPrevAlong = null; lapPrevT = 0;
                 renderLap(performance.now());
                 traceV = []; traceG = [];
                 drawTrace();
