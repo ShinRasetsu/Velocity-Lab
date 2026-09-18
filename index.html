@@ -544,7 +544,14 @@
         /* Gauge sized from the uniform dial: 273px base / 292px large at 390×844.
            px-base × dial stays linear (rem would double-count via root). */
         .gauge-wrap { --gauge: calc(273px * var(--s-gauge)); }
-        .speed-gauge { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1), font-size 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+        /* Gauge tracks --ui instantly (transition:none): .speed-gauge is the
+           dominant measured box in updateScale — a width/font-size transition
+           leaves it mid-flight for 0.7 s after every --ui write, so settle
+           passes sample interpolated sizes, solve exact~=cur, and freeze
+           --ui wherever the flight was sampled (permanent side margins after
+           any resize/orientation flip). Boot motion stays on
+           opacity/transform/filter only (see boot block above). */
+        .speed-gauge { transition: none; }
         .gauge-wrap.large .speed-gauge { --gauge: calc(292px * var(--s-gauge)); }
 
         /* Ring signal states (class-synced per frame with the GNSS banner):
@@ -4269,6 +4276,21 @@ let lastRenderTime  = performance.now();
             let lastUiStr = '';
             let lastSideBySide = false;
             let resizeRaf = null;
+            // Trailing settle train: the leading resize/orientation solve can
+            // measure mid-flip (stale media-query grid, settling reflow) and
+            // a single transient over-measurement used to pin --ui low with
+            // nothing scheduled to ever re-run (shrink-only could never undo
+            // it). A coalesced train re-solves on settled layout; exact-fit
+            // both directions heals in one settled step (or no-ops when
+            // already exact, via the lastUiStr guard). Event-driven only —
+            // no polling, no steady-state cost.
+            let settleTimers = [];
+            function trailingSettlePass() {
+                try { for (const t of settleTimers) clearTimeout(t); } catch (eC) {}
+                settleTimers = [150, 500, 1500].map(function(ms) {
+                    return setTimeout(function(){ try { updateScale(true, false); } catch (eS) {} }, ms);
+                });
+            }
             // True content height = NATURAL leaf-height SUM + real gaps + pad,
             // guarded by min() with the legacy box span. scrollHeight can't be
             // used: it floors at viewport height (hides undershoot) and misses
@@ -4427,10 +4449,10 @@ let lastRenderTime  = performance.now();
                 const cur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || scale || 1;
                 const contentH = measureContentH();
                 // Exact solve both directions so free space is absorbed by
-                // growing, never gaps — but grow ONLY on settled layout
-                // (boot exact + orientation passes). Every pass shrinks on
-                // overflow (never allowGrow-gated): a missing shrink is an
-                // overlapping, overflowing HUD.
+                // growing, never gaps. Every pass shrinks on overflow (a
+                // missing shrink is an overlapping, overflowing HUD) and
+                // grows back up to the exact fit when content fits (a
+                // transient over-measurement must be undoable — see below).
                 // Cockpit (side-by-side columns) is EXEMPT from box-measured
                 // fit: its boxes stretch to fill by construction, so any
                 // measured solve ratchets (each shrink re-stretches, ad
@@ -4439,16 +4461,20 @@ let lastRenderTime  = performance.now();
                 // vScroll=0 for ui 0.2–2.5), so size by width-driven min-ratio
                 // (phone-consistent proportions) and skip the content branch.
                 if (!lastSideBySide && cur > 0 && isFinite(contentH) && contentH > 0) {
-                    if (contentH > vh || allowGrow) {
-                        scale = Math.min(scale, cur * (vh - 20) / contentH);
-                    }
-                    // Shrink-only passes must never exceed the live scale:
-                    // scale re-seeds to viewport min() every pass, so without
-                    // this clamp a fitting pass snaps --ui back up to min()
-                    // and leaves the HUD overflowing with no passes left.
-                    if (!allowGrow) {
-                        scale = Math.min(scale, cur);
-                    }
+                    // Exact solve BOTH directions (shrink when overflowing,
+                    // grow back when fitting). Shrink-only could never undo a
+                    // single transient over-measurement (orientation-flip
+                    // settling, late font swap): --ui ratcheted down for the
+                    // rest of the session and the shell sat in dead side
+                    // margins (e.g. 390px wide stuck at ui 0.70 = ~45px void
+                    // each side). Growing only up to the exact fit cannot
+                    // overflow (lands at ~= vh-20 by construction, inside the
+                    // 20px headroom for non-scaling px bits); any residual
+                    // overflow just shrinks back on its ResizeObserver
+                    // wakeup. Convergence is safe: passes are event-driven,
+                    // writes are lastUiStr-guarded, and the fixed point
+                    // (contentH ~= vh-20) recomputes to itself.
+                    scale = Math.min(scale, cur * (vh - 20) / contentH);
                 }
                 // Fit-always: no 0.65-style legibility floor — any screen fits
                 // with zero scroll. 0.2 is an anti-degenerate guard only.
@@ -4466,6 +4492,7 @@ let lastRenderTime  = performance.now();
             function debouncedUpdateScale() {
                 if (resizeRaf) cancelAnimationFrame(resizeRaf);
                 resizeRaf = requestAnimationFrame(function(){ updateScale(false, false); });
+                trailingSettlePass();
             }
             // Final gauge geometry BEFORE the boot measure: .large is a pure
             // size switch (no transition on --gauge), so applying it here —
@@ -4474,14 +4501,14 @@ let lastRenderTime  = performance.now();
             // (Applying it on window.load instead left every boot measuring
             // small, then growing mid-boot: overflow until a later pass.)
             try { const gw0 = document.querySelector('.gauge-wrap'); if (gw0) gw0.classList.add('large'); } catch (eL) {}
-            // Boot runs EXACT (grow allowed) synchronously during parse —
-            // usually before first paint (progressive rendering can still
-            // paint mid-parse; the reveal gate above covers that race).
-            // Settle passes are SHRINK-ONLY: boot already measured final
-            // geometry (.large applied just above), so post-paint scale is
-            // monotonically non-increasing — later passes can only fix
-            // late-font overflow, never grow. Late fonts that shrink content
-            // leave harmless slack, never scroll.
+            // Boot runs EXACT synchronously during parse — usually before
+            // first paint (progressive rendering can still paint mid-parse;
+            // the reveal gate above covers that race). Settle passes re-solve
+            // exact both directions: boot already measured final geometry
+            // (.large applied just above), so post-paint passes only move on
+            // real change — later passes fix late-font overflow by shrinking
+            // and heal transient over-shrink by growing back to the fit.
+            // Late fonts that shrink content gain presence, never scroll.
             // Backstop FIRST: if the solve below ever threw, both the reveal
             // and this timer would be skipped and the shell would stay hidden
             // forever. Registration itself cannot throw.
@@ -4489,7 +4516,7 @@ let lastRenderTime  = performance.now();
             updateScale(true, true);
             try { document.documentElement.classList.add('scaled'); } catch (eS) {}
             window.addEventListener('resize', debouncedUpdateScale, { passive: true });
-            window.addEventListener('orientationchange', () => setTimeout(function(){ updateScale(true, true); }, 100));
+            window.addEventListener('orientationchange', () => { setTimeout(function(){ updateScale(true, true); }, 100); trailingSettlePass(); });
             setTimeout(function(){ updateScale(true, false); }, 900);
             if (document.fonts && document.fonts.ready) {
                 try { document.fonts.ready.then(function(){ updateScale(true, false); }); } catch (e5) {}
@@ -4498,9 +4525,11 @@ let lastRenderTime  = performance.now();
             // Self-healing fit: boot passes can't cover every late geometry
             // change (webfont swap after a cache-busting purge, URL-bar
             // show/hide on pull-to-refresh, dynamic content). Any of those
-            // pushing content past the viewport is shrunk back next frame.
-            // Strictly shrink-only + lastUiStr-guarded: monotonic, no loops,
-            // no CLS growth, battery-free (event-driven, zero polling).
+            // pushing content past the viewport is shrunk back next frame;
+            // transient over-shrinks grow back on the next settled pass.
+            // Exact-fit + lastUiStr-guarded: converges, no loops, no polling
+            // (event-driven, battery-free). RO width-feedback self-pumps to
+            // the fixed point then goes quiet (recomputed uiStr identical).
             let fitRaf = 0;
             function requestFit() {
                 if (fitRaf) return;

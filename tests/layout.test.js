@@ -62,6 +62,19 @@ if (!/orientation:\s*landscape[^}]*min-width:\s*600px/.test(text) && !/min-width
   ok = fail("index.html: landscape cockpit block missing (wide screens fall back to narrow column)") && false;
 } else pass("landscape cockpit present");
 
+// The gauge is the dominant updateScale measured box: a width transition on
+// it leaves settle passes sampling mid-flight sizes, which freezes --ui low
+// (permanent side margins after any resize/orientation flip). Only
+// transition:none (or no transition at all) is allowed there.
+const gaugeBlocks = style.match(/\.speed-gauge\s*\{[^}]*\}/g) || [];
+let gaugeTransitionBad = false;
+for (const b of gaugeBlocks) {
+  if (/transition\s*:[^;]*width/.test(b) && !/transition\s*:\s*none/.test(b)) gaugeTransitionBad = true;
+}
+if (gaugeTransitionBad) {
+  ok = fail("index.html: .speed-gauge must not transition width (measured box must track --ui instantly)") && false;
+} else pass("gauge tracks --ui instantly (no width transition)");
+
 // --- Live checks (optional) ---
 let playwright = null;
 try {
@@ -150,6 +163,27 @@ async function live() {
       }
       if (m.vScroll > 40) console.log("NOTE " + tag + ": vScroll " + m.vScroll + "px (floor/readability tradeoff)");
       await ctx.close();
+    }
+    // Resize recovery: landscape -> portrait must converge back to the
+    // fresh-load --ui, not pin low with side margins. (A width transition on
+    // the measured gauge box used to freeze mid-flight samples into --ui.)
+    {
+      const ctx2 = await browser.newContext({ viewport: { width: 929, height: 861 } });
+      const page2 = await ctx2.newPage();
+      await page2.goto("http://127.0.0.1:" + port + "/index.html", { waitUntil: "load", timeout: 30000 });
+      await page2.waitForTimeout(3500);
+      await page2.setViewportSize({ width: 390, height: 844 });
+      await page2.waitForTimeout(2600);
+      const r = await page2.evaluate(() => ({
+        ui: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ui")) || 0,
+        vScroll: document.documentElement.scrollHeight - window.innerHeight,
+        hOver: document.documentElement.scrollWidth - window.innerWidth,
+        margin: (window.innerWidth - document.querySelector(".dashboard-shell").getBoundingClientRect().width) / 2
+      }));
+      if (!(r.ui >= 0.80 && r.vScroll <= 0 && r.hOver <= 0 && r.margin <= 20)) {
+        ok = fail("resize 929x861->390x844: ui " + r.ui.toFixed(4) + " margin " + r.margin.toFixed(1) + "px (must recover to ~0.88, margins <= 20px)") && false;
+      } else pass("resize 929x861->390x844: ui " + r.ui.toFixed(4) + " margin " + r.margin.toFixed(1) + "px");
+      await ctx2.close();
     }
   } finally {
     await browser.close();
