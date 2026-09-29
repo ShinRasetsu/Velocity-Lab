@@ -20,11 +20,50 @@
       "type": "local",
       "command": ["npx", "-y", "chrome-devtools-mcp"],
       "enabled": true
+    },
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "enabled": true
+    },
+    "w3c": {
+      "type": "local",
+      "command": ["npx", "-y", "@shuji-bonji/w3c-mcp"],
+      "enabled": true
+    },
+    "lighthouse": {
+      "type": "local",
+      "command": ["npx", "-y", "@danielsogl/lighthouse-mcp@latest"],
+      "enabled": true
+    },
+    "osrm": {
+      "type": "local",
+      "command": ["npx", "-y", "@pipeworx/mcp-osrm"],
+      "enabled": true
+    },
+    "openstreetmap": {
+      "type": "local",
+      "command": ["npx", "-y", "@cyanheads/openstreetmap-mcp-server@latest"],
+      "enabled": true,
+      "environment": {
+        "MCP_TRANSPORT_TYPE": "stdio",
+        "MCP_LOG_LEVEL": "info"
+      }
+    },
+    "google-maps": {
+      "type": "local",
+      "command": ["npx", "-y", "google-maps-mcp-server"],
+      "enabled": true
+    },
+    "geoapify": {
+      "type": "local",
+      "command": ["npx", "-y", "@pipeworx/mcp-geoapify"],
+      "enabled": true
     }
   },
   "agent": {
     "perfection-auditor": {
-      "description": "Perfection auditor for Velocity-Lab HUD — catches stair-step, jank, and obvious UX flaws before they ship",
+      "description": "Perfection auditor for Velocity-Lab HUD â€” catches stair-step, jank, and obvious UX flaws before they ship",
       "mode": "subagent",
       "permission": {
         "edit": "deny"

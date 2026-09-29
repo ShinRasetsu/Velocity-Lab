@@ -3,6 +3,22 @@
 ## Project
 Single-file HUD: `index.html` (telemetry), `sw.js`, `manifest.json`. No build step. GPS + IMU fusion, 60fps `renderLoop`.
 
+## MCP Stack — Source of Truth (all sessions, never remove)
+
+Single source of truth for the MCP tool stack. Config: `opencode.json` `mcp` block, mirrored in `~/.config/opencode/opencode.jsonc` — keep both configs + this table in sync on any change. Never remove, rename, or disable these servers.
+
+| Job | Server key (package) | Why | Needs |
+| --- | --- | --- | --- |
+| Live library docs | `context7` (`@upstash/context7-mcp`) | MapLibre, Leaflet, vis.gl, geomagnetism — stops hallucinated APIs | `CONTEXT7_API_KEY` env optional |
+| Specs | `w3c` (`@shuji-bonji/w3c-mcp`) | Service Worker, Web App Manifest, Sensor / Device Orientation — W3C/WHATWG/IETF specs, WebIDL, `get_pwa_specs` | — |
+| PWA audit | `lighthouse` (`@danielsogl/lighthouse-mcp`) | Installability, HTTPS, SW — not sensors | Chrome; `CHROME_PATH` if nonstandard |
+| Device QA | `chrome-devtools` (`chrome-devtools-mcp`) | GPS emulation, sensors, Permissions-Policy | — |
+| Tiles / routing | `osrm` (`@pipeworx/mcp-osrm`) + `openstreetmap` (`@cyanheads/openstreetmap-mcp-server`) | OSRM demo routing, Nominatim geocode + Overpass — Backend only. Do not put compass on a server | — |
+| Places (optional) | `google-maps` (`google-maps-mcp-server`) + `geoapify` (`@pipeworx/mcp-geoapify`) | Geocode/places. Heading still local | `GOOGLE_MAPS_API_KEY` env; Geoapify key passed per call as `_apiKey` |
+
+- All `type: "local"` stdio via `npx -y`. `playwright` (Gate 8) and `github` in `opencode.json` stay too.
+- Heading/compass/fusion is always local (`index.html`) — these MCPs are reference/QA/backend only, never HUD runtime deps.
+
 ## Perfection Bar
 Every live value at 60Hz, never GPS-rate stairs. See `.opencode/skills/perfection-audit/SKILL.md` 9 gates (project-matched, Gate 8 live Playwright, Gate 9 optimization advisory).
 

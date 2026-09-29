@@ -38,6 +38,13 @@ if (text.includes("(distanceMeters / 1000).toFixed") && !text.includes("displayD
   ok = fail("index.html: distance uses raw distanceMeters stair — must use displayDistanceM interpolation") && false;
 } else pass("distance interpolator present");
 
+// 60Hz live paths must never read raw GPS-rate distance (updateLiveBrake
+// once ticked raw distanceMeters: the 100-0 braking counter jumped ~28 m
+// once per fix at 100 km/h/1Hz instead of moving every frame).
+if (/(?:distanceMeters)\s*-\s*timer100_0\.startDist/.test(script)) {
+  ok = fail("index.html: live 100-0 counter reads raw distanceMeters — must interpolate via displayDistanceM") && false;
+} else pass("live brake counter interpolates");
+
 if (text.includes(".speed-bar-fill") && /transition:\s*width 75ms/.test(text)) {
   ok = fail("index.html: speed-bar transition 75ms fights RAF — must be transition:none") && false;
 } else pass("speed-bar transition gate");
