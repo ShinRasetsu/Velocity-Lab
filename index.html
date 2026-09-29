@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
+    <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#050505">
@@ -28,6 +29,7 @@
         .items-center { align-items: center; }
         .justify-between { justify-content: space-between; }
         .uppercase { text-transform: uppercase; }
+        .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
         .overflow-hidden { overflow: hidden; }
         .gap-1 { gap: 0.25rem; }
         .gap-1\.5 { gap: 0.375rem; }
@@ -179,7 +181,11 @@
         /* amber section tag, e.g. "計測中 // LIVE RUN" */
         .t-lbl {
             display: flex; align-items: center; gap: 0.4rem;
-            flex-wrap: wrap;
+            /* nowrap+clip, never wrap: a borderline label reflowing 1->2
+               lines late (GPS-error width wobble) grows the card +16px and
+               shifts everything below the gauge absorber (live CLS 0.069).
+               Labels are short; clipping beats reflowing the HUD. */
+            flex-wrap: nowrap; overflow: hidden; min-width: 0;
             font-size: 0.55rem; font-weight: 800; letter-spacing: 0.18em;
             text-transform: uppercase; color: var(--amber);
         }
@@ -276,12 +282,12 @@
             align-items: center;
             gap: 0.3rem;
         }
-        .cmd-status-left { display: flex; align-items: center; gap: 0.35rem; }
+        .cmd-status-left { display: flex; align-items: center; gap: 0.35rem; min-width: 0; overflow: hidden; }
         #status-indicator {
             font-size: 0.6rem; font-weight: 800; letter-spacing: 0.06em;
             white-space: nowrap;
         }
-        .cmd-status-sub { display: flex; gap: 0.35rem; font-size: 0.4rem; font-weight: 700; letter-spacing: 0.05em; color: #6b7280; text-transform: uppercase; }
+        .cmd-status-sub { display: flex; gap: 0.35rem; font-size: 0.4rem; font-weight: 700; letter-spacing: 0.05em; color: #6b7280; text-transform: uppercase; white-space: nowrap; }
 
         .cmd-sys { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 0.4rem; font-size: 0.48rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
         .cmd-sys span { display: inline-flex; align-items: center; gap: 0.25rem; }
@@ -1102,7 +1108,7 @@ body.diag-open #diag-toggle { opacity: 1; }
 <div class="dashboard-shell">
 
 <!-- iOS SENSOR GATE -->
-    <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true">
+    <div id="ios-gate" style="display:none;" role="dialog" aria-modal="true" aria-label="Motion sensor access required for IMU fusion telemetry">
         <span class="gate-title clr-green neon-accent">VELOCITY-LAB</span>
         <span class="gate-sub">モーションセンサー起動必須 // MOTION SENSOR ACCESS REQUIRED FOR IMU FUSION TELEMETRY.</span>
         <span class="gate-sub">GRANT → live needle + launch response // GRANT で即応答・G計測。GPS ONLY → ~1–2 s lag, no G-meter.</span>
@@ -1134,15 +1140,15 @@ body.diag-open #diag-toggle { opacity: 1; }
                 <span id="status-indicator" class="text-yellow-500 neon-warning">[ ACQUIRING GNSS ]</span>
                 <span class="cmd-status-sub">
                     <span id="accuracy-display">ACC -- M</span>
-                    <span id="fusion-display" class="text-gray-600" tabindex="0" role="button" aria-label="Enable motion fusion">FUSION: GPS ONLY</span>
+                    <span id="fusion-display" class="text-gray-600" tabindex="0" role="button">FUSION: GPS ONLY</span>
                 </span>
             </div>
         <div class="cmd-sys" aria-live="polite">
             <button id="mirror-btn" class="action-btn gap-1 neon-purple" onclick="toggleMirror()" aria-label="Mirror HUD for windshield" title="Mirror HUD">🪞</button>
             <button id="night-btn" class="action-btn gap-1 neon-purple" onclick="toggleNight()" aria-label="Night mode" title="Night mode">🌙</button>
-            <button id="units-btn" class="action-btn gap-1 neon-blue" onclick="toggleUnits()" aria-label="Toggle km h mph" title="Units">KM/H</button>
+            <button id="units-btn" class="action-btn gap-1 neon-blue" onclick="toggleUnits()" aria-label="Switch units: KM/H or MPH" title="Units">KM/H</button>
             <button id="diag-toggle" class="action-btn gap-1 neon-blue" onclick="toggleDiag()" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
-            <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS">⟳ GPS</button>
+            <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS"><span aria-hidden="true">⟳</span> GPS</button>
             <button id="export-btn" class="action-btn gap-1.5 neon-blue" onclick="exportRun()" aria-label="Export run CSV" title="Download run summary CSV">CSV</button>
             <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
         </div>
@@ -1154,7 +1160,7 @@ body.diag-open #diag-toggle { opacity: 1; }
                 <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
                 <button id="redline-btn" class="action-btn gap-1 neon-orange" onclick="cycleRedline()" aria-label="Overspeed warning" title="Overspeed warning">RL OFF</button>
                 <button id="mute-btn" class="action-btn gap-1 neon-blue" onclick="toggleMute()" aria-label="Sound on off" title="Sound">🔔</button>
-                <div id="app-version" class="version-tag">VER 1.5.6 — Velocity-Lab <span id="scale-debug"></span></div>
+                <div id="app-version" class="version-tag">VER 1.5.7 — Velocity-Lab <span id="scale-debug"></span></div>
         </div>
     </header>
 
@@ -1164,6 +1170,7 @@ body.diag-open #diag-toggle { opacity: 1; }
 
     <!-- MAIN STAGE -->
     <main class="stage" aria-label="Dashboard">
+        <h1 class="sr-only">Velocity-Lab Telemetry</h1>
         <aside class="side-col" aria-label="Session data">
             <div class="side-cell">
                 <span class="side-lbl">走行距離 // DIST</span>
@@ -1259,7 +1266,7 @@ body.diag-open #diag-toggle { opacity: 1; }
                 <span>BEST <span id="lap-best" class="lcd-text">--:--.-</span></span>
             </div>
             <div class="lap-btns">
-                <button id="lap-set-btn" class="action-btn gap-1 neon-blue" onclick="setLapLine()" aria-label="Set start finish line">SET LINE</button>
+                <button id="lap-set-btn" class="action-btn gap-1 neon-blue" onclick="setLapLine()" aria-label="Set line: mark lap start/finish">SET LINE</button>
                 <button id="lap-reset-btn" class="action-btn gap-1 neon-blue" onclick="resetLaps()" aria-label="Reset laps">RESET</button>
             </div>
         </div>
@@ -3368,7 +3375,7 @@ let lastRenderTime  = performance.now();
             const hasExplicitCode = !!(err && typeof err === 'object' && 'code' in err && typeof err.code === 'number');
             const code = hasExplicitCode ? err.code : -1;
             let msg = "ERR: NO SIGNAL";
-            if (code === cDenied) msg = "ERR: GPS PERMISSION DENIED";
+            if (code === cDenied) msg = "ERR: GPS DENIED";
             else if (code === cUnavail) msg = "ERR: POSITION UNAVAILABLE";
             else if (code === cTimeout) msg = "ERR: GPS TIMEOUT";
             gpsErrorState = true;
@@ -3418,7 +3425,7 @@ let lastRenderTime  = performance.now();
                 el.classList.toggle("live", running);
             }
             if (!running) return;
-            const txt = Math.max(0, distanceMeters - timer100_0.startDist).toFixed(1) + " m";
+            const txt = Math.max(0, displayDistanceM - timer100_0.startDist).toFixed(1) + " m";
             if (prev.live100_0 !== txt) {
                 prev.live100_0 = txt;
                 el.textContent = txt;
@@ -4123,7 +4130,7 @@ let lastRenderTime  = performance.now();
             try {
                 const perm = await navigator.permissions.query({ name: 'geolocation' });
                 if (perm.state === 'denied') {
-                    setDOM(dom.status, 'status', "ERR: GPS PERMISSION DENIED — Enable in Settings", "text-red-500 neon-danger");
+                    setDOM(dom.status, 'status', "ERR: GPS DENIED — ENABLE IN SETTINGS", "text-red-500 neon-danger");
                 }
             } catch { /* permissions API not supported */ }
             
@@ -4274,6 +4281,17 @@ let lastRenderTime  = performance.now();
             // rendering can paint mid-parse — the reveal gate covers that).
             let lastScaleW = 0, lastScaleH = 0;
             let lastUiStr = '';
+            // Deadband state: the exact-fit fixed point sits on a 2-cycle
+            // (contentH quantizes as text wraps at the solve point — the
+            // solver alternates e.g. 0.8794<->0.8789 and the RO width
+            // feedback re-writes --ui at 60 Hz for seconds; live-measured
+            // ~100 redundant whole-document relayouts in the first 3.6 s).
+            let lastWrittenScale = 0, lastWrittenVw = 0, lastWrittenVh = 0;
+            // Two-tick growth candidate: a cycle alternates values and never
+            // re-computes the same growth twice in a row, so an unconfirmed
+            // candidate dies; a real content-driven growth keeps recomputing
+            // the same value across events and confirms.
+            let pendingGrowStr = '';
             let lastSideBySide = false;
             let resizeRaf = null;
             // Trailing settle train: the leading resize/orientation solve can
@@ -4480,9 +4498,34 @@ let lastRenderTime  = performance.now();
                 // with zero scroll. 0.2 is an anti-degenerate guard only.
                 scale = Math.max(0.2, Math.min(2.5, scale));
                 const uiStr = scale.toFixed(4);
+                // Anti-flap deadband v2: exact-fit sits on limit cycles
+                // (contentH quantizes as text wraps at the solve point)
+                // and the RO width feedback re-writes --ui at ~60 Hz —
+                // live-measured 121 writes/2s at 390x844 with real font
+                // metrics, cycle deltas 0.26-0.65% ALL above any fixed
+                // threshold, so a plain deadband cannot catch them.
+                // Shrinks ALWAYS commit (fit-always; boot descent must
+                // not stall). Growth commits only on a real viewport move,
+                // a large jump (>= 1% — genuine content changes like the
+                // diag panel), or TWO-TICK CONFIRMATION: the candidate
+                // string must recur on a later recompute. A cycle
+                // alternates and never confirms — the pump quiesces on
+                // the candidate pass (no write, no RO refire). The boot
+                // loop's lastUiStr break still fires: descent writes, the
+                // terminal candidate parks, lastUiStr stops moving.
                 if (uiStr !== lastUiStr) {
-                    lastUiStr = uiStr;
-                    document.documentElement.style.setProperty('--ui', uiStr);
+                    const grow = scale > lastWrittenScale;
+                    const viewportMove = vw !== lastWrittenVw || vh !== lastWrittenVh;
+                    if (scale < lastWrittenScale || viewportMove ||
+                        (grow && (Math.abs(scale - lastWrittenScale) >= 0.01 || uiStr === pendingGrowStr))) {
+                        lastUiStr = uiStr;
+                        lastWrittenScale = scale;
+                        lastWrittenVw = vw; lastWrittenVh = vh;
+                        pendingGrowStr = '';
+                        document.documentElement.style.setProperty('--ui', uiStr);
+                    } else if (grow) {
+                        pendingGrowStr = uiStr;
+                    }
                 }
                 try {
                     const dbg = document.getElementById('scale-debug');
@@ -4514,6 +4557,27 @@ let lastRenderTime  = performance.now();
             // forever. Registration itself cannot throw.
             setTimeout(function(){ try { document.documentElement.classList.add('scaled'); } catch (eS2) {} }, 3000);
             updateScale(true, true);
+            // Boot convergence: the first solve measures at --ui:1, but text
+            // wraps nonlinearly near the solve point (a label that fits on one
+            // line at 1.0 wraps at 0.9), so the settled --ui lands a few %
+            // BELOW the first estimate. Revealing at the estimate means a
+            // settle pass later rescales the whole shell after paint — the
+            // live-measured CLS 0.114 cluster + a visible "HUD shrinks" pop.
+            // Re-solve synchronously pre-paint until the fixed point
+            // converges (descent takes ~8-10 passes across the wrap
+            // trip-wires; hard cap 12), so first paint IS final and later
+            // settle passes find lastUiStr stable and no-op. The
+            // deadband blocks the terminal 2-cycle's up-half, so the
+            // loop's lastUiStr break still terminates it exactly at the
+            // fixed point. Any residual is healed by the existing
+            // event-driven passes.
+            try {
+                for (let i = 0; i < 12; i++) {
+                    const uiBefore = lastUiStr;
+                    updateScale(true, false);
+                    if (lastUiStr === uiBefore) break;
+                }
+            } catch (eConv) {}
             try { document.documentElement.classList.add('scaled'); } catch (eS) {}
             window.addEventListener('resize', debouncedUpdateScale, { passive: true });
             window.addEventListener('orientationchange', () => { setTimeout(function(){ updateScale(true, true); }, 100); trailingSettlePass(); });
