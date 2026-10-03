@@ -1072,14 +1072,9 @@
 body.mirror .dashboard-shell { transform: scaleX(-1); }
 /* The iOS permission gate must stay readable when mirrored (it is inside the shell). */
 body.mirror #ios-gate { transform: scaleX(-1); }
-/* Night mode: dim chrome, keep speed + warnings bright. Layout untouched (colors/opacity only). */
-body.night { --line: rgba(148,163,184,0.10); }
-body.night .panel { background: linear-gradient(180deg, rgba(4,6,10,0.94), rgba(1,2,4,0.96)); }
-body.night .neon-accent, body.night .neon-warning, body.night .neon-blue, body.night .neon-purple, body.night .neon-orange { text-shadow: 0 0 4px currentColor; }
-body.night .spd-green, body.night .spd-yellow { text-shadow: 0 0 4px currentColor; }
-body.night .scanlines { opacity: 0.06; }
-body.night .gauge-ticks, body.night .hazard-strip { opacity: 0.5; }
-body.night .timer-best, body.night .metric-caption, body.night .side-lbl, body.night .t-lbl { opacity: 0.5; }
+/* Brightness/dimming is the OS's job (Android adaptive brightness + system
+   dark mode) — the app never dims or boosts its own output. Only momentary
+   alert blinks (warnings) modulate brightness. */
 /* Timer cards rest dim; the armed/running one goes full bright. Dimmed on the
    CHILDREN, not the card: hud-boot-card holds opacity:1 fill on .metric-card
    and would override a card-level dim. */
@@ -1145,7 +1140,6 @@ body.diag-open #diag-toggle { opacity: 1; }
             </div>
         <div class="cmd-sys" aria-live="polite">
             <button id="mirror-btn" class="action-btn gap-1 neon-purple" onclick="toggleMirror()" aria-label="Mirror HUD for windshield" title="Mirror HUD">🪞</button>
-            <button id="night-btn" class="action-btn gap-1 neon-purple" onclick="toggleNight()" aria-label="Night mode" title="Night mode">🌙</button>
             <button id="units-btn" class="action-btn gap-1 neon-blue" onclick="toggleUnits()" aria-label="Switch units: KM/H or MPH" title="Units">KM/H</button>
             <button id="diag-toggle" class="action-btn gap-1 neon-blue" onclick="toggleDiag()" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
             <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS"><span aria-hidden="true">⟳</span> GPS</button>
@@ -1529,7 +1523,6 @@ let lastRenderTime  = performance.now();
         const LAP_MPD = 6371000 * Math.PI / 180;
         const TRACE_MAX = 1200;
         let unitMph = false;
-        let nightOn = false;
         let mirrorOn = false;
         let diagOpen = false;
         let muted = false;
@@ -1635,8 +1628,7 @@ let lastRenderTime  = performance.now();
             speedGaugeBtn: document.getElementById('speed-gauge-btn'),
             gpsRetryBtn:   document.getElementById('gps-retry-btn'),
             mirrorBtn:    document.getElementById('mirror-btn'),
-            nightBtn:     document.getElementById('night-btn'),
-            unitsBtn:     document.getElementById('units-btn'),
+            unitsBtn:    document.getElementById('units-btn'),
             diagToggle:   document.getElementById('diag-toggle'),
             muteBtn:      document.getElementById('mute-btn'),
             redlineBtn:   document.getElementById('redline-btn'),
@@ -1848,22 +1840,19 @@ let lastRenderTime  = performance.now();
             try { o = JSON.parse(localStorage.getItem(UI_PREF_KEY) || '{}'); } catch (e) {}
             if (!o || typeof o !== 'object') return;
             unitMph = o.mph === true;
-            nightOn = o.night === true;
             mirrorOn = o.mirror === true;
             diagOpen = o.diag === true;
             muted = o.mute === true;
             if (typeof o.rl === 'number' && isFinite(o.rl) && o.rl >= 60 && o.rl <= 200) redlineKmh = o.rl;
         }
         function saveUiPrefs() {
-            try { localStorage.setItem(UI_PREF_KEY, JSON.stringify({ mph: unitMph, night: nightOn, mirror: mirrorOn, diag: diagOpen, mute: muted, rl: redlineKmh })); } catch (e) {}
+            try { localStorage.setItem(UI_PREF_KEY, JSON.stringify({ mph: unitMph, mirror: mirrorOn, diag: diagOpen, mute: muted, rl: redlineKmh })); } catch (e) {}
         }
         function applyUiModes() {
             try {
-                document.body.classList.toggle('night', !!nightOn);
                 document.body.classList.toggle('mirror', !!mirrorOn);
                 document.body.classList.toggle('diag-open', !!diagOpen);
                 if (dom.unitsBtn) dom.unitsBtn.textContent = unitMph ? "MPH" : "KM/H";
-                if (dom.nightBtn) dom.nightBtn.textContent = nightOn ? "☀️" : "🌙";
                 if (dom.diagToggle) dom.diagToggle.textContent = diagOpen ? "DIAG ▾" : "DIAG ▸";
                 if (dom.muteBtn) dom.muteBtn.textContent = muted ? "🔇" : "🔔";
                 if (dom.redlineBtn) dom.redlineBtn.textContent = redlineKmh >= BAR_MAX_SPEED ? "RL OFF" : "RL " + Math.round(spdU(redlineKmh));
@@ -1872,7 +1861,6 @@ let lastRenderTime  = performance.now();
             } catch (e) {}
         }
         function toggleMirror() { mirrorOn = !mirrorOn; saveUiPrefs(); applyUiModes(); }
-        function toggleNight() { nightOn = !nightOn; saveUiPrefs(); applyUiModes(); }
         function toggleUnits() {
             unitMph = !unitMph; saveUiPrefs(); applyUiModes();
             prev.speed = null; prev.displayMax = null; prev.speedBar = null; prev.ringDeg = null; prev.distKm = null; prev.peakDeg = null;
@@ -1886,7 +1874,6 @@ let lastRenderTime  = performance.now();
             prev.speed = null;
         }
         window.toggleMirror = toggleMirror;
-        window.toggleNight = toggleNight;
         window.toggleUnits = toggleUnits;
         window.toggleDiag = toggleDiag;
         window.toggleMute = toggleMute;
@@ -4247,9 +4234,9 @@ let lastRenderTime  = performance.now();
                     [dom.accuracy, 'ACC 88.8 m'],
                     [dom.updateRate, 'GPS 88.8 HZ'],
                 ];
-                lcdTest.forEach(([el, v]) => { if (el) { el.textContent = v; el.style.filter = 'brightness(1.3)'; } });
-                // light up all metric/tactical labels briefly
-                document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = 'brightness(1.6)');
+                // LCD self-test: segment text only — no brightness filter, the
+                // OS owns screen brightness (no app-side boost/dim).
+                lcdTest.forEach(([el, v]) => { if (el) { el.textContent = v; } });
                 setTimeout(() => {
                     // restore to live 0 state — fast self-test
                     if (dom.distDisplay) { dom.distDisplay.textContent = fmt2.format(distanceMeters/1000) + ' KM'; dom.distDisplay.style.filter=''; }
