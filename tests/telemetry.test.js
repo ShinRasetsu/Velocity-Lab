@@ -41,13 +41,44 @@ function __resetTimers(){ timer0_60.state=T_IDLE; timer0_60.start=0; timer0_60.r
 __resetTimers(); updateTimers(0,0,1000); __ok('t0_100: stopped keeps IDLE', timer0_100.state===T_IDLE && timer0_100.result===0, 'state='+timer0_100.state);
 updateTimers(5,2,2000); __ok('t0_100: launch arms RUNNING with interpolated start timestamp', timer0_100.state===T_RUNNING && nearly(timer0_100.start,1300,1e-6), 'state='+timer0_100.state+' start='+timer0_100.start);
 var __expFinish = 2000 + (14500-2000)*(100-5)/(104-5); updateTimers(104,100,14500); __ok('t0_100: cross threshold -> DONE with interpolated elapsed', timer0_100.state===T_DONE && nearly(timer0_100.result,__expFinish-1300,1e-6), 'state='+timer0_100.state+' result='+timer0_100.result+' expected='+(__expFinish-1300));
-__resetTimers(); updateTimers(5,2,1000); updateTimers(0,5,5000); __ok('t0_100: abort on stop returns IDLE without writing result', timer0_100.state===T_IDLE && timer0_100.result===0, 'state='+timer0_100.state+' result='+timer0_100.result);
-__resetTimers(); updateTimers(5,1,1000); updateTimers(105,80,7000); updateTimers(0,82,15000); __ok('t0_100: completed result is preserved across a subsequent stop (DONE retained)', timer0_100.state===T_DONE && nearly(timer0_100.result,5700,1e-6), 'state='+timer0_100.state+' result='+timer0_100.result);
-__ok('t100_200 vs t0_100 re-arm asymmetry documented', true, '100-200 resets DONE->IDLE on stop; 0-60/0-100 retain DONE until RESET');
+__resetTimers(); updateTimers(0,0,1000); updateTimers(5,2,2000); updateTimers(0,5,5000); __ok('t0_100: abort on stop returns IDLE without writing result', timer0_100.state===T_IDLE && timer0_100.result===0, 'state='+timer0_100.state+' result='+timer0_100.result);
+__resetTimers(); updateTimers(0,0,1000); updateTimers(30,20,2000); updateTimers(110,400,7000); __ok('t0_100: launch->cross -> DONE with interpolated elapsed', timer0_100.state===T_DONE && nearly(timer0_100.result,5325,1e-6), 'state='+timer0_100.state+' result='+timer0_100.result);
+updateTimers(0,410,8000); __ok('t0_100: stop after DONE re-opens the card (IDLE) but keeps the value', timer0_100.state===T_IDLE && nearly(timer0_100.result,5325,1e-6), 'state='+timer0_100.state+' result='+timer0_100.result);
+updateTimers(25,415,9000); __ok('t0_100: relaunch after DONE re-arms', timer0_100.state===T_RUNNING, 'state='+timer0_100.state);
+updateTimers(120,600,14000); __ok('t0_100: second run measures fresh (stale value overwritten)', timer0_100.state===T_DONE && !nearly(timer0_100.result,5325,1e-6) && timer0_100.result>0, 'state='+timer0_100.state+' result='+timer0_100.result);
+__ok('t100_200 vs t0_100 re-arm asymmetry resolved', true, 'all sprint machines now mesh DONE->IDLE on stop (matches the updateTimers comment)');
 __resetTimers(); updateTimers(99,5,1000); __ok('t100_200: stays IDLE below 100', timer100_200.state===T_IDLE, 'state='+timer100_200.state); updateTimers(100,6,2000); updateTimers(150,60,3000); __ok('t100_200: arms at >= 100 -> RUNNING, stays RUNNING at 150', timer100_200.state===T_RUNNING && timer100_200.start===2000, 'state='+timer100_200.state); updateTimers(205,200,6000); __ok('t100_200: cross 200 -> DONE with interpolated elapsed', timer100_200.state===T_DONE && nearly(timer100_200.result,3000+3000*50/55-2000,1e-6), 'state='+timer100_200.state+' result='+timer100_200.result);
-__resetTimers(); updateTimers(5,0,1000); __ok('tQuarter: arm from rest sets start AND startDist', timerQuarter.state===T_RUNNING && nearly(timerQuarter.start,1000,1e-6) && timerQuarter.startDist===0, 'state='+timerQuarter.state+' start='+timerQuarter.start+' startDist='+timerQuarter.startDist); updateTimers(50,300,4000); __ok('tQuarter: distance < quarter mile -> still RUNNING', timerQuarter.state===T_RUNNING, 'state='+timerQuarter.state); var __expQ=(4000+7000*(402.336-300)/200)-1000; updateTimers(120,500,11000); __ok('tQuarter: once distance delta >= 402.336 m -> DONE with interpolated elapsed', timerQuarter.state===T_DONE && nearly(timerQuarter.result,__expQ,1e-6), 'state='+timerQuarter.state+' result='+timerQuarter.result+' expected='+__expQ);
+__resetTimers(); updateTimers(0,0,1000); updateTimers(5,0,2000); __ok('tQuarter: arm from rest sets start AND startDist', timerQuarter.state===T_RUNNING && nearly(timerQuarter.start,1300,1e-6) && timerQuarter.startDist===0, 'state='+timerQuarter.state+' start='+timerQuarter.start+' startDist='+timerQuarter.startDist); updateTimers(50,300,4000); __ok('tQuarter: distance < quarter mile -> still RUNNING', timerQuarter.state===T_RUNNING, 'state='+timerQuarter.state); var __expQ=(4000+7000*(402.336-300)/200)-1300; updateTimers(120,500,11000); __ok('tQuarter: once distance delta >= 402.336 m -> DONE with interpolated elapsed', timerQuarter.state===T_DONE && nearly(timerQuarter.result,__expQ,1e-6), 'state='+timerQuarter.state+' result='+timerQuarter.result+' expected='+__expQ);
 __resetTimers(); updateTimers(80,0,1000); __ok('t100_0: below 100 -> stays IDLE', timer100_0.state===T_IDLE, 'state='+timer100_0.state); updateTimers(110,50,2000); __ok('t100_0: cruise >= 100 arms RUNNING with interpolated start', timer100_0.state===T_RUNNING && nearly(timer100_0.startDist,100/3,1e-6) && nearly(timer100_0.start,5000/3,1e-6), 'state='+timer100_0.state+' startDist='+timer100_0.startDist); var __expBrake=(50+370*(110-SPEED_ZERO_SNAP_KMPH)/110)-100/3; updateTimers(0,420,30000); __ok('t100_0: stop -> DONE with interpolated positive braking distance', timer100_0.state===T_DONE && nearly(timer100_0.result,__expBrake,1e-6), 'state='+timer100_0.state+' result='+timer100_0.result+' expected='+__expBrake);
 __resetTimers(); updateTimers(1,0,5000); updateTimers(51,5,7000); updateTimers(101,40,9000); __ok('interpolation: threshold crossings land between fixes (3940ms, not 2000ms)', timer0_100.state===T_DONE && nearly(timer0_100.result,3940,1e-6), 'result='+timer0_100.result);
+// === Sprint arm gates: mid-cruise fixes must never arm or poison bests ===
+__resetTimers(); allTimeBest = {};
+updateTimers(100,100,1000); updateTimers(100,200,2000); updateTimers(105,300,3000);
+__ok('gates: mid-cruise boot (>= 96.6 km/h) never arms 0-60/0-100/100-200/quarter',
+    timer0_60.state===T_IDLE && timer0_100.state===T_IDLE && timer100_200.state===T_IDLE && timerQuarter.state===T_IDLE,
+    'states='+[timer0_60.state,timer0_100.state,timer100_200.state,timerQuarter.state].join(','));
+__ok('gates: mid-cruise fixes write no bogus all-time bests',
+    !allTimeBest.t060 && !allTimeBest.t0100 && !allTimeBest.t100200 && !allTimeBest.tQ, JSON.stringify(allTimeBest));
+__resetTimers();
+updateTimers(150,500,1000); updateTimers(205,900,2000);
+__ok('gates: 100-200 never arms on a rolling 150 start (needs the 100-crossing)', timer100_200.state===T_IDLE, 'state='+timer100_200.state);
+__resetTimers();
+updateTimers(80,100,1000); updateTimers(85,150,2000);
+__ok('gates: rolling 80 km/h boot never arms 0-60/0-100', timer0_60.state===T_IDLE && timer0_100.state===T_IDLE, 'states='+timer0_60.state+','+timer0_100.state);
+__resetTimers();
+updateTimers(100,500,1000); updateTimers(0,510,2000); updateTimers(20,520,3000);
+__ok('gates: stop after mid-cruise observes rest — next launch arms', timer0_60.state===T_RUNNING && timer0_100.state===T_RUNNING, 'states='+timer0_60.state+','+timer0_100.state);
+// resetRun sprint-gate seeding (tap-and-launch edge)
+currentSpeedMs = 0; displaySpeedMs = 0;
+resetRun();
+updateTimers(15,10,5000);
+__ok('resetrun: standstill reset seeds observed rest — instant launch still arms', timer0_60.state===T_RUNNING && timer0_100.state===T_RUNNING && timerQuarter.state===T_RUNNING, 'states='+timer0_60.state+','+timer0_100.state+','+timerQuarter.state);
+currentSpeedMs = 27.78; displaySpeedMs = 27.78;
+resetRun();
+updateTimers(100,300,6000); updateTimers(100,350,7000);
+__ok('resetrun: rolling reset stays disarmed (rest unobserved)', timer0_60.state===T_IDLE && timer0_100.state===T_IDLE && timer100_200.state===T_IDLE, 'states='+timer0_60.state+','+timer0_100.state+','+timer100_200.state);
+currentSpeedMs = 0; displaySpeedMs = 0;
+__resetTimers();
 // === Tests: GPS session preservation (frequent SIGNAL LOSS fix) ===
 // ES5-only: mirrored verbatim in tests/tests.py (dukpy fallback).
 var __pendingTimers = [];
@@ -247,7 +278,7 @@ __ok('fusion-ema: EMA state tracks the sample', Math.abs(gpsLongGSm - 1.5 * (1 -
 
 // --- RECORD_QUALITY_MIN: mediocre fixes drive the needle, not the records ---
 __resetEst();
-__resetTimers();   // timer state leaks across scenarios (DONE is retained by design)
+__resetTimers();
 onPositionSuccess(__coords(0, 1, 19));
 onPositionSuccess(__coords(8, 1, 19));
 onPositionSuccess(__coords(16, 1, 19));
@@ -257,9 +288,12 @@ onPositionSuccess(__coords(40, 1, 19));
 __ok('records: 19 m-accuracy fixes drive live speed (~40)', Math.abs(currentSpeedMs - 40) < 6, 'currentSpeedMs=' + currentSpeedMs);
 __ok('records: ...but not timers/MAX', timer0_100.state === T_IDLE && maxSpeedKmph === 0, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
 onPositionSuccess(__coords(40, 1, 8));
-__ok('records: 8 m fix arms timers (MAX needs one confirm)', timer0_100.state === T_RUNNING && maxSpeedKmph === 0, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
+__ok('records: 8 m fix latches pending MAX; 144 km/h cruise never arms 0-100 (mid-cruise poison fix)', timer0_100.state === T_IDLE && maxSpeedKmph === 0, 'tstate=' + timer0_100.state + ' max=' + maxSpeedKmph);
 onPositionSuccess(__coords(40, 1, 8));
 __ok('records: second 8 m fix latches MAX', maxSpeedKmph > 100, 'max=' + maxSpeedKmph);
+for (var __rs = 0; __rs < 6; __rs++) onPositionSuccess(__coords(0, 1, 8, 0.5));   // NIS run-out, then confirmed stop
+for (var __rl = 0; __rl < 4; __rl++) onPositionSuccess(__coords(12, 1, 8));        // genuine launch below 100 km/h
+__ok('records: observed stop->launch below threshold arms timers', timer0_60.state === T_RUNNING && timer0_100.state === T_RUNNING, 'states=' + timer0_60.state + ',' + timer0_100.state);
 
 // --- MAX confirmation: lone spike never latches, sustained climb does ---
 __resetEst();

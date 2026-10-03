@@ -99,19 +99,21 @@ async function appShellStrategy(event) {
         const url = new URL(req.url);
         if (url.search) return preload;
         const copy = preload.clone();
-        caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
+        // waitUntil: the put must outlive respondWith or the worker can be
+        // terminated before the fresh shell lands in the cache.
+        event.waitUntil(caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); }));
         return preload;
     }
     // True stale-while-revalidate: return cached immediately, revalidate in background
     if (cached) {
         const url = new URL(req.url);
         if (!url.search) {
-            fetch(req).then(res => {
+            event.waitUntil(fetch(req).then(res => {
                 if (res && res.status === 200) {
                     const copy = res.clone();
                     caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
                 }
-            }).catch(()=>{});
+            }).catch(()=>{}));
         }
         return cached;
     }
@@ -123,7 +125,7 @@ async function appShellStrategy(event) {
             const url = new URL(req.url);
             if (url.search) return res;
             const copy = res.clone();
-            caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); });
+            event.waitUntil(caches.open(APP_SHELL_CACHE).then(c => { c.put(req, copy); return trimCache(APP_SHELL_CACHE, MAX_SHELL); }));
         }
         return res;
     } catch {

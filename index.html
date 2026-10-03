@@ -766,7 +766,7 @@
             background: rgba(255,255,255,0.45);
             z-index: 1;
         }
-        .zone-60 { left: 30%; }   /* 60 mph of 200 km/h scale */
+        .zone-60 { left: 30%; }   /* 60 km/h of 200 km/h scale */
         .zone-100 { left: 50%; }  /* 100 km/h */
 
         /* ── tactical row: G-meter / live run / v-score ──────────────────── */
@@ -2071,9 +2071,14 @@ let lastRenderTime  = performance.now();
             lastGpsLat = undefined;
             lastGpsLon = undefined;
             lastImuTime = 0;
-            lastTimerSpeedKmh = NaN;
-            lastTimerDistM = NaN;
-            lastTimerTimeMs = NaN;
+            // Sprint-gate seeding: a standstill reset OBSERVES rest (0), so a
+            // tap-and-floor-it launch with no parked fix between still arms;
+            // a rolling reset stays NaN (rest unobserved — timers hold until
+            // a real stop). Time/dist seed with the values the interpolation
+            // lerp would read anyway — NaN time here would poison timer starts.
+            lastTimerSpeedKmh = (currentSpeedMs < 0.5 && displaySpeedMs < 0.5) ? 0 : NaN;
+            lastTimerDistM    = distanceMeters;
+            lastTimerTimeMs   = performance.now();
 
             prevGpsSpeedMs     = currentSpeedMs; 
             fusedLongG         = 0.0;
@@ -2593,6 +2598,14 @@ let lastRenderTime  = performance.now();
 
         function updateTimers(speedKmh, distanceM, nowMs) {
             const stopped = speedKmh <= SPEED_ZERO_SNAP_KMPH;
+            // Genuine-launch gate: rest must be OBSERVED — the previous timer
+            // sample sat at/below the rest threshold. A stream already moving
+            // (app open / RESET RUN mid-cruise) never arms: a rolling 0-60
+            // would complete in ~one fix interval and noteTimerBest would
+            // poison BEST_KEY permanently. NaN prev (fresh boot / rolling
+            // reset) fails both gates until a real stop is sampled.
+            const launching = lastTimerSpeedKmh <= SPEED_ZERO_SNAP_KMPH ||
+                crossFraction(lastTimerSpeedKmh, speedKmh, SPEED_ZERO_SNAP_KMPH) !== null;
 
             // A vehicle stopping during an in-progress sprint (T_RUNNING) aborts it;
             // completed sprints (T_DONE) keep their value until the next launch
@@ -2601,7 +2614,8 @@ let lastRenderTime  = performance.now();
             // ── 0-60 mph ───────────────────────────────────────────
             if (stopped) {
                 if (timer0_60.state === T_RUNNING) timer0_60.state = T_IDLE;
-            } else if (timer0_60.state === T_IDLE) {
+                else if (timer0_60.state === T_DONE) timer0_60.state = T_IDLE;
+            } else if (timer0_60.state === T_IDLE && launching && speedKmh < MPH_60_IN_KMPH) {
                 timer0_60.state = T_RUNNING; timer0_60.start = interpolatedLaunchMs(nowMs, speedKmh);
                 setDOM(dom.t0_60, 't0_60', "--.--- s", CLS_TIMER_BASE, "text-orange-400");
             } else if (timer0_60.state === T_RUNNING && speedKmh >= MPH_60_IN_KMPH) {
@@ -2615,7 +2629,8 @@ let lastRenderTime  = performance.now();
             // ── 0-100 km/h ─────────────────────────────────────────
             if (stopped) {
                 if (timer0_100.state === T_RUNNING) timer0_100.state = T_IDLE;
-            } else if (timer0_100.state === T_IDLE) {
+                else if (timer0_100.state === T_DONE) timer0_100.state = T_IDLE;
+            } else if (timer0_100.state === T_IDLE && launching && speedKmh < 100.0) {
                 timer0_100.state = T_RUNNING; timer0_100.start = interpolatedLaunchMs(nowMs, speedKmh);
                 setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "clr-blue");
             } else if (timer0_100.state === T_RUNNING && speedKmh >= 100.0) {
@@ -2626,8 +2641,11 @@ let lastRenderTime  = performance.now();
                 stateDirty = true;
             }
 
-            // ── 100-200 km/h (arms once vehicle reaches 100, finishes at 200) ──
-            if (timer100_200.state === T_IDLE && speedKmh >= 100.0) {
+            // ── 100-200 km/h (arms on the upward 100-crossing, finishes at 200) ──
+            // Crossing gate (prev below 100): arming a stream already above 100
+            // (mid-cruise boot at 150) would finish in a fix interval and
+            // poison the t100200 best. NaN prev = rest unobserved = no arm.
+            if (timer100_200.state === T_IDLE && lastTimerSpeedKmh < 100.0 && speedKmh >= 100.0) {
                 timer100_200.state = T_RUNNING;
                 const f = crossFraction(lastTimerSpeedKmh, speedKmh, 100.0);
                 timer100_200.start = f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f);
@@ -2645,7 +2663,8 @@ let lastRenderTime  = performance.now();
             // ── 1/4-mile (arms on launch from rest) ────────────────
             if (stopped) {
                 if (timerQuarter.state === T_RUNNING) timerQuarter.state = T_IDLE;
-            } else if (timerQuarter.state === T_IDLE) {
+                else if (timerQuarter.state === T_DONE) timerQuarter.state = T_IDLE;
+            } else if (timerQuarter.state === T_IDLE && launching) {
                 timerQuarter.state = T_RUNNING;
                 timerQuarter.start = interpolatedLaunchMs(nowMs, speedKmh);
                 timerQuarter.startDist = distanceM;
@@ -3433,8 +3452,19 @@ let lastRenderTime  = performance.now();
         }
 
         function purgeData() {
+            // Function-scoped on purpose: the post-alert safety-net call at the
+            // end lives outside the try block — a block-scoped const made every
+            // purge throw ReferenceError and killed the reload fallback.
+            let bustDone = false;
+            const bustThenReload = function() {
+                if (bustDone) return; bustDone = true;
+                try { if (navigator.onLine) location.reload(); } catch (e) {}
+            };
             try {
                 wakeRenderLoop();
+                // Sprint-gate seeding (see resetRun): rest observed only if the
+                // purge happened at standstill — captured BEFORE the zeroing below.
+                const wasStationary = currentSpeedMs < 0.5 && displaySpeedMs < 0.5;
                 // Reset all sprint timers
                 [timer0_60, timer0_100, timer100_200, timerQuarter, timer100_0].forEach(t => {
                     t.state = T_IDLE;
@@ -3484,9 +3514,9 @@ let lastRenderTime  = performance.now();
                 kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0;
             outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; stopLatched = false; innovHist = [];
                 driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false; lastAcc = null;
-                lastTimerSpeedKmh = NaN;
-                lastTimerDistM = NaN;
-                lastTimerTimeMs = NaN;
+                lastTimerSpeedKmh = wasStationary ? 0 : NaN;
+                lastTimerDistM    = 0;
+                lastTimerTimeMs   = performance.now();
                 lastImuTime = 0;
                 filteredAccelX = 0; filteredAccelY = 0; filteredAccelZ = 0; gravSmX = 0; gravSmY = 0; gravSmZ = 0; orientStillN = 0; orientSnapped = false; gyroYawSm = 0; gyroLastLive = 0; gyroLastMoved = 0; imuZeroMs = 0;
                 imuLongG = 0; imuLatG = 0;
@@ -3518,7 +3548,6 @@ let lastRenderTime  = performance.now();
                 if (dom.tQuarter) setDOM(dom.tQuarter, 'tQuarter', "--.--- s", CLS_TIMER_BASE, "text-yellow-400");
                 if (dom.t100_0) setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
                 if (dom.peakG) setDOM(dom.peakG, 'peakG', "0.00 G");
-                else if (dom.peakG) dom.peakG.textContent = "0.00 G";
                 if (dom.brakeScore) setDOM(dom.brakeScore, 'brakeScore', "0.00 G");
                 prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
                 prev.live0_60Run = null; prev.live0_100Run = null; prev.live100_200Run = null; prev.liveQuarterRun = null; prev.live100_0Run = null;
@@ -3562,11 +3591,6 @@ let lastRenderTime  = performance.now();
                 // a ReferenceError and skipped the SW update below with it).
                 // Awaited: reload fires only after eviction + SW update settle
                 // (900 ms backstop), so a purged shell can't survive the race.
-                let bustDone = false;
-                const bustThenReload = function() {
-                    if (bustDone) return; bustDone = true;
-                    try { if (navigator.onLine) location.reload(); } catch (e) {}
-                };
                 try {
                     const busts = [];
                     if (navigator.onLine && 'caches' in window) {
@@ -3576,7 +3600,7 @@ let lastRenderTime  = performance.now();
                             }));
                         }).catch(function(){}));
                     }
-                    if (navigator.serviceWorker) busts.push(navigator.serviceWorker.getRegistration().then(function(r){ if(r) try{ r.update(); }catch(eU){} if (r) return r.update(); }).catch(function(){}));
+                    if (navigator.serviceWorker) busts.push(navigator.serviceWorker.getRegistration().then(function(r){ if (r) return r.update(); }).catch(function(){}));
                     Promise.all(busts).then(bustThenReload).catch(bustThenReload);
                     setTimeout(bustThenReload, 900);
                 } catch(e) { bustThenReload(); }
