@@ -1068,10 +1068,6 @@
             .speed-gauge { transition: none !important; }
         }
 /* ── glanceability / modes / new panels ───────────────────────────── */
-/* Mirror mode (windshield reflection): whole shell flipped, nothing else moves. */
-body.mirror .dashboard-shell { transform: scaleX(-1); }
-/* The iOS permission gate must stay readable when mirrored (it is inside the shell). */
-body.mirror #ios-gate { transform: scaleX(-1); }
 /* Brightness/dimming is the OS's job (Android adaptive brightness + system
    dark mode) — the app never dims or boosts its own output. Only momentary
    alert blinks (warnings) modulate brightness. */
@@ -1139,7 +1135,6 @@ body.diag-open #diag-toggle { opacity: 1; }
                 </span>
             </div>
         <div class="cmd-sys" aria-live="polite">
-            <button id="mirror-btn" class="action-btn gap-1 neon-purple" onclick="toggleMirror()" aria-label="Mirror HUD for windshield" title="Mirror HUD">🪞</button>
             <button id="units-btn" class="action-btn gap-1 neon-blue" onclick="toggleUnits()" aria-label="Switch units: KM/H or MPH" title="Units">KM/H</button>
             <button id="diag-toggle" class="action-btn gap-1 neon-blue" onclick="toggleDiag()" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
             <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS"><span aria-hidden="true">⟳</span> GPS</button>
@@ -1523,7 +1518,6 @@ let lastRenderTime  = performance.now();
         const LAP_MPD = 6371000 * Math.PI / 180;
         const TRACE_MAX = 1200;
         let unitMph = false;
-        let mirrorOn = false;
         let diagOpen = false;
         let muted = false;
         let redlineKmh = 200; // BAR_MAX default = effectively off
@@ -1627,8 +1621,7 @@ let lastRenderTime  = performance.now();
             installBtn:   document.getElementById('pwa-install-btn'),
             speedGaugeBtn: document.getElementById('speed-gauge-btn'),
             gpsRetryBtn:   document.getElementById('gps-retry-btn'),
-            mirrorBtn:    document.getElementById('mirror-btn'),
-            unitsBtn:    document.getElementById('units-btn'),
+            unitsBtn:     document.getElementById('units-btn'),
             diagToggle:   document.getElementById('diag-toggle'),
             muteBtn:      document.getElementById('mute-btn'),
             redlineBtn:   document.getElementById('redline-btn'),
@@ -1840,17 +1833,15 @@ let lastRenderTime  = performance.now();
             try { o = JSON.parse(localStorage.getItem(UI_PREF_KEY) || '{}'); } catch (e) {}
             if (!o || typeof o !== 'object') return;
             unitMph = o.mph === true;
-            mirrorOn = o.mirror === true;
             diagOpen = o.diag === true;
             muted = o.mute === true;
             if (typeof o.rl === 'number' && isFinite(o.rl) && o.rl >= 60 && o.rl <= 200) redlineKmh = o.rl;
         }
         function saveUiPrefs() {
-            try { localStorage.setItem(UI_PREF_KEY, JSON.stringify({ mph: unitMph, mirror: mirrorOn, diag: diagOpen, mute: muted, rl: redlineKmh })); } catch (e) {}
+            try { localStorage.setItem(UI_PREF_KEY, JSON.stringify({ mph: unitMph, diag: diagOpen, mute: muted, rl: redlineKmh })); } catch (e) {}
         }
         function applyUiModes() {
             try {
-                document.body.classList.toggle('mirror', !!mirrorOn);
                 document.body.classList.toggle('diag-open', !!diagOpen);
                 if (dom.unitsBtn) dom.unitsBtn.textContent = unitMph ? "MPH" : "KM/H";
                 if (dom.diagToggle) dom.diagToggle.textContent = diagOpen ? "DIAG ▾" : "DIAG ▸";
@@ -1860,7 +1851,6 @@ let lastRenderTime  = performance.now();
                 if (sul) sul.textContent = unitMph ? "MPH" : "KM/H";
             } catch (e) {}
         }
-        function toggleMirror() { mirrorOn = !mirrorOn; saveUiPrefs(); applyUiModes(); }
         function toggleUnits() {
             unitMph = !unitMph; saveUiPrefs(); applyUiModes();
             prev.speed = null; prev.displayMax = null; prev.speedBar = null; prev.ringDeg = null; prev.distKm = null; prev.peakDeg = null;
@@ -1873,7 +1863,6 @@ let lastRenderTime  = performance.now();
             saveUiPrefs(); applyUiModes();
             prev.speed = null;
         }
-        window.toggleMirror = toggleMirror;
         window.toggleUnits = toggleUnits;
         window.toggleDiag = toggleDiag;
         window.toggleMute = toggleMute;
