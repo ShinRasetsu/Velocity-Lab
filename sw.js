@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'velocity-lab-v1.5.7';
+const CACHE_VERSION = 'velocity-lab-v1.5.8';
 
 const APP_SHELL_CACHE = `shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE   = `runtime-${CACHE_VERSION}`;
@@ -7,6 +7,8 @@ const STATIC_ASSETS = [
     './',
     './index.html',
     './manifest.json',
+    './fonts/jetbrains-mono-latin.woff2',
+    './fonts/jetbrains-mono-latin-ext.woff2',
     './icon-192.png',
     './icon-512.png',
     './icon-maskable-512.png',
@@ -53,15 +55,6 @@ self.addEventListener('fetch', event => {
     // ── APP SHELL (fastest offline boot)
     if (url.origin === self.location.origin) {
         event.respondWith(appShellStrategy(event));
-        return;
-    }
-
-    // ── CDN (Tailwind + Fonts)
-    if (
-        url.hostname.includes('fonts.googleapis.com') ||
-        url.hostname.includes('fonts.gstatic.com')
-    ) {
-        event.respondWith(cacheFirst(event.request));
         return;
     }
 
@@ -130,23 +123,6 @@ async function appShellStrategy(event) {
         return res;
     } catch {
         return new Response('Offline', { status: 503, statusText: 'Offline' });
-    }
-}
-
-async function cacheFirst(req) {
-    const cached = await caches.match(req);
-    if (cached) return cached;
-    try {
-        const res = await fetch(req);
-        if (res && (res.status === 200 || res.type === 'opaque')) {
-            const copy = res.clone();
-            const cache = await caches.open(RUNTIME_CACHE);
-            await cache.put(req, copy);
-            await trimCache(RUNTIME_CACHE, MAX_RUNTIME);
-        }
-        return res;
-    } catch {
-        return cached || new Response('Offline', { status: 503 });
     }
 }
 
