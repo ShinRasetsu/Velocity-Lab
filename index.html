@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-YLHQ0KOvOmqUmvpoeAIbrz24p0TLBbbcb7gl4mXT6hY='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -16,12 +17,28 @@
     <meta name="apple-mobile-web-app-title" content="VelocityLab">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=optional">
+    <link rel="preload" href="./fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="./fonts/jetbrains-mono-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
 
     <style>
         /* ═══ VELOCITY-LAB GUNDAM HUD DESIGN SYSTEM ══════════════════════════ */
+
+        @font-face {
+            font-family: 'JetBrains Mono';
+            font-style: normal;
+            font-weight: 700 800;
+            font-display: optional;
+            src: url(./fonts/jetbrains-mono-latin.woff2) format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+        }
+        @font-face {
+            font-family: 'JetBrains Mono';
+            font-style: normal;
+            font-weight: 700 800;
+            font-display: optional;
+            src: url(./fonts/jetbrains-mono-latin-ext.woff2) format('woff2');
+            unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+        }
 
         /* ── utility layer (markup + JS-applied classes) ─────────────────── */
         .flex { display: flex; }
@@ -1143,11 +1160,11 @@ body.diag-open #diag-toggle { opacity: 1; }
                 </span>
             </div>
         <div class="cmd-sys" aria-live="polite">
-            <button id="units-btn" class="action-btn gap-1 neon-blue" onclick="toggleUnits()" aria-label="Switch units: KM/H or MPH" title="Units">KM/H</button>
-            <button id="diag-toggle" class="action-btn gap-1 neon-blue" onclick="toggleDiag()" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
-            <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" onclick="restartGPS()" style="display:none;" aria-label="Retry GPS"><span aria-hidden="true">⟳</span> GPS</button>
-            <button id="export-btn" class="action-btn gap-1.5 neon-blue" onclick="exportRun()" aria-label="Export run CSV" title="Download run summary CSV">CSV</button>
-            <button id="purge-btn" class="action-btn gap-1.5 neon-red" onclick="purgeData()">🗑 PURGE</button>
+            <button id="units-btn" class="action-btn gap-1 neon-blue" aria-label="Switch units: KM/H or MPH" title="Units">KM/H</button>
+            <button id="diag-toggle" class="action-btn gap-1 neon-blue" aria-label="Diagnostics" title="Diagnostics">DIAG ▸</button>
+            <button id="gps-retry-btn" class="action-btn gap-1.5 neon-blue" style="display:none;" aria-label="Retry GPS"><span aria-hidden="true">⟳</span> GPS</button>
+            <button id="export-btn" class="action-btn gap-1.5 neon-blue" aria-label="Export run CSV" title="Download run summary CSV">CSV</button>
+            <button id="purge-btn" class="action-btn gap-1.5 neon-red">🗑 PURGE</button>
         </div>
         </div>
         <!-- DIAGNOSTICS BODY (toggle lives in cmd-sys row above; body hidden = zero height) -->
@@ -1155,8 +1172,8 @@ body.diag-open #diag-toggle { opacity: 1; }
                 <span id="update-rate" class="clr-blue neon-blue">GPS 0.0 HZ</span>
                 <span id="wake-lock-status" class="text-red-500 neon-danger">PWR OFF</span>
                 <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
-                <button id="redline-btn" class="action-btn gap-1 neon-orange" onclick="cycleRedline()" aria-label="Overspeed warning" title="Overspeed warning">RL OFF</button>
-                <button id="mute-btn" class="action-btn gap-1 neon-blue" onclick="toggleMute()" aria-label="Sound on off" title="Sound">🔔</button>
+                <button id="redline-btn" class="action-btn gap-1 neon-orange" aria-label="Overspeed warning" title="Overspeed warning">RL OFF</button>
+                <button id="mute-btn" class="action-btn gap-1 neon-blue" aria-label="Sound on off" title="Sound">🔔</button>
                 <div id="app-version" class="version-tag">VER 1.5.7 — Velocity-Lab <span id="scale-debug"></span></div>
         </div>
     </header>
@@ -1263,8 +1280,8 @@ body.diag-open #diag-toggle { opacity: 1; }
                 <span>BEST <span id="lap-best" class="lcd-text">--:--.-</span></span>
             </div>
             <div class="lap-btns">
-                <button id="lap-set-btn" class="action-btn gap-1 neon-blue" onclick="setLapLine()" aria-label="Set line: mark lap start/finish">SET LINE</button>
-                <button id="lap-reset-btn" class="action-btn gap-1 neon-blue" onclick="resetLaps()" aria-label="Reset laps">RESET</button>
+                <button id="lap-set-btn" class="action-btn gap-1 neon-blue" aria-label="Set line: mark lap start/finish">SET LINE</button>
+                <button id="lap-reset-btn" class="action-btn gap-1 neon-blue" aria-label="Reset laps">RESET</button>
             </div>
         </div>
     </section>
@@ -3652,6 +3669,22 @@ let lastRenderTime  = performance.now();
             } catch (e) { console.warn("export failed", e); }
         }
         window.exportRun = exportRun;
+
+        const uiActions = {
+            'units-btn': toggleUnits,
+            'diag-toggle': toggleDiag,
+            'gps-retry-btn': restartGPS,
+            'export-btn': exportRun,
+            'purge-btn': purgeData,
+            'redline-btn': cycleRedline,
+            'mute-btn': toggleMute,
+            'lap-set-btn': setLapLine,
+            'lap-reset-btn': resetLaps
+        };
+        Object.keys(uiActions).forEach(function(id) {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', uiActions[id]);
+        });
 
 
         // Manual motion re-ask from the GPS-ONLY hint. iOS still requires the
