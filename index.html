@@ -214,6 +214,14 @@
             overflow-y: auto;
             box-sizing: border-box;
         }
+        /* Phone full-bleed: at phone widths the shell owns the whole screen.
+           The 430×ui cap is for portrait tablets / desktop-portrait windows
+           only (a stretched phone grid reads sparse there). Short-aspect
+           phones (16:9/18:9, display-zoomed) hit the cap 15-35px narrow and
+           left visible side voids — the whole screen belongs to the HUD. */
+        @media (max-width: 479px) {
+            .dashboard-shell { max-width: 100%; }
+        }
         /* Hide max cards to prevent layout shift (all viewports) */
         #peak-g, #peak-lat-g-metric, #peak-lon-g-metric { display: none; }
 
