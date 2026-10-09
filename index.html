@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-hpBTQtQRbKV0CE/P6BagK3pwqpNbVwE1pdWYX3WYZig='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-PjISxL3P1/Gxviyabh+ojw6ih/RqJmn+0EZmYAaKJuU='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -566,6 +566,11 @@
         @keyframes speed-ring-sweep { 0% { --deg:0deg } 45% { --deg:360deg } 85% { --deg:360deg } 100% { --deg:0deg } }
         #peak-marker { transform: rotate(0deg); }
         .speed-gauge.boot #peak-marker { animation: peak-sweep 0.6s cubic-bezier(0.4,0,0.2,1) 0.08s forwards; }
+        .peak-marker.peak-pulse, .speed-gauge #peak-marker.peak-pulse { animation: peak-burst 0.5s ease-out 1 both; }
+        @keyframes peak-burst {
+            0% { filter: drop-shadow(0 0 0.45rem rgba(250,204,21,0.95)); }
+            100% { filter: none; }
+        }
         @keyframes peak-sweep { 0% { transform: rotate(0deg)} 45% { transform: rotate(360deg)} 85% { transform: rotate(360deg)} 100% { transform: rotate(0deg)} }
         @keyframes tick-draw { to { opacity: 1; filter: blur(0); } }
         @keyframes redline-draw { to { opacity: 1; transform: scale(1); } }
@@ -956,6 +961,11 @@
             text-transform: uppercase; color: rgba(148,163,184,0.55);
         }
         .hazard-right { color: rgba(255,170,0,0.8); }
+        .hazard-strip .hazard-right { animation: ver-flash 1.4s ease-out 0.6s 1 both; }
+        @keyframes ver-flash {
+            0% { color: rgba(255,214,102,1); text-shadow: 0 0 0.5rem rgba(255,170,0,0.85); }
+            100% { color: rgba(255,170,0,0.8); text-shadow: none; }
+        }
 
         .version-tag {
             text-align: center;
@@ -1051,7 +1061,7 @@
 
         @media (prefers-reduced-transparency) {
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
-            .spd-green, .spd-yellow, #speed-display { text-shadow: none !important; }
+            .spd-green, .spd-yellow, #speed-display, .hazard-right { text-shadow: none !important; }
         }
 
         @media (prefers-contrast: more) {
@@ -1061,7 +1071,7 @@
                 --panel: linear-gradient(180deg, rgba(5,8,12,0.98), rgba(2,4,7,1));
             }
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
-            .spd-green, .spd-yellow, #speed-display { text-shadow: none !important; }
+            .spd-green, .spd-yellow, #speed-display, .hazard-right { text-shadow: none !important; }
             .panel { border-width: 2px; }
         }
 
@@ -1070,6 +1080,8 @@
             .timer-lbl.live::after, .timer-mini.live::after, .run-name.armed { animation: none; }
             .scanlines { animation: none !important; }
             .peak-marker::before { animation: none !important; }
+            .peak-marker.peak-pulse { animation: none !important; }
+            .hazard-right { animation: none !important; }
             .speed-gauge.sig-lost #speed-ring { animation: none; }
             .action-btn { transition: none; }
             .action-btn:active { transform: none; }
@@ -1174,7 +1186,7 @@ body.diag-open #diag-toggle { opacity: 1; }
                 <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
                 <button id="redline-btn" class="action-btn gap-1 neon-orange" aria-label="Overspeed warning" title="Overspeed warning">RL OFF</button>
                 <button id="mute-btn" class="action-btn gap-1 neon-blue" aria-label="Sound on off" title="Sound">🔔</button>
-                <div id="app-version" class="version-tag">VER 1.5.7 — Velocity-Lab <span id="scale-debug"></span></div>
+                <div id="app-version" class="version-tag">VER 1.5.8 — Velocity-Lab <span id="scale-debug"></span></div>
         </div>
     </header>
 
@@ -3291,7 +3303,10 @@ let lastRenderTime  = performance.now();
                 // armed value. Real climbs (any rate) confirm on alternation;
                 // a lone spike arms, then disarms unlatched on the next fix.
                 if (!freshAcquire && gpsSpeedKmph > maxSpeedKmph) {
-                    if (pendingMaxKmph > 0 && gpsSpeedKmph >= pendingMaxKmph - 5) { maxSpeedKmph = gpsSpeedKmph; stateDirty = true; pendingMaxKmph = 0; }
+                    if (pendingMaxKmph > 0 && gpsSpeedKmph >= pendingMaxKmph - 5) {
+                        maxSpeedKmph = gpsSpeedKmph; stateDirty = true; pendingMaxKmph = 0;
+                        if (dom.peakMarker) { dom.peakMarker.classList.remove('peak-pulse'); void dom.peakMarker.offsetWidth; dom.peakMarker.classList.add('peak-pulse'); }
+                    }
                     else pendingMaxKmph = gpsSpeedKmph;
                 } else {
                     pendingMaxKmph = 0;
@@ -3564,7 +3579,7 @@ let lastRenderTime  = performance.now();
                 // Reset max speed display
                 if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.0";
                 // Reset peak marker
-                if (dom.peakMarker) dom.peakMarker.style.transform = "rotate(0deg)";
+                if (dom.peakMarker) { dom.peakMarker.style.transform = "rotate(0deg)"; dom.peakMarker.classList.remove('peak-pulse'); }
                 prev.peakDeg = null;
                 // Reset best marker
                 if (dom.bestMarker) { dom.bestMarker.style.transform = "rotate(0deg)"; dom.bestMarker.classList.remove('visible'); }

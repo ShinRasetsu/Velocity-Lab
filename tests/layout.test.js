@@ -75,6 +75,18 @@ if (gaugeTransitionBad) {
   ok = fail("index.html: .speed-gauge must not transition width (measured box must track --ui instantly)") && false;
 } else pass("gauge tracks --ui instantly (no width transition)");
 
+// Duplicate @keyframes names shadow each other (last definition wins) — a
+// new animation silently rewrites an older one's frames. The peak-burst /
+// peak-pulse collision shipped past every gate once; pin uniqueness.
+const kfNames = [];
+const kfRe = /@keyframes\s+([A-Za-z0-9_-]+)/g;
+let kfm;
+while ((kfm = kfRe.exec(style)) !== null) kfNames.push(kfm[1]);
+const kfDupes = kfNames.filter((n, i) => kfNames.indexOf(n) !== i);
+if (kfDupes.length) {
+  ok = fail("index.html: duplicate @keyframes name(s) " + Array.from(new Set(kfDupes)).join(", ") + " — later rules shadow earlier frames (rename one)") && false;
+} else pass("all " + kfNames.length + " @keyframes names unique");
+
 // --- Live checks (optional) ---
 let playwright = null;
 try {
