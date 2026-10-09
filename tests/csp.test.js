@@ -76,8 +76,13 @@ if (fix) {
     fs.writeFileSync(INDEX, text, "utf8");
     pass("CSP meta re-stamped with current hashes");
   } else {
-    const anchor = '    <meta charset="UTF-8">\n';
-    text = text.replace(anchor, anchor + `    <meta http-equiv="Content-Security-Policy" content="${expected}">\n`);
+    const nl = text.includes("\r\n") ? "\r\n" : "\n";
+    const anchor = '    <meta charset="UTF-8">' + nl;
+    if (!text.includes(anchor)) {
+      console.error("FAIL: charset meta anchor not found — cannot insert CSP meta");
+      process.exit(1);
+    }
+    text = text.replace(anchor, anchor + `    <meta http-equiv="Content-Security-Policy" content="${expected}">` + nl, 1);
     fs.writeFileSync(INDEX, text, "utf8");
     pass("CSP meta inserted after charset");
   }

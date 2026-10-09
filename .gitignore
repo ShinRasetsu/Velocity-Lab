@@ -2,3 +2,9 @@ deploy.bat
 temp.html
 
 .playwright-mcp/
+
+audit-*.png
+audit-*.jpeg
+audit-*.jpg
+playwright-*.png
+screenshot-*.png
