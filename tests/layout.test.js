@@ -87,6 +87,29 @@ if (kfDupes.length) {
   ok = fail("index.html: duplicate @keyframes name(s) " + Array.from(new Set(kfDupes)).join(", ") + " — later rules shadow earlier frames (rename one)") && false;
 } else pass("all " + kfNames.length + " @keyframes names unique");
 
+// Mirror bug: a dangling animation name (referenced but never defined)
+// silently no-ops. Every name used in an animation declaration must
+// resolve to one of the @keyframes definitions above.
+const kw = new Set(["none", "initial", "inherit", "unset", "revert", "ease", "ease-in", "ease-out", "ease-in-out",
+  "linear", "step-start", "step-end", "infinite", "normal", "alternate", "alternate-reverse", "reverse",
+  "running", "paused", "forwards", "backwards", "both", "cubic-bezier", "steps"]);
+const usedNames = new Set();
+const animRe = /animation(?:-name)?\s*:\s*([^;}]+)/g;
+let am;
+while ((am = animRe.exec(style)) !== null) {
+  const val = am[1].replace(/!important/g, " ").replace(/\([^)]*\)/g, " ");
+  for (const tok of val.trim().split(/[\s,]+/)) {
+    if (!tok) continue;
+    if (/^[\d.]/.test(tok)) continue;
+    if (kw.has(tok)) continue;
+    usedNames.add(tok);
+  }
+}
+const dangling = Array.from(usedNames).filter(n => !kfNames.includes(n));
+if (dangling.length) {
+  ok = fail("index.html: animation name(s) with no @keyframes definition " + dangling.join(", ") + " — animation silently no-ops") && false;
+} else pass("all " + usedNames.size + " animation names resolve to @keyframes");
+
 // --- Live checks (optional) ---
 let playwright = null;
 try {

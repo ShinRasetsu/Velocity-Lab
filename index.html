@@ -562,10 +562,10 @@
         .speed-gauge .speed-readout { opacity: 0; transform: translateY(0.8em); }
         .speed-gauge.boot .speed-readout { animation: fade-up 0.3s ease-out 0.10s forwards; }
         #speed-ring { --deg: 0deg; }
-        .speed-gauge.boot #speed-ring { animation: speed-ring-sweep 0.6s cubic-bezier(0.4,0,0.2,1) 0.06s forwards; }
+        .speed-gauge.boot #speed-ring { animation: speed-ring-sweep 0.6s cubic-bezier(0.4,0,0.2,1) 0.06s; }
         @keyframes speed-ring-sweep { 0% { --deg:0deg } 45% { --deg:360deg } 85% { --deg:360deg } 100% { --deg:0deg } }
         #peak-marker { transform: rotate(0deg); }
-        .speed-gauge.boot #peak-marker { animation: peak-sweep 0.6s cubic-bezier(0.4,0,0.2,1) 0.08s forwards; }
+        .speed-gauge.boot #peak-marker { animation: peak-sweep 0.6s cubic-bezier(0.4,0,0.2,1) 0.08s; }
         .peak-marker.peak-pulse, .speed-gauge #peak-marker.peak-pulse { animation: peak-burst 0.5s ease-out 1 both; }
         @keyframes peak-burst {
             0% { filter: drop-shadow(0 0 0.45rem rgba(250,204,21,0.95)); }
@@ -1062,6 +1062,7 @@
         @media (prefers-reduced-transparency) {
             .neon-accent, .neon-warning, .neon-danger, .neon-blue, .neon-purple, .neon-orange,
             .spd-green, .spd-yellow, #speed-display, .hazard-right { text-shadow: none !important; }
+            .peak-marker.peak-pulse { filter: none !important; }
         }
 
         @media (prefers-contrast: more) {
