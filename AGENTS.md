@@ -26,6 +26,7 @@ Single source of truth for the MCP tool stack. Config: `opencode.json` `mcp` blo
 - `lighthouse` = full scorecard incl. Performance; `chrome-devtools` = raw traces + device emulation (its built-in Lighthouse excludes perf). No overlap waste.
 - `eslint`: lint before commits (inline JS via extraction or `eslint-plugin-html`).
 - `osrm` + `openstreetmap` + `geoapify` = **QA fixture generators**: `osrm_route` road geometry → noisy 1Hz synthetic trace → `osrm_match` sanity → inject via chrome-devtools GPS emulation → verify FIX/WEAK/COAST/STALE, estimator arbitration, coasting. Never app runtime.
+- **Drive-fixture pipeline (proven 2026-10)**: `node tests/fixtures/gen-drive.js` regenerates `urban-drive.csv/.json` from pinned OSRM geometry (seed 1337; weak/canyon/outage phases baked in). Offline gate: `node tests/replay.js tests/fixtures/urban-drive.csv --report` (verdict must be OK). Live QA: chrome-devtools `navigate_page` with `initScript` fake-geolocation replaying the JSON (see gen-drive.js header) — status tiers must transition FIX→STALE→WEAK per fusion spec. `osrm_match` sanity is optional (demo server caps `/match` near zero).
 
 ## Perfection Bar
 Every live value at 60Hz, never GPS-rate stairs. See `.opencode/skills/perfection-audit/SKILL.md` 9 gates (project-matched, Gate 8 live Playwright, Gate 9 optimization advisory).

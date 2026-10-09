@@ -18,6 +18,8 @@ import json
 import re
 import sys
 import pathlib
+import base64
+import hashlib
 
 # Windows console defaults to cp1252 which can't render some test detail
 # strings; force UTF-8 before anything else prints.
@@ -42,6 +44,99 @@ def extract_script_body(text: str) -> str:
     if not m:
         raise RuntimeError("Could not find <script> block in index.html")
     return m.group(1)
+
+
+def csp_gate(fix: bool = False) -> bool:
+    """CSP hash freshness gate (python parity with tests/csp.test.js).
+
+    Browsers hash the inline script's DOM text content, which the HTML
+    parser newline-normalizes (CRLF/CR -> LF) before it reaches the DOM —
+    normalize the same way so the stamp is correct on CRLF and LF files.
+    Bytes are read/written raw so --fix never rewrites line endings.
+    """
+    raw = INDEX.read_bytes()
+    text = raw.decode("utf-8")
+
+    hashes = []
+    for m in re.finditer(r"<script(?![^>]*\ssrc=)[^>]*>(.*?)</script>", text, re.S):
+        content = m.group(1).replace("\r\n", "\n").replace("\r", "\n")
+        if not content.strip():
+            continue
+        digest = hashlib.sha256(content.encode("utf-8")).digest()
+        hashes.append(base64.b64encode(digest).decode("ascii"))
+
+    if not hashes:
+        print("[FAIL] csp: no inline <script> found in index.html")
+        return False
+
+    expected = "; ".join([
+        "default-src 'self'",
+        "script-src 'self' " + " ".join("'sha256-%s'" % h for h in hashes),
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self'",
+        "img-src 'self'",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "manifest-src 'self'",
+    ])
+
+    mm = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]*)">', text)
+
+    if fix:
+        if mm and mm.group(1) == expected:
+            print("[PASS] csp: meta already current")
+            return True
+        replacement = '<meta http-equiv="Content-Security-Policy" content="%s">' % expected
+        if mm:
+            text = re.sub(r'<meta http-equiv="Content-Security-Policy" content="[^"]*">',
+                          lambda _: replacement, text, count=1)
+            print("[PASS] csp: meta re-stamped with current hashes")
+        else:
+            nl = "\r\n" if "\r\n" in text else "\n"
+            anchor = '    <meta charset="UTF-8">' + nl
+            if anchor not in text:
+                print("[FAIL] csp: charset meta anchor not found — cannot insert CSP meta")
+                return False
+            text = text.replace(anchor, anchor + "    " + replacement + nl, 1)
+            print("[PASS] csp: meta inserted after charset")
+        INDEX.write_bytes(text.encode("utf-8"))
+        return True
+
+    ok = True
+    if not mm:
+        print("[FAIL] csp: CSP meta tag missing — run `node tests/csp.test.js --fix` (or tests.py --fix)")
+        ok = False
+    elif mm.group(1) == expected:
+        print("[PASS] csp: meta hash-fresh (matches inline scripts)")
+    elif mm.group(1) == "CSP_HASH_PENDING":
+        print("[FAIL] csp: meta still a placeholder — run --fix")
+        ok = False
+    else:
+        print("[FAIL] csp: meta STALE — inline script changed after last stamp. Run --fix")
+        ok = False
+
+    if mm:
+        script_src = re.search(r"script-src[^;]*", mm.group(1))
+        if script_src and re.search(r"unsafe-inline|unsafe-eval", script_src.group(0)):
+            print("[FAIL] csp: script-src contains unsafe-inline/unsafe-eval")
+            ok = False
+        else:
+            print("[PASS] csp: script-src has no unsafe-* fallback")
+        if not re.search(r"font-src 'self'", mm.group(1)):
+            print("[FAIL] csp: font-src is not 'self' — fonts are vendored locally")
+            ok = False
+        else:
+            print("[PASS] csp: font-src locked to 'self' (vendored fonts)")
+
+    if re.search(r"\son(click|change|input|submit|keydown|keyup|load|error|touchstart|touchend|pointerdown|pointerup)=",
+                 text):
+        print("[FAIL] csp: inline event-handler attribute present — bind via addEventListener")
+        ok = False
+    else:
+        print("[PASS] csp: no inline event-handler attributes")
+    return ok
 
 
 # Minimal browser shim. Keep tiny -- only the surface area the inline script
@@ -1236,6 +1331,7 @@ def main():
     if not INDEX.exists():
         print(f"FATAL: {INDEX} not found", file=sys.stderr)
         return 2
+    csp_ok = csp_gate(fix="--fix" in sys.argv)
     body = extract_script_body(INDEX.read_text(encoding="utf-8"))
     full = PRELUDE + "\n" + body + "\n" + POSTLUDE + "\nJSON.stringify(__results);"
 
@@ -1266,6 +1362,10 @@ def main():
 
     print(f"\n{passed} passed, {failed} failed, {len(results)} total")
     print(f"engine: {'py_mini_racer (V8)' if _USE_RACER else 'dukpy (duktape, ES5 fallback)'}")
+    if not csp_ok:
+        print("CSP gate: FAIL")
+        return 1
+    print("CSP gate: PASS")
     return 0 if failed == 0 else 1
 
 
