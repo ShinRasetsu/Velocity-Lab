@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2ANr776zVTRprBZHFnyh661sNSqJGM2rwx/IG/J7jyo='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-FIxUFIBM3zJQcm9qIy0pkbIyFbaKEe53CqTKJIhzwxY='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -1573,6 +1573,11 @@ let lastRenderTime  = performance.now();
         let fixWindow       = [];
         let kalmanV         = 0.0;
         let kalmanP         = 1.0;
+        // 2-state (v,d) odometer: distance dead-reckons beside speed so
+        // position deltas can correct it (smoothing + gap-fill across
+        // outages) without touching the speed policy. kalmanP stays the
+        // v marginal (pVV); the cross/covariance terms are PVD/PDD.
+        let kalmanD = 0.0, kalmanPVD = 0.0, kalmanPDD = 1.0, measDistM = 0.0;
         let kalmanInit      = false;
         let prevKalmanV     = 0.0;
         let outlierTimeSec  = 0.0;
@@ -2042,6 +2047,7 @@ let lastRenderTime  = performance.now();
             if (motionShouldBeOn()) { setMotionListening(false); setMotionListening(true); lastMotionKick = 0; }
             else setMotionListening(false);
             distanceMeters  = 0.0;
+            kalmanD = 0.0; measDistM = 0.0; kalmanPVD = 0.0; kalmanPDD = 1.0;
             displayDistanceM = 0.0;
             mountDismissed = false;
             mountN = 0; mountMeanL = 0.0; mountMeanT = 0.0; mountVarL = 0.0; mountVarT = 0.0;
@@ -2080,6 +2086,7 @@ let lastRenderTime  = performance.now();
             imuLatGBias  = 0.0;
             fixWindow = [];
             kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0;
+            kalmanD = 0.0; measDistM = 0.0; kalmanPVD = 0.0; kalmanPDD = 1.0;
                 outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; stopLatched = false; innovHist = [];
                 driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false;
             lastGpsHeading = undefined;
@@ -2629,6 +2636,33 @@ let lastRenderTime  = performance.now();
             return v * k;
         }
 
+        // Odometer fusion core: sequential distance update for the 2-state
+        // filter. dPred/pVDpred/pDDpred come from the predict step (clean
+        // path) or the hold values (quarantine path: dPred = kalmanD).
+        // fullTake = gap-spanning jumps the teleport gate already vetted:
+        // the car covered that ground, so the odometer takes it whole
+        // instead of filtering it. Otherwise the position delta corrects
+        // the dead-reckoned prediction with accuracy-weighted gain.
+        function odoUpdate(dPred, pVDpred, pDDpred, jumpM, rD, fullTake) {
+            measDistM += jumpM;
+            if (fullTake) {
+                kalmanD = kalmanD + jumpM;
+                kalmanPVD = 0.0; // whole-jump carries no v information
+                kalmanPDD = Math.min(2500, kalmanPDD + Math.max(16, rD));
+            } else {
+                const rDc = Math.min(2500, Math.max(16, rD));
+                const kD = pDDpred / (pDDpred + rDc);
+                kalmanD = dPred + kD * (measDistM - dPred);
+                kalmanPVD = pVDpred * (1 - kD);
+                kalmanPDD = pDDpred * (1 - kD);
+            }
+            distanceMeters = kalmanD;
+        }
+        function odoSync(anchorD, varD) {
+            kalmanD = anchorD; measDistM = anchorD;
+            kalmanPVD = 0.0; kalmanPDD = varD;
+        }
+
         // Launch moment: rewind from the first moving fix to where speed crossed
         // the zero-snap threshold upward. Falls back to the fix timestamp when
         // the previous sample wasn't a valid stopped observation.
@@ -2886,7 +2920,10 @@ let lastRenderTime  = performance.now();
                 gpsSpeedMs = rawSpeed; // last resort even if untrusted
             }
 
-            const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
+            // P0-class guard: NaN accuracy is a spoof/failure signature — it
+            // must fall back to 999 (untrusted), never flow into Math.max
+            // chains (Math.max(16, NaN) === NaN poisons the odometer stickily).
+            const acc = (typeof c.accuracy === 'number' && isFinite(c.accuracy)) ? c.accuracy : 999;
             // Per-fix heading snapshot for LS-window arc geometry (arcCorrect):
             // finite number or null — never NaN/undefined downstream.
             const fixHd = (typeof c.heading === 'number' && isFinite(c.heading)) ? c.heading : null;
@@ -3015,6 +3052,13 @@ let lastRenderTime  = performance.now();
                     // SPEED (unknown time), not the position — leaving the
                     // anchor stale inflates the next delta across the gap and
                     // trips vetoes on honest motion (replay-proven).
+                    // Odometer gap-fill (speed stays quarantined): a GAP-spanning
+                    // jump passed the teleport gate, so the ground was
+                    // covered — take it whole. Provider-hop quarantines hold
+                    // the odometer (old behavior): their jumps are accuracy
+                    // noise, and even a filtered fraction rectifies jitter
+                    // into parked creep (replay: weakParked drift 4.4 m).
+                    if (hasJumpDist && rawDt > GPS_MAX_DT_SEC) odoUpdate(kalmanD, kalmanPVD, kalmanPDD, jumpDistM, acc * acc, true);
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
                     if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
@@ -3065,6 +3109,7 @@ let lastRenderTime  = performance.now();
                                 outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; innovHist = [];
                         currentSpeedMs = Math.max(0, kalmanV);
                         if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += currentSpeedMs * gpsDt;
+                        odoSync(distanceMeters, Math.min(2500, Math.max(16, acc * acc)));
                         prevGpsSpeedMs = vMeas;
                         lastUsableGpsTime = now;
                         lastGpsLat = c.latitude;
@@ -3112,6 +3157,14 @@ let lastRenderTime  = performance.now();
                         const qVarMult = (!imuFresh && Math.abs(innov) <= 3.5)
                             ? (CRUISE_Q_FLOOR + (1 - CRUISE_Q_FLOOR) * Math.min(1, medNow / CRUISE_Q_MED)) : 1;
                         const pPred = Math.min(50, kalmanP + qTmpBase * qTmpBase * gpsDt * qVarMult);
+                        // 2-state (v,d) predict: distance dead-reckons on the
+                        // speed prediction; the cross term tracks v-d
+                        // correlation so the position update cannot fight the
+                        // speed filter. Same maneuver Q as the v predict.
+                        const q2odo = qTmpBase * qTmpBase * gpsDt * qVarMult;
+                        const dPredOdo = kalmanD + kalmanV * gpsDt + 0.5 * aImu * gpsDt * gpsDt;
+                        const pVDpredOdo = Math.min(250, kalmanPVD + kalmanP * gpsDt + q2odo * gpsDt / 2);
+                        const pDDpredOdo = Math.min(2500, kalmanPDD + 2 * kalmanPVD * gpsDt + kalmanP * gpsDt * gpsDt + q2odo * gpsDt * gpsDt / 3);
                         let rMeas;
                         if (trustSpeed) {
                             // Missing speedAccuracy (common on iOS) assumes an
@@ -3196,6 +3249,7 @@ let lastRenderTime  = performance.now();
                                 lg({ fl: lgFl + "R", vm: reacqV });
                                 currentSpeedMs = Math.max(0, kalmanV);
                                 prevGpsSpeedMs = reacqV;
+                                odoSync(distanceMeters, Math.min(2500, Math.max(16, acc * acc)));
                                 lastUsableGpsTime = now;
                                 if (typeof c.heading === 'number' && !isNaN(c.heading)) lastGpsHeading = c.heading;
                                 outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; nisEma = 1.0; innovHist = [];
@@ -3231,6 +3285,7 @@ let lastRenderTime  = performance.now();
                             }
                             kalmanV = prevKalmanV + dv;
                             kalmanP = pPred * (1 - kGain);
+                            kalmanPVD = pVDpredOdo * (1 - kGain); // H=[1,0] scales row+column
                             currentSpeedMs = Math.max(0, kalmanV);
                             // Clamp phantom G before it hits the IMU fusion:
                             // a 13 m/s LS bump over 1 s is 1.3G of fake accel.
@@ -3280,7 +3335,15 @@ let lastRenderTime  = performance.now();
                                     imuLongGBias = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLongGBias));
                                     imuLatGBias  = Math.max(-IMU_BIAS_CLAMP, Math.min(IMU_BIAS_CLAMP, imuLatGBias));
                                 }
-                            } else if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) distanceMeters += currentSpeedMs * gpsDt;
+                            } else if (currentSpeedMs > (conf >= 0.7 ? 0.3 : 0.5)) {
+                                // 2-state (v,d) update: the odometer fuses the
+                                // vetted position delta with the dead-reckoned
+                                // prediction (accuracy-weighted). Gap-spanning
+                                // resumes take the jump whole — the car covered
+                                // that ground while speed stayed quarantined.
+                                const gapSpan = rawDt > GPS_MAX_DT_SEC;
+                                odoUpdate(dPredOdo, pVDpredOdo, pDDpredOdo, (hasJumpDist ? jumpDistM : 0), acc * acc, gapSpan);
+                            }
                             updateImuFusionFromGps(rawGpsLongG, rawGpsLatG, conf, gpsDt);
                             prevGpsSpeedMs = vMeas;
                             lg({ fl: lgFl + "U", vm: vMeas, k: kGain, iv: innov, r: rMeas });
@@ -3300,6 +3363,7 @@ let lastRenderTime  = performance.now();
                     while (driftWindow.length > 1 && tFix - driftWindow[0].t > DRIFT_WINDOW_SEC) driftWindow.shift();
                     if (driftWindow.length > DRIFT_WINDOW_MAX) driftWindow.shift();
                     kalmanV = gpsSpeedMs; kalmanP = 9.0; kalmanInit = true; prevKalmanV = gpsSpeedMs;
+                    odoSync(distanceMeters, Math.min(2500, Math.max(16, acc * acc)));
                     lg({ fl: lgFl + "F", vm: gpsSpeedMs });
                     outlierTimeSec = 0; seedSettle = SEED_SETTLE_FIXES; lastFixClean = true; freshAcquire = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; innovHist = [];
                     currentSpeedMs = Math.max(0, kalmanV);
@@ -3543,6 +3607,7 @@ let lastRenderTime  = performance.now();
                 prev.sessClock = null;
                 // Reset distance
                 distanceMeters = 0; displayDistanceM = 0;
+                kalmanD = 0; measDistM = 0; kalmanPVD = 0; kalmanPDD = 1;
                 if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
                 prev.distKm = null;
                 // Reset speed and G
@@ -3563,6 +3628,7 @@ let lastRenderTime  = performance.now();
                 lastGpsHeading = undefined;
                 fixWindow = [];
                 kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0;
+                kalmanD = 0; measDistM = 0; kalmanPVD = 0; kalmanPDD = 1;
             outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; stopLatched = false; innovHist = [];
                 driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false; lastAcc = null;
                 lastTimerSpeedKmh = wasStationary ? 0 : NaN;
@@ -3833,7 +3899,7 @@ let lastRenderTime  = performance.now();
                         currentSpeedMs = 0.0;
                         // Cold re-acquire on recovery: stale estimator state
                         // would snap the speedo on the next fix
-                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; innovHist = []; driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; lastAcc = null; stopLatched = false; pendingMaxKmph = 0.0; peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0; lastPosTs = -1; fixWindow = []; }
+                        if (kalmanInit) { kalmanV = 0.0; kalmanP = 1.0; kalmanInit = false; prevKalmanV = 0.0; prevGpsSpeedMs = 0.0; outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0.0; gpsLatGSm = 0.0; nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; innovHist = []; driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; lastAcc = null; stopLatched = false; pendingMaxKmph = 0.0; peakAccArmT = 0; peakBrkArmT = 0; peakLatArmT = 0; lastPosTs = -1; fixWindow = []; kalmanD = distanceMeters; measDistM = distanceMeters; kalmanPVD = 0.0; kalmanPDD = 2500.0; }
                         setDOM(dom.status, 'status', "GNSS STALE", "text-red-500 neon-danger");
                     }
                     setRetryVisible(true);

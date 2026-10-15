@@ -499,6 +499,7 @@ var __lat = 40.0;
 
 function __resetEst() {
   fixWindow = []; kalmanV = 0; kalmanP = 1; kalmanInit = false; prevKalmanV = 0;
+  kalmanD = 0; kalmanPVD = 0; kalmanPDD = 1; measDistM = 0;
   outlierTimeSec = 0; seedSettle = 0; lastFixClean = true; gpsLongGSm = 0; gpsLatGSm = 0; lastPosTs = -1; fixLog = [];
   driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false;
   lastAcc = null; nisEma = 1.0; zuptStillMs = 0; innovHist = []; stopStillN = 0; stopLatched = false;
