@@ -1302,6 +1302,13 @@ __resetEst();
 lastGpsTime = 0; lapLine = null;
 setLapLine();
 __ok('lap: set inert without fresh GPS', lapLine === null && lapRunning === false, 'line=' + lapLine);
+var __arcW = function(hds){ var w = []; for (var i = 0; i < hds.length; i++) w.push({ t: i, lat: 0, lon: 0, acc: 6, hd: hds[i] }); return w; };
+__ok('arc: straight headings pass through', arcCorrect(__arcW([90, 90, 90, 90]), 15) === 15, 'got ' + arcCorrect(__arcW([90, 90, 90, 90]), 15));
+__ok('arc: missing/NaN headings pass through', arcCorrect([{t:0},{t:1},{t:2}], 15) === 15 && arcCorrect(__arcW([90, NaN, 110]), 15) === 15, 'must not invent correction');
+__ok('arc: slow speed + short window pass through', arcCorrect(__arcW([90, 100, 110]), 5) === 5 && arcCorrect(__arcW([90, 100]), 15) === 15, 'gates must hold');
+__ok('arc: 30deg sweep lifts ~1.15%', nearly(arcCorrect(__arcW([90, 100, 110, 120]), 15), 15.1727, 0.002), 'got ' + arcCorrect(__arcW([90, 100, 110, 120]), 15));
+__ok('arc: wrap-around headings accumulate', nearly(arcCorrect(__arcW([355, 5, 15]), 15), 15.0764, 0.002), 'got ' + arcCorrect(__arcW([355, 5, 15]), 15));
+__ok('arc: spin and oversize sweep pass through', arcCorrect(__arcW([90, 200, 90]), 15) === 15 && arcCorrect(__arcW([0, 40, 80, 120]), 15) === 15, 'spin/120deg must not correct');
 """
 
 
