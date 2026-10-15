@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-PjISxL3P1/Gxviyabh+ojw6ih/RqJmn+0EZmYAaKJuU='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2ANr776zVTRprBZHFnyh661sNSqJGM2rwx/IG/J7jyo='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -2602,6 +2602,33 @@ let lastRenderTime  = performance.now();
             return isFinite(spd) ? spd : null;
         }
 
+        // Arc (chord-vs-path) correction for the LS slope: fitting a line
+        // through anchors on a curve reads sin(x)/x low, where x is half
+        // the swept heading. Bounded (<=5%) and hard-gated — fast, coherent
+        // headings only. Missing or incoherent bearings return v untouched,
+        // so straight-line behavior is bit-identical (replay-proven).
+        function arcCorrect(window_, v) {
+            const n = window_.length;
+            if (!(v > 8) || n < 3) return v;
+            let sweep = 0, hdPrev = null;
+            for (let i = 0; i < n; i++) {
+                const hd = window_[i].hd;
+                if (typeof hd !== 'number' || !isFinite(hd)) return v;
+                if (hdPrev !== null) {
+                    let d = hd - hdPrev;
+                    d = ((d + 540) % 360) - 180;
+                    if (Math.abs(d) > 45) return v; // spin, not a curve
+                    sweep += d;
+                }
+                hdPrev = hd;
+            }
+            const x = Math.abs(sweep) * Math.PI / 360; // half swept angle, rad
+            if (!(x > 0.02) || x > 0.9) return v;      // <~2.3 deg: noise; >~103 deg: not a steady arc
+            const k = Math.min(1.05, x / Math.sin(x));
+            if (!(k > 1)) return v;
+            return v * k;
+        }
+
         // Launch moment: rewind from the first moving fix to where speed crossed
         // the zero-snap threshold upward. Falls back to the fix timestamp when
         // the previous sample wasn't a valid stopped observation.
@@ -2860,6 +2887,9 @@ let lastRenderTime  = performance.now();
             }
 
             const acc = (typeof c.accuracy === 'number') ? c.accuracy : 999;
+            // Per-fix heading snapshot for LS-window arc geometry (arcCorrect):
+            // finite number or null — never NaN/undefined downstream.
+            const fixHd = (typeof c.heading === 'number' && isFinite(c.heading)) ? c.heading : null;
             const altAcc = (typeof c.altitudeAccuracy === 'number' && !isNaN(c.altitudeAccuracy)) ? c.altitudeAccuracy : null;
             const conf = gpsConfidence(acc, altAcc);   // 0..1 GPS quality
             lastGpsConfidence  = conf;
@@ -2937,7 +2967,7 @@ let lastRenderTime  = performance.now();
                 const softViaMismatch = dopplerMismatch && steadyDoppler && jumpDistM <= maxPlausible && !startupGrace;
                 if ((jumpDistM > maxPlausible || dopplerMismatch) && !startupGrace && !softViaMismatch) {
                     gpsGlitchCount++;
-                    fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
+                    fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc, hd: fixHd }];
                     driftWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
                     prevGpsSpeedMs = Math.max(0, vRef);
                     lastGpsLat = c.latitude;
@@ -2959,7 +2989,7 @@ let lastRenderTime  = performance.now();
                     gpsGlitchCount++;
                     softJump = true;
                     lgFl += "S";
-                    fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
+                    fixWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc, hd: fixHd }];
                     driftWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
                     lastGpsLat = c.latitude;
                     lastGpsLon = c.longitude;
@@ -2975,7 +3005,7 @@ let lastRenderTime  = performance.now();
                     lastGpsLon = c.longitude;
                 } else if (gapQuarantine || providerSwitch) {
                     lgFl += "Q";
-                    if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc, hd: fixHd });
                     if (fixWindow.length > FIX_WINDOW_MAX) fixWindow.shift();
                     driftWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
                     while (driftWindow.length > 1 && tFix - driftWindow[0].t > DRIFT_WINDOW_SEC) driftWindow.shift();
@@ -2993,7 +3023,7 @@ let lastRenderTime  = performance.now();
                     // when trusted, else the least-squares window velocity.
                     // Time-based window (3 s): stale anchors can't smear
                     // recovery, and fast streams get a long slope baseline.
-                    if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    if (!softJump) fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc, hd: fixHd });
                     while (fixWindow.length > 1 && tFix - fixWindow[0].t > FIX_WINDOW_SEC) fixWindow.shift();
                     if (fixWindow.length > FIX_WINDOW_MAX) fixWindow.shift();
                     driftWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
@@ -3010,6 +3040,9 @@ let lastRenderTime  = performance.now();
                             if (imuFusionActive && fixWindow.length > 1) {
                                 vMeas = Math.max(0, vMeas + (imuLongG - imuLongGBias) * GRAVITY_MS2 * vFit.lagSec);
                             }
+                            // Chord-vs-arc: a line slope through anchors on a
+                            // curve under-reads — restore the path speed.
+                            vMeas = arcCorrect(fixWindow, vMeas);
                         } else if (kalmanInit) {
                             // LS collapsed (1 anchor / singular fit after 1/acc²
                             // re-weight): coast on the filter prediction instead
@@ -3156,7 +3189,7 @@ let lastRenderTime  = performance.now();
                                 // the noisiest estimate and snaps the speedo.
                                 // Teleports never reach here (jump gate holds).
                                 fixWindow = [];
-                                fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                                fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc, hd: fixHd });
                                 driftWindow = [{ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc }];
                                 const reacqV = Math.max(0, vMeas);
                                 kalmanV = reacqV; kalmanP = 9.0; prevKalmanV = reacqV;
@@ -3262,7 +3295,7 @@ let lastRenderTime  = performance.now();
             } else {
                 // First fix — seed speed only if usable, anchor always
                 if (usable) {
-                    fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
+                    fixWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc, hd: fixHd });
                     driftWindow.push({ t: tFix, lat: c.latitude, lon: c.longitude, acc: acc });
                     while (driftWindow.length > 1 && tFix - driftWindow[0].t > DRIFT_WINDOW_SEC) driftWindow.shift();
                     if (driftWindow.length > DRIFT_WINDOW_MAX) driftWindow.shift();

@@ -99,6 +99,41 @@ function genDrive(name, durSec, hz, profile, opts) {
 }
 function cruise(v, acc, dop) { return function() { return { v: v, acc: acc, dop: dop === undefined ? 1 : dop, jit: 0 }; }; }
 
+// Curved drive: constant speed v on a circular arc of radius R (sustained
+// lateral G = v^2/R). Positions integrate along the rotating heading so the
+// LS slope sees real chord-vs-arc geometry; headings rotate like a receiver's.
+// dop: 1 = trusted Doppler (control: position geometry must not matter),
+// null = LS-window path (measures chord under-read).
+function genCurve(name, durSec, hz, v, R, dop, opts) {
+  opts = opts || {};
+  const rand = rng(opts.seed || 5150);
+  const dt = 1 / hz, acc = opts.acc || 6, jit = opts.jit !== undefined ? opts.jit : 2;
+  let hdg = 90, x = 0, y = 0; // local meters, start heading east, right-hand arc
+  const cosLat = Math.cos(LAT0 * Math.PI / 180);
+  const fixes = [], truth = [];
+  for (let i = 0; i < Math.round(durSec * hz); i++) {
+    truth.push(v);
+    hdg = (hdg + (v / R) * dt * 180 / Math.PI) % 360;
+    x += v * dt * Math.sin(hdg * Math.PI / 180);
+    y += v * dt * Math.cos(hdg * Math.PI / 180);
+    fixes.push({
+      dtArr: dt, dtStamp: dt,
+      lat: LAT0 + y / MPD, lon: x / (MPD * cosLat),
+      acc: acc,
+      spd: (dop === null) ? null : v,
+      sacc: (dop === null) ? null : 0.5,
+      hdg: hdg + (opts.hdgNoise ? gauss(rand) * opts.hdgNoise : 0), ts: 1
+    });
+    if (jit > 0) {
+      fixes[i].lat += gauss(rand) * jit / MPD;
+      fixes[i].lon += gauss(rand) * jit / (MPD * cosLat);
+    }
+  }
+  const sc = { name: name, hz: hz, fixes: fixes, truth: truth, imu: null };
+  if (opts.skip) sc.skip = opts.skip;
+  return sc;
+}
+
 function scenarios() {
   const S = [];
   S.push(genDrive('cruise20', 30, 1, cruise(20, 5)));
@@ -170,6 +205,14 @@ function shiftAfterGap(sc) {
     }
   }
   S.push(imu);
+  // Sustained-curve chord geometry: 15 m/s on R=75 m (0.3G sweeper).
+  // Doppler control must be untouched by any position-geometry correction;
+  // the non-Doppler twin measures LS chord under-read (expect negative bias).
+  S.push(genCurve('curveDop', 20, 1, 15, 75, 1, { skip: 4 }));
+  S.push(genCurve('curveNoDop', 20, 1, 15, 75, null, { skip: 4 }));
+  // Hairpin stress: 12 m/s on R=25 m (0.59G) with noisy headings —
+  // a geometry correction must help here without ever overshooting.
+  S.push(genCurve('hairpinNoDop', 24, 1, 12, 25, null, { skip: 5, hdgNoise: 1.5 }));
   return S;
 }
 
@@ -295,15 +338,16 @@ function score(sc, res) {
   const n = est.length;
   const m = { n: nFull };
   if (truth) {
-    let se = 0, over = 0, lag90 = null, tT = -1, drift = 0;
+    let se = 0, sSum = 0, over = 0, lag90 = null, tT = -1, drift = 0;
     const vEnd = truth[truth.length - 1];
     for (let i = 0; i < n; i++) {
       const e = (est[i] - truth[i]);
-      se += e * e;
+      se += e * e; sSum += e;
       if (truth[i] >= 0.9 * Math.max(vEnd, 0.1) && tT < 0) tT = i;
       if (tT >= 0 && i >= tT) { if (est[i] - truth[i] > over) over = est[i] - truth[i]; }
     }
     m.rmse = Math.sqrt(se / n);
+    m.bias = sSum / n; // mean signed error: negative = systematic under-read
     m.overshoot = over;
     m.deadlock = dead;
     if (tT >= 0 && vEnd > 1) {
@@ -424,10 +468,10 @@ function dumpRun(sc, row) {
 }
 
 function printTable(rows, base) {
-  const head = ['scenario', 'n', 'rmse', 'lag90s', 'bumps', 'maxStep', 'overshoot', 'coast%', 'driftM', 'notes'];
+  const head = ['scenario', 'n', 'rmse', 'bias', 'lag90s', 'bumps', 'maxStep', 'overshoot', 'coast%', 'driftM', 'notes'];
   console.log(head.join(' | '));
   rows.forEach(function(r) {
-    const cols = [r.name, r.m.n, fmt(r.m.rmse), fmt(r.m.lag90), r.m.bumps,
+    const cols = [r.name, r.m.n, fmt(r.m.rmse), fmt(r.m.bias), fmt(r.m.lag90), r.m.bumps,
       fmt(r.m.maxStep), fmt(r.m.overshoot), fmt(r.m.coastFrac * 100, 1), fmt(r.m.drift, 1), r.note || ''];
     let line = cols.join(' | ');
     if (base) {
