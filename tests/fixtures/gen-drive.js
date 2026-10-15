@@ -85,6 +85,8 @@ const phases = [
     { outage: 12, label: 'urban-canyon-outage' },
     { v: 11, label: 'canyon-crawl', weak: true },
     { v: 17, label: 'recovered-cruise' },
+    { v: 14, label: 'sweeper-no-doppler', noDop: true },
+    { v: 16, label: 'ios-no-sacc', noSacc: true },
     { v: 0, hold: 6, label: 'end-stop' }
 ];
 
@@ -96,18 +98,26 @@ for (const ph of phases) {
         continue;
     }
     if (ph.hold) {
+        // Braking ramp into the stop (3 m/s^2): an instant 14->0 step
+        // never happens on road and would punish the NIS outlier gate
+        // for doing its job (hold one fix, then follow).
         for (let s = 0; s < ph.hold; s++) {
+            curV = Math.max(0, curV - 3.0); lastV = curV;
+            if (curV > 0.5) dist += curV;
+            if (dist >= totalM - 5) break;
             const p = at(dist);
-            truth.push({ t: t, v: 0, d: dist, lat: p.lat, lon: p.lon });
-            emitFix(0, p, ph);
+            truth.push({ t: t, v: curV, d: dist, lat: p.lat, lon: p.lon });
+            emitFix(curV, p, ph);
             t += 1;
         }
         continue;
     }
     const target = ph.v, dur = Math.max(6, Math.round((totalM * 0.85) / phases.length / target));
     for (let s = 0; s < dur; s++) {
-        const a = curV < target ? 2.2 : 0;
-        curV = Math.min(target, curV + a);
+        // Approach rate: launch 2.2, lift-off/braking 3.0 — curV carries
+        // across phases, so a fast phase after a slow one ramps instead
+        // of teleporting (same for the sweeper after recovered-cruise).
+        curV += Math.max(-3.0, Math.min(2.2, target - curV));
         lastV = curV;
         if (curV > 0.5) dist += curV;
         if (dist >= totalM - 5) break;
@@ -126,8 +136,13 @@ function emitFix(v, p, ph) {
     const spike = weak && rand() < 0.08 ? 40 + rand() * 30 : 0;
     const lat = p.lat + wanderLat / R_M + gauss(rand) * (accM / 2) / R_M + spike * gauss(rand) / R_M;
     const lon = p.lon + wanderLon / (R_M * Math.cos(37.77 * Math.PI / 180)) + gauss(rand) * (accM / 2) / (R_M * Math.cos(37.77 * Math.PI / 180)) + spike * gauss(rand) / (R_M * Math.cos(37.77 * Math.PI / 180));
-    const doppler = (!weak && v > 0.4) ? v + gauss(rand) * 0.15 : null;
-    const sacc = doppler !== null ? 0.3 + rand() * 0.2 : null;
+    // Receivers report zero Doppler when stationary (see the standstill
+    // replay scenario): without it, parked jitter feeds the LS slope and
+    // the odometer creeps meters per red light.
+    const doppler = (weak || ph.noDop) ? null : (v > 0.4 ? v + gauss(rand) * 0.15 : 0);
+    // iOS-style: Doppler present but speedAccuracy missing — exercises
+    // the estimator's assumed-1.0 fallback and the fieldstats R audit.
+    const sacc = (doppler !== null && !ph.noSacc) ? 0.3 + rand() * 0.2 : null;
     const hdg = v > 0.5 ? ((p.brg + gauss(rand) * 3 + 360) % 360) : null;
     fixes.push({
         tMs: T0 + t * 1000 + Math.round((rand() - 0.5) * 260),
@@ -141,12 +156,13 @@ function emitFix(v, p, ph) {
 const csv = [];
 csv.push('metric,value');
 csv.push('');
-csv.push('# fixlog,"tMs,tsMs,lat,lon,acc,doppler,sacc,hdg,conf,vMeas,kalmanV,kalmanP,kGain,innov,R,flags,fusedG,distM,jumpDist,maxPlaus,rawDt"');
+csv.push('# fixlog,"tMs,tsMs,lat,lon,acc,doppler,sacc,hdg,conf,vMeas,kalmanV,kalmanP,kGain,innov,R,flags,fusedG,distM,jumpDist,maxPlaus,rawDt,truthV"');
 for (const f of fixes) {
     csv.push(['@', f.tMs, f.tsMs, f.lat, f.lon, f.acc,
         f.doppler === null ? '' : f.doppler.toFixed(3),
         f.sacc === null ? '' : f.sacc.toFixed(2),
-        f.hdg === null ? '' : f.hdg.toFixed(1)].join(','));
+        f.hdg === null ? '' : f.hdg.toFixed(1),
+        f.truthV.toFixed(2)].join(','));
 }
 
 const outDir = __dirname;

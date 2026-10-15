@@ -237,7 +237,10 @@ function parseLog(csv) {
       dtStamp: 0, // recomputed below once ts-validity is known per pair
       absT: t, absTs: (c[2] === '' ? null : ts),
       lat: Number(c[3]), lon: Number(c[4]), acc: num(c[5]),
-      spd: num(c[6]), sacc: num(c[7]), hdg: num(c[8]), ts: 1
+      spd: num(c[6]), sacc: num(c[7]), hdg: num(c[8]), ts: 1,
+      // Generator truth column lives at c[9] on NARROW fixture rows only;
+      // wide device-export rows carry conf there — never score those.
+      tv: (c.length > 10 ? null : num(c[9]))
     });
     prevT = t;
   }
@@ -247,7 +250,9 @@ function parseLog(csv) {
     const a = fixes[k - 1].absTs, b = fixes[k].absTs;
     fixes[k].dtStamp = (a !== null && b !== null && b > a) ? (b - a) / 1000 : fixes[k].dtArr;
   }
-  return { name: 'fieldlog', hz: 0, fixes: fixes, truth: null, imu: null };
+  const truthArr = fixes.map(function(f) { return f.tv; });
+  const hasTruth = truthArr.some(function(x) { return x !== null && isFinite(x); });
+  return { name: 'fieldlog', hz: 0, fixes: fixes, truth: hasTruth ? truthArr : null, imu: null };
 }
 
 // --- replay engine: fresh vm per scenario+body ---
@@ -457,12 +462,12 @@ function printReport(name, rep) {
 function dumpRun(sc, row) {
   if (!row.dump) { console.log('(no series)'); return; }
   const skip = sc.skip || 0;
-  console.log('fix | truth | est | flags | vMeas | kGain | innov | jump | maxPl | rawDt');
+  console.log('fix | truth | est | flags | vMeas | kGain | innov | jump | maxPl | rawDt | distM');
   for (let i = 0; i < row.dump.est.length; i++) {
     const t = row.dump.truth ? row.dump.truth[i].toFixed(2) : 'n/a';
     const le = (row.dump.log && row.dump.log[i] !== undefined) ? row.dump.log[i] : null;
     const fl = le ? le.fl : '-';
-    const extra = le ? (' | ' + le.vm + ' | ' + le.k + ' | ' + le.iv + ' | ' + le.jd + ' | ' + le.mp + ' | ' + le.rd) : '';
+    const extra = le ? (' | ' + le.vm + ' | ' + le.k + ' | ' + le.iv + ' | ' + le.jd + ' | ' + le.mp + ' | ' + le.rd + ' | ' + le.ds) : '';
     console.log((i < skip ? '*' : ' ') + i + ' | ' + t + ' | ' + row.dump.est[i].toFixed(3) + ' | ' + fl + extra);
   }
 }
