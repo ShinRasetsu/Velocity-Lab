@@ -122,6 +122,13 @@ async function appShellStrategy(event) {
         }
         return res;
     } catch {
+        // Offline navigation with a query (PWA shortcuts ?action=new/export):
+        // the query URL itself is never cached, but the shell is — serve it
+        // so shortcuts still boot offline instead of 503ing.
+        if (req.mode === 'navigate') {
+            const shell = await caches.match('./') || await caches.match('./index.html');
+            if (shell) return shell;
+        }
         return new Response('Offline', { status: 503, statusText: 'Offline' });
     }
 }

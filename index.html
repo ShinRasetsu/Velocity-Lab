@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-FIxUFIBM3zJQcm9qIy0pkbIyFbaKEe53CqTKJIhzwxY='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-eVqUXBhlNWRWABc81dbjrClaW5dLqf2W4yrYUJ1nBSg='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -1740,7 +1740,10 @@ let lastRenderTime  = performance.now();
         // ─── HELPERS ──────────────────────────────────────────────────────────────
         function setDOM(el, key, val, baseCls = null, dynCls = null) {
             if (!el) return;
-            if (String(prev[key]) !== String(val)) { 
+            // Strict compare: every call site passes a stable type per key
+            // (numbers for scores, strings for text), so no coercion is needed
+            // and the two String() allocs per call (~40/frame) are saved.
+            if (prev[key] !== val) { 
                 el.textContent = val; 
                 prev[key] = val; 
             }
@@ -1996,17 +1999,25 @@ let lastRenderTime  = performance.now();
         window.setLapLine = setLapLine;
         window.resetLaps = resetLaps;
         // Session trace: decimated speed/G ring, pushed per fix (never per frame).
+        // Draw throttled to 2 Hz: each draw scans the 1200-pt ring twice plus
+        // 2400 lineTo plus two clientWidth/Height layouts — at 10 Hz GPS that
+        // is 5x the cost for an invisible difference on a sparkline.
+        let lastTraceDrawMs = 0;
         function tracePush() {
             traceV.push(currentSpeedMs * MS_TO_KMPH);
             traceG.push(Math.hypot(fusedLatG, fusedLongG));
             if (traceV.length > TRACE_MAX) { traceV.shift(); traceG.shift(); }
-            drawTrace();
+            const nowT = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+            if (traceV.length < 3 || nowT - lastTraceDrawMs >= 500) { lastTraceDrawMs = nowT; drawTrace(); }
         }
         function drawTrace() {
+            // Length first: clientWidth/Height force layout — never pay it
+            // when there is nothing to draw (resets, empty sessions).
+            if (traceV.length < 2) return;
             const cv = dom.traceCanvas;
             if (!cv) return;
             const w = cv.clientWidth, h = cv.clientHeight;
-            if (!(w > 0 && h > 0) || traceV.length < 2) return;
+            if (!(w > 0 && h > 0)) return;
             const dpr = Math.min(2, window.devicePixelRatio || 1);
             if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
             const g2 = cv.getContext('2d');
@@ -2721,7 +2732,13 @@ let lastRenderTime  = performance.now();
             // Crossing gate (prev below 100): arming a stream already above 100
             // (mid-cruise boot at 150) would finish in a fix interval and
             // poison the t100200 best. NaN prev = rest unobserved = no arm.
-            if (timer100_200.state === T_IDLE && lastTimerSpeedKmh < 100.0 && speedKmh >= 100.0) {
+            // A stop aborts an in-progress run (matches 0-60/0-100/quarter:
+            // without this a braked-abort stays RUNNING with a stale start
+            // and the next launch measures parked time). DONE re-arms on stop.
+            if (stopped) {
+                if (timer100_200.state === T_RUNNING) timer100_200.state = T_IDLE;
+                else if (timer100_200.state === T_DONE) timer100_200.state = T_IDLE;
+            } else if (timer100_200.state === T_IDLE && lastTimerSpeedKmh < 100.0 && speedKmh >= 100.0) {
                 timer100_200.state = T_RUNNING;
                 const f = crossFraction(lastTimerSpeedKmh, speedKmh, 100.0);
                 timer100_200.start = f === null ? nowMs : lerp(lastTimerTimeMs, nowMs, f);
@@ -2732,8 +2749,6 @@ let lastRenderTime  = performance.now();
                 timer100_200.state = T_DONE; beep(880, 150);
                 setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple");
                 stateDirty = true;
-            } else if (timer100_200.state === T_DONE && stopped) {
-                timer100_200.state = T_IDLE;
             }
 
             // ── 1/4-mile (arms on launch from rest) ────────────────
@@ -3035,7 +3050,11 @@ let lastRenderTime  = performance.now();
             }
 
             if (gpsDt > 0) {
-                gpsHzSmooth += ((1.0 / gpsDt) - gpsHzSmooth) * 0.25;
+                // Rate from the TRUE interval (rawDt, stamp-corrected), not the
+                // clamped gpsDt: after a 30 s gap 1/5 s reads 0.2 Hz while the
+                // provider is really at ~0.03 Hz. Clamp at 30 s (idle wakeups).
+                const rateDt = (rawDt > 0 ? Math.min(rawDt, 30) : gpsDt);
+                gpsHzSmooth += ((1.0 / rateDt) - gpsHzSmooth) * 0.25;
                 setDOM(dom.updateRate, 'updateRate', "GPS: " + fmt1.format(gpsHzSmooth) + " HZ", "clr-blue neon-blue");
                 if (!usable) {
                     lastGpsLat = c.latitude;
@@ -3169,7 +3188,11 @@ let lastRenderTime  = performance.now();
                         if (trustSpeed) {
                             // Missing speedAccuracy (common on iOS) assumes an
                             // honest 1.0 m/s, not optimistic 0.5 — R stays real.
-                            const sa = (typeof speedAcc === 'number' && !isNaN(speedAcc)) ? speedAcc : 1.0;
+                            // Floored at 0.5: several providers emit exactly 0
+                            // for "unknown", which would otherwise drive R to
+                            // its minimum and let a bad Doppler yank the filter.
+                            const saRaw = (typeof speedAcc === 'number' && !isNaN(speedAcc)) ? speedAcc : 1.0;
+                            const sa = Math.max(0.5, saRaw);
                             // Doppler R also carries position accuracy: a 20 m
                             // fix with clean speedAccuracy must not yank like
                             // a 5 m fix — medium jumps pass the teleport gate.
@@ -4080,6 +4103,13 @@ let lastRenderTime  = performance.now();
                 if (Math.abs(distErr) > 40) displayDistanceM = distanceMeters;
                 else displayDistanceM += distErr * (1 - Math.exp(-dtSec * 0.9));
                 if (displayDistanceM < 0) displayDistanceM = 0;
+            } else if (imuCoast) {
+                // Tunnel coast: dead-reckon forward on the IMU-driven display
+                // speed. distanceMeters is frozen with no fixes, so there is
+                // nothing to correct toward — recovery snaps/lerps via the
+                // branch above. Without this the trip meter stalls in tunnels.
+                displayDistanceM += displaySpeedMs * dtSec;
+                if (displayDistanceM < 0) displayDistanceM = 0;
             } else {
                 const distErr = distanceMeters - displayDistanceM;
                 displayDistanceM += distErr * (1 - Math.exp(-dtSec * 0.5));
@@ -4225,6 +4255,11 @@ let lastRenderTime  = performance.now();
             try { localStorage.setItem(IOS_CHOICE_KEY, JSON.stringify({ s: v, t: Date.now() })); } catch (e) {}
         }
 
+        // In-flight iOS gate: boot + a manual re-ask racing would stack a
+        // second pair of once-listeners and a second timeout on the same
+        // buttons — the orphaned first pair fires on the next tap (double
+        // setIosChoice, double resolve). Coalesce onto one promise.
+        let iosMotionPending = null;
         async function requestIOSMotion(force) {
             if (typeof DeviceMotionEvent?.requestPermission !== 'function') return true;
             // Remember choice — GRANT persists, GPS-ONLY re-asks after 30 days.
@@ -4232,17 +4267,19 @@ let lastRenderTime  = performance.now();
             const priorChoice = getIosChoice();
             if (priorChoice === 'granted') return true;
             if (priorChoice === 'denied' && !force) return false;
-            
+            if (iosMotionPending) return iosMotionPending;
+
             // Don't block GPS — show gate but auto-dismiss quickly
             if (dom.iosGate) dom.iosGate.style.display = 'flex';
             
             // Return a promise that resolves when user acts or after short timeout.
             // A lapse is NOT a denial: only an explicit GPS-ONLY tap is stored,
             // so missing the gate never locks the user to GPS-only for 30 days.
-            return new Promise(resolve => {
+            iosMotionPending = new Promise(resolve => {
+                const done = (v) => { iosMotionPending = null; resolve(v); };
                 const timeout = setTimeout(() => {
                     if (dom.iosGate) dom.iosGate.style.display = 'none';
-                    resolve(false);
+                    done(false);
                 }, 3500);
                 
                 if (dom.iosGrantBtn) dom.iosGrantBtn.addEventListener('click', async () => {
@@ -4251,10 +4288,10 @@ let lastRenderTime  = performance.now();
                     try {
                         const ok = (await DeviceMotionEvent.requestPermission()) === 'granted';
                         try { setIosChoice(ok ? '1' : '0'); } catch(e) {}
-                        resolve(ok);
+                        done(ok);
                     } catch {
                         try { setIosChoice('0'); } catch(e2) {}
-                        resolve(false);
+                        done(false);
                     }
                 }, { once: true });
                 
@@ -4265,10 +4302,11 @@ let lastRenderTime  = performance.now();
                         clearTimeout(timeout);
                         if (dom.iosGate) dom.iosGate.style.display = 'none';
                         try { setIosChoice('0'); } catch(e) {}
-                        resolve(false);
+                        done(false);
                     }, { once: true });
                 }
             });
+            return iosMotionPending;
         }
 
         async function checkPermissionsAndInit() {
@@ -4384,8 +4422,9 @@ let lastRenderTime  = performance.now();
                 // OS owns screen brightness (no app-side boost/dim).
                 lcdTest.forEach(([el, v]) => { if (el) { el.textContent = v; } });
                 setTimeout(() => {
-                    // restore to live 0 state — fast self-test
-                    if (dom.distDisplay) { dom.distDisplay.textContent = fmt2.format(distanceMeters/1000) + ' KM'; dom.distDisplay.style.filter=''; }
+                    // restore to live 0 state — fast self-test (unit-aware: no
+                    // one-frame KM flicker on imperial; display mirror, not raw)
+                    if (dom.distDisplay) { dom.distDisplay.textContent = distU(displayDistanceM / 1000).toFixed(2) + ' ' + (unitMph ? 'MI' : 'KM'); dom.distDisplay.style.filter=''; }
                     if (dom.sessionTime) { dom.sessionTime.textContent = '00:00'; dom.sessionTime.style.filter=''; }
                     if (dom.liveLonG) { dom.liveLonG.textContent = '+0.00'; dom.liveLonG.style.filter=''; }
                     if (dom.liveLonGMax) { dom.liveLonGMax.textContent = '0.00'; dom.liveLonGMax.style.filter=''; }
@@ -4413,8 +4452,26 @@ let lastRenderTime  = performance.now();
                     if (dom.accuracy) { dom.accuracy.textContent = 'ACC -- M'; dom.accuracy.style.filter=''; }
                     if (dom.updateRate) { dom.updateRate.textContent = 'GPS 0.0 HZ'; dom.updateRate.style.filter=''; }
                     document.querySelectorAll('.metric-caption, .side-lbl, .t-lbl').forEach(el => el.style.filter = '');
-                    // restore prev caches so live updates repaint
-                    prev.speed=null; prev.displayMax=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLatG=null; prev.brakeLive=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null; prev.gRing=null; prev.live0_60Run=null; prev.live0_100Run=null; prev.live100_200Run=null; prev.liveQuarterRun=null; prev.live100_0Run=null;
+                    // restore prev caches so live updates repaint. Every key
+                    // written per-frame or per-fix is nulled — the self-test
+                    // above bypassed setDOM/prev, so any surviving cache would
+                    // suppress the rewrite and stick a self-test value (or a
+                    // clobbered "--" over a live RUNNING/DONE timer) forever.
+                    prev.speed=null; prev.speedBar=null; prev.ringDeg=null; prev.displayMax=null; prev.distKm=null; prev.sessClock=null; prev.liveLonG=null; prev.liveLonGMax=null; prev.liveLonGMaxNum=null; prev.liveLatG=null; prev.liveLatGMax=null; prev.liveLatGMaxNum=null; prev.brakeLive=null; prev.brakeLiveMax=null; prev.gMagnitudeArc=null; prev.peakG=null; prev.brakeScore=null; prev.peakLatGMetric=null; prev.peakLonGMetric=null; prev.vTot=-1; prev.vSpd=-1; prev.vAcc=-1; prev.vBrk=-1; prev.vHdl=-1; prev.glitchN=-1; prev.accuracy=null; prev.updateRate=null; prev.gRing=null; prev.peakDeg=null; prev.bestDeg=null;
+                    prev.t0_60=null; prev.t0_100=null; prev.t100_200=null; prev.tQuarter=null; prev.t100_0=null;
+                    prev.live0_60=null; prev.live0_100=null; prev.live100_200=null; prev.liveQuarter=null; prev.live100_0=null;
+                    prev.live0_60Run=null; prev.live0_100Run=null; prev.live100_200Run=null; prev.liveQuarterRun=null; prev.live100_0Run=null;
+                    // A fix that landed mid-test armed/completed a timer while
+                    // "--" was on screen: re-render DONE results from state
+                    // (RUNNING repaints next frame via updateLiveSprint).
+                    try {
+                        if (timer0_60.state === T_DONE && timer0_60.result > 0) setDOM(dom.t0_60, 't0_60', fmt3.format(timer0_60.result / 1000) + " s", CLS_TIMER_BASE, "text-orange-400 neon-orange");
+                        if (timer0_100.state === T_DONE && timer0_100.result > 0) setDOM(dom.t0_100, 't0_100', fmt3.format(timer0_100.result / 1000) + " s", CLS_TIMER_BASE, "clr-blue neon-blue");
+                        if (timer100_200.state === T_DONE && timer100_200.result > 0) setDOM(dom.t100_200, 't100_200', fmt3.format(timer100_200.result / 1000) + " s", CLS_TIMER_BASE, "clr-purple neon-purple");
+                        if (timerQuarter.state === T_DONE && timerQuarter.result > 0) setDOM(dom.tQuarter, 'tQuarter', fmt3.format(timerQuarter.result / 1000) + " s", CLS_TIMER_BASE, "text-yellow-400 neon-warning");
+                        if (timer100_0.state === T_DONE && timer100_0.result > 0) setDOM(dom.t100_0, 't100_0', fmt1.format(Math.max(0, timer100_0.result)) + " m", "text-sm font-bold lcd-text ", "text-red-400 neon-danger");
+                        refreshTimerCards();
+                    } catch (eRT) {}
                 }, 450);
                 } // end boot self-test demo (skipped under prefers-reduced-motion)
             }, 20);
