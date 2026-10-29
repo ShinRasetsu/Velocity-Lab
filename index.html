@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRP7X8dNVDK7qeobF4qLffe8Dw6Keia73fbMuIQ+4aI='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-E+FZZqya7/SSiL5/ibA9oT5kSoNvd/JvaZDKtEZys6s='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -1902,7 +1902,7 @@ let lastRenderTime  = performance.now();
             prev.speed = null; prev.displayMax = null; prev.speedBar = null; prev.ringDeg = null; prev.distKm = null; prev.peakDeg = null;
             wakeRenderLoop();
         }
-        function toggleDiag() { diagOpen = !diagOpen; saveUiPrefs(); applyUiModes(); try { requestFit(); } catch (eRF) {} }
+        function toggleDiag() { diagOpen = !diagOpen; saveUiPrefs(); applyUiModes(); try { if (requestFit) requestFit(); } catch (eRF) {} }
         function toggleMute() { muted = !muted; saveUiPrefs(); applyUiModes(); }
         function cycleRedline() {
             const steps = [200, 80, 100, 120, 140, 160];
@@ -4469,6 +4469,12 @@ let lastRenderTime  = performance.now();
         // boot exact-solve must measure final geometry before first paint,
         // or every boot starts small and rescales mid-boot. Skipped entirely
         // without a real viewport (unit-test vm harness has no layout).
+        // Declared at script scope on purpose: toggleDiag (below) needs it, but
+        // the implementation lives in the DOM-guarded block where fitRaf and
+        // updateScale are. Assigned when that block runs, null otherwise — a
+        // block-scoped `function` here would only be reachable through
+        // sloppy-mode Annex B hoisting.
+        let requestFit = null;
         if (typeof window !== 'undefined' && typeof window.innerWidth === 'number' && typeof document !== 'undefined' && typeof document.querySelector === 'function') {
             // Auto-scale: uniform --ui = min(vw/390, vh/844), then exact-fit to
             // measured content (content scales ~linearly with --ui, so bounded
@@ -4796,7 +4802,7 @@ let lastRenderTime  = performance.now();
             // (event-driven, battery-free). RO width-feedback self-pumps to
             // the fixed point then goes quiet (recomputed uiStr identical).
             let fitRaf = 0;
-            function requestFit() {
+            requestFit = function () {
                 if (fitRaf) return;
                 fitRaf = requestAnimationFrame(function(){
                     fitRaf = 0;
