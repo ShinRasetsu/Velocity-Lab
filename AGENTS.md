@@ -37,15 +37,15 @@ Every live value at 60Hz, never GPS-rate stairs. See `.opencode/skills/perfectio
 3. If you touched `index.html`/`sw.js`/`manifest.json`, run perfection-auditor subagent.
 
 ## Hard Rules
-- Never assign `Geolocation.watchPosition` value directly to DOM. Use `display*` interpolator per frame (`index.html:2043`).
-- Speed: `Math.round(displaySpeedKmph)` integer 3-digit (0-999, no decimal) — `index.html:2043`; Bars: `.toFixed(1)` not `Math.round` (`index.html:2121`), `speed-bar` `transition:none` (`index.html:647`).
-- Distance/MAX must interpolate (`displayDistanceM:2039`, `displayMaxKmph:1967`), not raw.
-- Timers must use `crossFraction`/`lerp` sub-sample (`index.html:1505`), gated `conf>=GPS_QUALITY_MIN` (`index.html:1696`).
-- Speed estimator: Doppler trusted else `lsVelocity` 3 s/12 window (1/acc²) + 1D Kalman (adaptive `Q` `Q0 0.7 IMU / 2.2 GPS`, accuracy-weighted `R` `R_MAX 60`); NIS gate + slew-limit car-envelope (always advances), outlier-time (≥4 s) filtered-vMeas re-acquire (never raw single-delta), window eviction — no median buffer; IMU data older than 1 s never predicts, coasts, or tares.
+- Never assign `Geolocation.watchPosition` value directly to DOM. Use `display*` interpolator per frame (`index.html:3964`).
+- Speed: `Math.round(spdDisp)` integer 3-digit (0-999, no decimal) — `index.html:4023`; Bars: `.toFixed(1)` not `Math.round` (`index.html:4111-4113`), `speed-bar` `transition:none` (`index.html:785`).
+- Distance/MAX must interpolate (`displayDistanceM:4088`, `displayMaxKmph:4012`), not raw.
+- Timers must use `crossFraction`/`lerp` sub-sample (`index.html:2497`), gated `conf>=GPS_QUALITY_MIN` (`index.html:2942`, call `index.html:3407`).
+- Speed estimator: Doppler trusted else `lsFitCore`/`lsVelocity` 3 s/12 window (1/acc², recency-weighted) + 1D Kalman (adaptive `Q` `Q0 0.7 IMU / 2.2 GPS`, accuracy-weighted `R` `R_MAX 60`); NIS gate + slew-limit car-envelope (always advances), outlier-time (≥4 s) filtered-vMeas re-acquire (never raw single-delta), window eviction — no median buffer; IMU data older than 1 s never predicts, coasts, or tares. `lsFitCore` is the single weighted fit shared by the fix-window and drift-window consumers (`recency` flag) — never fork it again.
 - Weak fixes (`!trustSpeed && conf<MIN`) refresh anchor only — never speed/distance/fusion/heading; status tiers `FIX/WEAK/COAST/STALE`, IMU coasts <20 s with zero GPS correction; `lastUsableGpsTime` gates coast, held target bleeds after 10 s weak-only (never pins); gap quarantine holds speed one fix (Doppler bypasses).
 - Odometer is the 2nd Kalman state (`kalmanD`, cross-term `kalmanPVD`): dead-reckoned on the speed prediction, corrected by vetted position deltas (accuracy-weighted `R`, clamped); gap-spanning jumps take it whole (ground was covered, speed stays quarantined); weak/provider-hop holds never touch it (even filtered fractions rectify jitter into parked creep — replay-proven).
-- `prev` diff guard on every DOM write, `dtClamped 32` (`index.html:1921`), `will-change/contain` (`index.html:647`).
-- `prefers-reduced-motion` disables boot only, not telemetry (`index.html:897`).
+- `prev` diff guard on every DOM write, `dtClamped 32` (`index.html:3944`), `will-change/contain` (`index.html:392,791`).
+- `prefers-reduced-motion` disables boot only, not telemetry (`index.html:1079`).
 - CSP meta in `index.html` carries `'sha256-…'` hashes of inline scripts — after ANY script edit run `node tests/csp.test.js --fix` or the CSP gate fails.
 - Zero remote fetches: fonts are vendored in `fonts/` (no CDN). If a new external resource is ever added, CSP meta + `sw.js` CDN branch must be updated with it — default answer is: vendor it.
 

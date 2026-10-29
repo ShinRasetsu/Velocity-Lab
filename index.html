@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-eVqUXBhlNWRWABc81dbjrClaW5dLqf2W4yrYUJ1nBSg='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRP7X8dNVDK7qeobF4qLffe8Dw6Keia73fbMuIQ+4aI='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -2529,17 +2529,27 @@ let lastRenderTime  = performance.now();
         // Least-squares velocity vector over buffered anchors. Differencing
         // two noisy fixes amplifies position noise into speed noise; fitting
         // the lat/lon slope over the window is unbiased and far smoother.
-        // Anchors carry 1/acc² × recency weight: the fit tracks the present
-        // during maneuvers instead of lagging ~span/2.
-        // lsFit returns { v, lagSec }; lsVelocity keeps the scalar contract.
-        function lsFit(window_) {
+        // lsFitCore is the ONE weighted fit, shared by both consumers so a
+        // numerics fix can never land in one and miss the other:
+        //   recency=true  → exp() decay folded into the 1/acc² weight (fix
+        //                   window: tracks the present during maneuvers
+        //                   instead of lagging ~span/2).
+        //   recency=false → flat 1/acc² weight over the whole window (drift
+        //                   monitor: recency would bias a 30 s window to its
+        //                   last ~3 s and hide slow multipath drift).
+        // Anchors carry 1/acc² so a 100 m anchor emerging from a tunnel
+        // can't drag the slope fitted through 8 m anchors.
+        // Both modes are bit-identical to the original single-path fits:
+        // recency=false yields wBase verbatim, recency=true multiplies the
+        // same factors in the same order as the old inline expression.
+        // Wrappers keep the historical contracts: lsFit returns
+        // { v, lagSec }; lsVelocity/lsVelocityRaw keep the scalar contract.
+        function lsFitCore(window_, recency) {
             const n = window_.length;
             if (n < 2) return null;
             const tEnd = window_[n - 1].t;
             const span = tEnd - window_[0].t;
             if (!(span >= LS_MIN_SPAN_SEC)) return null;
-            // Weighted by 1/acc² so a 100 m anchor emerging from a tunnel
-            // can't drag the slope fitted through 8 m anchors.
             let wMax = 0;
             for (let j = 0; j < n; j++) {
                 const a = (typeof window_[j].acc === 'number' && window_[j].acc > 0) ? window_[j].acc : GPS_ACC_TRUST_MAX_M;
@@ -2551,7 +2561,8 @@ let lastRenderTime  = performance.now();
             const t0 = window_[0].t;
             for (let i = 0; i < n; i++) {
                 const a = (typeof window_[i].acc === 'number' && window_[i].acc > 0) ? window_[i].acc : GPS_ACC_TRUST_MAX_M;
-                const w = ((1 / (a * a)) / wMax) * Math.exp(-(tEnd - window_[i].t) / LS_RECENCY_TAU_SEC);
+                const wBase = (1 / (a * a)) / wMax;
+                const w = recency ? wBase * Math.exp(-(tEnd - window_[i].t) / LS_RECENCY_TAU_SEC) : wBase;
                 const t = window_[i].t - t0;
                 sw += w; sumT += w * t; sumT2 += w * t * t;
                 sumLat += w * window_[i].lat; sumLon += w * window_[i].lon;
@@ -2573,8 +2584,12 @@ let lastRenderTime  = performance.now();
             return { v: spd, lagSec: lagSec };
         }
 
+        function lsFit(window_) {
+            return lsFitCore(window_, true);
+        }
+
         function lsVelocity(window_) {
-            const f = lsFit(window_);
+            const f = lsFitCore(window_, true);
             return f ? f.v : null;
         }
         // Median recent |innovation|: robust maneuver level. Lone spikes
@@ -2588,36 +2603,8 @@ let lastRenderTime  = performance.now();
         // Raw LS without recency — for 30 s drift honesty. Recency would bias
         // the long window to the last ~3 s and hide slow drift.
         function lsVelocityRaw(window_) {
-            const n = window_.length;
-            if (n < 2) return null;
-            const span = window_[n - 1].t - window_[0].t;
-            if (!(span >= LS_MIN_SPAN_SEC)) return null;
-            let wMax = 0;
-            for (let j = 0; j < n; j++) {
-                const a = (typeof window_[j].acc === 'number' && window_[j].acc > 0) ? window_[j].acc : GPS_ACC_TRUST_MAX_M;
-                const wj = 1 / (a * a);
-                if (wj > wMax) wMax = wj;
-            }
-            if (!(wMax > 0)) return null;
-            let sw = 0, sumT = 0, sumT2 = 0, sumLat = 0, sumLon = 0, sumTLat = 0, sumTLon = 0;
-            const t0 = window_[0].t;
-            for (let i = 0; i < n; i++) {
-                const a = (typeof window_[i].acc === 'number' && window_[i].acc > 0) ? window_[i].acc : GPS_ACC_TRUST_MAX_M;
-                const w = (1 / (a * a)) / wMax;
-                const t = window_[i].t - t0;
-                sw += w; sumT += w * t; sumT2 += w * t * t;
-                sumLat += w * window_[i].lat; sumLon += w * window_[i].lon;
-                sumTLat += w * t * window_[i].lat; sumTLon += w * t * window_[i].lon;
-            }
-            const den = sw * sumT2 - sumT * sumT;
-            if (!(den > 1e-9)) return null;
-            const dLat = (sw * sumTLat - sumT * sumLat) / den;
-            const dLon = (sw * sumTLon - sumT * sumLon) / den;
-            const latR = window_[n - 1].lat * Math.PI / 180;
-            const vx = dLon * Math.PI / 180 * 6371000 * Math.cos(latR);
-            const vy = dLat * Math.PI / 180 * 6371000;
-            const spd = Math.hypot(vx, vy);
-            return isFinite(spd) ? spd : null;
+            const f = lsFitCore(window_, false);
+            return f ? f.v : null;
         }
 
         // Arc (chord-vs-path) correction for the LS slope: fitting a line

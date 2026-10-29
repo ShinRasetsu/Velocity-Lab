@@ -544,6 +544,17 @@ var __vU = lsVelocity(__win([0, 1, 2, 3], [0, 30, 60, 160], [5, 5, 5, 5]));
 __ok('lsVelocity: 1/acc^2 discount keeps slope on clean line (~30)', __vW !== null && Math.abs(__vW - 30) < 5, 'weighted=' + __vW);
 __ok('lsVelocity: unweighted 100m outlier drags slope (proves the weight)', __vU !== null && Math.abs(__vU - 30) > 15, 'uniform=' + __vU);
 
+// --- lsVelocityRaw: the no-recency twin (drift-monitor path) ---
+// Flat 1/acc^2 over the same anchors: a line is still exact, but an
+// end-loaded window reads the window average instead of the present. The
+// twins MUST disagree — that disagreement is the drift monitor's eye.
+__ok('lsVelocityRaw: straight line still ~20 (flat weights fit a line exactly)', Math.abs(lsVelocityRaw(__win([0, 1, 2, 3], [0, 20, 40, 60], [5, 5, 5, 5])) - 20) < 0.05, '');
+var __endLoad = __win([0, 1, 2, 3, 4], [0, 10, 20, 50, 100], [5, 5, 5, 5, 5]);
+__ok('lsVelocityRaw: end-loaded window fits FLAT 24 (no recency bias)', Math.abs(lsVelocityRaw(__endLoad) - 24) < 0.1, 'got ' + lsVelocityRaw(__endLoad));
+__ok('lsVelocity: end-loaded window fits RECENT 31.2 (twins must differ)', Math.abs(lsVelocity(__endLoad) - 31.2266) < 0.05, 'got ' + lsVelocity(__endLoad));
+__ok('lsVelocityRaw: 1/acc^2 discount survives the shared core (~30)', Math.abs(lsVelocityRaw(__win([0, 1, 2, 3], [0, 30, 60, 160], [5, 5, 5, 100])) - 30) < 5, '');
+__ok('lsVelocityRaw: unweighted 100m outlier drags slope (proves the weight)', Math.abs(lsVelocityRaw(__win([0, 1, 2, 3], [0, 30, 60, 160], [5, 5, 5, 5])) - 30) > 15, '');
+
 // --- Kalman: constant-speed convergence + NIS outlier spike rejection ---
 __resetEst();
 onPositionSuccess(__coords(0, 1));      // seed stationary

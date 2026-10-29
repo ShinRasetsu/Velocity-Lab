@@ -10,6 +10,10 @@
  * script-src hash-only: no inline event-handler attributes, no
  * 'unsafe-inline'/'unsafe-eval'.
  *
+ * Also guards release consistency: the VER string appears twice in
+ * index.html and must match sw.js's CACHE_VERSION suffix (see the block
+ * before the verdict).
+ *
  * Hash note: browsers hash the script's DOM text content, which the HTML
  * parser newline-normalizes (CRLF/CR -> LF) before it reaches the DOM.
  * We normalize the same way so the stamp is correct on both CRLF and LF
@@ -114,6 +118,33 @@ if (fix) {
   if (metaMatch && !/font-src 'self'/.test(metaMatch[1])) {
     ok = fail("CSP font-src is not 'self' — fonts are vendored locally") && false;
   } else if (metaMatch) pass("font-src locked to 'self' (vendored fonts)");
+}
+
+// --- Version consistency: one release number, three hand-maintained spots ---
+// index.html renders VER twice (#app-version + hazard footer) and sw.js
+// carries CACHE_VERSION. Shipping a new index.html without a CACHE_VERSION
+// bump means the browser never picks up the new sw.js, so returning users
+// stay on stale app code — the classic PWA trap. Fail loudly instead.
+const SW = path.join(__dirname, "..", "sw.js");
+const swText = fs.existsSync(SW) ? fs.readFileSync(SW, "utf8") : "";
+const verRe = /VER (\d+\.\d+\.\d+)/g;
+const verFound = [];
+while ((m = verRe.exec(text)) !== null) verFound.push(m[1]);
+
+if (verFound.length === 0) {
+  ok = fail("index.html: no `VER x.y.z` found — version tag missing?") && false;
+} else {
+  const ver = verFound[0];
+  if (!verFound.every(v => v === ver)) {
+    ok = fail(`index.html: VER strings disagree (${verFound.join(" vs ")}) — one release number everywhere`) && false;
+  } else pass(`index.html VER consistent (${ver})`);
+
+  const cacheMatch = swText.match(/CACHE_VERSION\s*=\s*['"]velocity-lab-v(\d+\.\d+\.\d+)['"]/);
+  if (!cacheMatch) {
+    ok = fail("sw.js: CACHE_VERSION missing or not 'velocity-lab-vX.Y.Z' — keep the cache version in step with the UI") && false;
+  } else if (cacheMatch[1] !== ver) {
+    ok = fail(`sw.js CACHE_VERSION v${cacheMatch[1]} != UI VER ${ver} — bump sw.js on every app release or returning users keep stale code`) && false;
+  } else pass(`sw.js CACHE_VERSION in step (v${cacheMatch[1]})`);
 }
 
 // --- Verdict ---
