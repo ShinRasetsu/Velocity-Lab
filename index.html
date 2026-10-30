@@ -235,8 +235,14 @@
            The 430×ui cap is for portrait tablets / desktop-portrait windows
            only (a stretched phone grid reads sparse there). Short-aspect
            phones (16:9/18:9, display-zoomed) hit the cap 15-35px narrow and
-           left visible side voids — the whole screen belongs to the HUD. */
-        @media (max-width: 479px) {
+           left visible side voids — the whole screen belongs to the HUD.
+           The band must reach 599px, not 479: portrait 480-599 devices
+           (480x800 display-zoomed, 540x720 Surface Duo) fell off the rule and
+           got the capped column — 64-112px voids per side and a tall, narrow
+           HUD floating mid-screen. 599 aligns with the 600px landscape
+           breakpoint, so phone-class portrait goes edge-to-edge while
+           tablets keep the deliberate cap. */
+        @media (max-width: 599px) {
             .dashboard-shell { max-width: 100%; }
         }
         /* Hide max cards to prevent layout shift (all viewports) */
@@ -1187,7 +1193,7 @@ body.diag-open #diag-toggle { opacity: 1; }
                 <span class="hazard-right">GLITCH FILTER: <span id="glitch-count">0</span></span>
                 <button id="redline-btn" class="action-btn gap-1 neon-orange" aria-label="Overspeed warning" title="Overspeed warning">RL OFF</button>
                 <button id="mute-btn" class="action-btn gap-1 neon-blue" aria-label="Sound on off" title="Sound">🔔</button>
-                <div id="app-version" class="version-tag">VER 1.5.9 — Velocity-Lab <span id="scale-debug"></span></div>
+                <div id="app-version" class="version-tag">VER 1.5.10 — Velocity-Lab <span id="scale-debug"></span></div>
         </div>
     </header>
 
@@ -1322,7 +1328,7 @@ body.diag-open #diag-toggle { opacity: 1; }
 
     <!-- HAZARD STRIP -->
     <footer class="hazard-strip">
-        <span>VL-CORE // GNSS+IMU FUSION ONLINE // <span class="hazard-right">VER 1.5.9</span></span>
+        <span>VL-CORE // GNSS+IMU FUSION ONLINE // <span class="hazard-right">VER 1.5.10</span></span>
     </footer>
 </div>
 
