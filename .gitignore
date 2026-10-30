@@ -1,6 +1,11 @@
 deploy.bat
 temp.html
 
+# dev dependencies are not deploy payload — they were tracked by accident
+# (no node_modules rule here at all) and 180 files / 17.7 MB shipped to the
+# public repo. Local copies stay on disk so tests still run.
+node_modules/
+
 .playwright-mcp/
 
 audit-*.png
