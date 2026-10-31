@@ -105,6 +105,9 @@ Even if 0-8 PASS, auditor must suggest 2-3 lively/sharp/contrast wins: e.g., `sc
 - **Features/UI:** timer ghost best (`index.html:1114` — done `BEST_KEY`), text-scale fully auto via media (`index.html:133` — button removed), landscape grid (done `orientation: landscape`), iOS re-ask expiry (`index.html:2216`), `manifest.json` shortcuts/share_target, HIG 44pt touch (`index.html:44`)
 - Rank every item `P0 (bug/risk) / P1 (real win) / P2 (polish)` with `impact` + `effort Low/Med` + `file:line`. Skip items already implemented; never re-suggest done work.
 
+**Vetoed — do not re-suggest (decided by the owner):**
+- The 4-quadrant `.g-force-ring` at `index.html:497-505` stays `display: none`. It is fully wired (CSS vars, boot spring, `renderLoop` writes at `index.html:4057`) and would be the biggest single visual win, but it was hidden by explicit request and then re-vetoed when re-raised — the phrase "until re-enabled" in the CSS comment does not make it an open decision. Do not propose re-enabling it, gated or otherwise, in any Gate 9 output or audit recommendation.
+
 ## Self-check — why stairs missed
 - Only `tests/tests.py:116` pure functions, no `renderLoop` fluidity sim
 - No lint for `Math.round` bars, `distanceMeters` direct, `75ms` transition

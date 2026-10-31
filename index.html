@@ -502,7 +502,10 @@
             z-index: 2;
             overflow: visible;
             contain: paint; transform: translateZ(0);
-            /* Hidden per request — was solid red, now 4-part hidden until re-enabled */
+            /* Hidden per owner request — VETOED for re-enabling. It was solid
+               red, then rebuilt as the 4-part arc, then hidden again and the
+               re-enable was vetoed outright. Fully wired and inert: don't
+               propose turning it back on. */
             display: none;
             /* 4-part G-Force Ring: Front(Top) Back(Bottom) Left/Right — RED base for ID */
             border: none;
