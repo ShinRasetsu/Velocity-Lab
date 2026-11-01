@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kfldsQPg5rg99eF7VEdvZjWEfF73azTTn1LWsZlio70='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-qq8m7lQWtfAjxU+j9+XbXl3mTYDgQ6sZO8Dx//yxMJM='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Velocity-Lab Telemetry</title>
     <meta name="description" content="High-fidelity kinematic GNSS and IMU dashboard for track telemetry.">
@@ -1226,10 +1226,13 @@ body.diag-open #diag-toggle { opacity: 1; }
             <div class="side-cell">
                 <span class="side-lbl">走行距離 // DIST</span>
                 <span id="dist-display" class="side-val lcd-text text-white">0.00 KM</span>
+                <span id="elev-gain-inline" style="display:inline-block;font-size:0.65rem;color:#7d8590;margin-left:0.3rem;">ELEV 0 M</span>
             </div>
-<div class="side-cell">
+        <div class="side-cell">
                 <span class="side-lbl">計測時間 // SESSION</span>
                 <span id="session-time" class="side-val lcd-text text-white">00:00</span>
+                <span id="moving-time-inline" style="display:inline-block;font-size:0.65rem;color:#7d8590;margin-left:0.3rem;">MOV 00:00</span>
+                <span id="avg-speed-inline" style="display:inline-block;font-size:0.65rem;color:#7d8590;margin-left:0.3rem;">AVG 0 KM/H</span>
             </div>
         </aside>
 
@@ -1644,8 +1647,6 @@ let lastRenderTime  = performance.now();
         let fusedLongG        = 0.0;    
         let fusedLatG         = 0.0;    
         let gpsGlitchCount    = 0;      
-        let confidenceSum     = 0.0;    
-        let confidenceSamples = 0;      
         // Per-run average GPS accuracy (meters): lets users compare runs,
         // e.g. MAX 154 km/h @ 3 m vs MAX 200 km/h @ 100 m (latter less trusted).
         let runAccSum         = 0.0;
@@ -1725,6 +1726,12 @@ let lastRenderTime  = performance.now();
             driftAlert:   document.getElementById('drift-alert'),
             distDisplay:  document.getElementById('dist-display'),
             sessionTime:  document.getElementById('session-time'),
+            elevGainInline:  document.getElementById('elev-gain-inline'),
+            movingTimeInline: document.getElementById('moving-time-inline'),
+            avgSpeedInline: document.getElementById('avg-speed-inline'),
+            movingTime:   document.getElementById('moving-time'),
+            avgSpeed:     document.getElementById('avg-speed'),
+            elevGain:     document.getElementById('elev-gain'),
             brakeLive:    document.getElementById('brake-live'),
             accelFill:    document.getElementById('accel-fill'),
             brakeFill:    document.getElementById('brake-fill'),
@@ -1766,11 +1773,40 @@ let lastRenderTime  = performance.now();
             mountOn: null, driftOn: null, sigCls: null,
             bestDeg: null, sigLostAud: false,
             lapLive: null, lapLast: null, lapBest: null, lapCount: null,
-            cardSig: null
+            cardSig: null, movingClock: null, avgSpeed: null, elevGain: null
         };
+
+        // Reset every prev-diff cache key so all DOM writes re-emit on next frame.
+        // Used by resetRun / purgeData instead of duplicated inline lists.
+        function clearPrev() {
+            prev.speed = null; prev.speedBar = null; prev.ringDeg = null; prev.displayMax = null; prev.runAccuracy = null;
+            prev.peakG = null; prev.t0_60 = null; prev.t0_100 = null; prev.t100_200 = null; prev.tQuarter = null; prev.t100_0 = null;
+            prev.brakeScore = null; prev.updateRate = null; prev.status = null;
+            prev.vTot = -1; prev.vSpd = -1; prev.vAcc = -1; prev.vBrk = -1; prev.vHdl = -1;
+            prev.liveLatG = null; prev.liveLonG = null; prev.liveLatGMax = null; prev.liveLonGMax = null; prev.brakeLiveMax = null;
+            prev.gMagnitudeArc = null; prev.gBarForePos = 0; prev.gBarForeNeg = 0; prev.gBarRightPos = 0; prev.gBarRightNeg = 0;
+            prev.gBarAftPos = 0; prev.gBarAftNeg = 0; prev.gBarLeftPos = 0; prev.gBarLeftNeg = 0; prev.accuracy = null;
+            prev.distKm = null; prev.sessClock = null; prev.brakeLive = null;
+            prev.accelBar = null; prev.brakeBar = null; prev.latBar = null; prev.peakDeg = null;
+            prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
+            prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
+            prev.live0_60Run = null; prev.live0_100Run = null; prev.live100_200Run = null; prev.liveQuarterRun = null; prev.live100_0Run = null;
+            prev.gRing = null;
+            prev.mountOn = null; prev.driftOn = null; prev.sigCls = null;
+            prev.bestDeg = null; prev.sigLostAud = false;
+            prev.lapLive = null; prev.lapLast = null; prev.lapBest = null; prev.lapCount = null;
+            prev.cardSig = null; prev.movingClock = null; prev.avgSpeed = null; prev.elevGain = null;
+            prev.mountAlert = null; prev.driftAlert = null; prev.retryVisible = null;
+        }
 
         // Session clock anchor: set when tracking initialises.
         let sessionStartMs = -1;
+        // Moving-time anchor: only accrues while the car is actually moving.
+        let movingStartMs = -1;
+        let movingTimeMs = 0;
+        // Elevation: cumulative gain from GPS altitude diffs.
+        let lastElevM = null;
+        let elevGainM = 0;
 
 
         // ─── HELPERS ──────────────────────────────────────────────────────────────
@@ -2178,6 +2214,10 @@ let lastRenderTime  = performance.now();
             lastGpsLat = undefined;
             lastGpsLon = undefined;
             lastImuTime = 0;
+            lastElevM = null;
+            elevGainM = 0;
+            movingStartMs = -1;
+            movingTimeMs = 0;
             // purgeData also clears the stuck-sensor latch timer; leaving it
             // here let a near-threshold zero-count bleed across RESET RUN and
             // read the fresh session as a DEAD mount.
@@ -2203,23 +2243,11 @@ let lastRenderTime  = performance.now();
             uiLatG             = 0.0;
 
             gpsGlitchCount    = 0;
-            confidenceSum     = 0.0;
-            confidenceSamples = 0;
             runAccSum         = 0.0;
             runAccN           = 0;
 
-            prev.peakG      = null;
-            prev.brakeScore = null;
-            prev.liveLatG  = null;
-            prev.liveLonG  = null;
-
-            // invalidate Gundam HUD prev-diffs so counters re-render from zero
-            prev.distKm = null; prev.brakeLive = null;
-            prev.accelBar = null; prev.brakeBar = null; prev.latBar = null; prev.peakDeg = null;
-            prev.peakLatGMetric = null; prev.peakLonGMetric = null; prev.glitchN = -1;
-            prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
-            prev.live0_60Run = null; prev.live0_100Run = null; prev.live100_200Run = null; prev.liveQuarterRun = null; prev.live100_0Run = null;
-            prev.gRing = null;
+            // Invalidate every prev-diff cache so all DOM writes re-emit from zero.
+            clearPrev();
 
             timer0_60.state = T_IDLE; timer0_60.result = 0;
             timer0_100.state = T_IDLE; timer0_100.result = 0;
@@ -3020,14 +3048,20 @@ let lastRenderTime  = performance.now();
             const altAcc = (typeof c.altitudeAccuracy === 'number' && !isNaN(c.altitudeAccuracy)) ? c.altitudeAccuracy : null;
             const conf = gpsConfidence(acc, altAcc);   // 0..1 GPS quality
             lastGpsConfidence  = conf;
-            confidenceSum     += conf;
-            confidenceSamples  += 1;
             // Only real accuracy readings count toward the run average; a
             // missing-accuracy provider (999 fallback) must not poison it.
             if (typeof c.accuracy === 'number' && isFinite(c.accuracy) && c.accuracy >= 0) {
                 runAccSum += c.accuracy;
                 runAccN   += 1;
             }
+            // Elevation gain: accumulate positive GPS altitude diffs.
+            // Requires a live altitude reading and a previous anchor to diff against.
+            const elevM = typeof c.altitude === 'number' && isFinite(c.altitude) ? c.altitude : null;
+            if (elevM !== null && lastElevM !== null) {
+                const dElev = elevM - lastElevM;
+                if (dElev > 0 && dElev < 50) elevGainM += dElev; // clamp to ignore spikes
+            }
+            lastElevM = elevM;
 
             // Weak-fix gate: at 200 m accuracy the Haversine delta between two
             // noisy anchors is garbage speed/G. Only trusted Doppler speed or
@@ -3725,29 +3759,35 @@ let lastRenderTime  = performance.now();
                 nisEma = 1.0; zuptStillMs = 0; stopStillN = 0; stopLatched = false;
                 driftWindow = []; driftBad = false; driftBadT0 = 0; driftOkT0 = 0; driftDismissed = false; lastAcc = null;
                 lastUsableGpsTime = -1;
-                prev.peakG = null; prev.brakeScore = null; prev.displayMax = null;
-                prev.peakLatGMetric = null; prev.peakLonGMetric = null;
+                clearPrev();
                 // Reset session clock
                 sessionStartMs = performance.now();
                 if (dom.sessionTime) dom.sessionTime.textContent = "00:00";
                 prev.sessClock = null;
+                if (dom.movingTimeInline) dom.movingTimeInline.textContent = "MOV 00:00";
+                if (dom.avgSpeedInline) dom.avgSpeedInline.textContent = "AVG 0 KM/H";
+                if (dom.elevGainInline) dom.elevGainInline.textContent = "ELEV 0 M";
+                // Reset moving time
+                movingStartMs = -1; movingTimeMs = 0;
+                if (dom.movingTime) dom.movingTime.textContent = "00:00";
+                // Reset average speed
+                if (dom.avgSpeed) dom.avgSpeed.textContent = "AVG: 0 KM/H";
+                // Reset elevation gain
+                lastElevM = null; elevGainM = 0;
+                if (dom.elevGain) dom.elevGain.textContent = "ELEV: 0 M";
                 // Reset distance
                 distanceMeters = 0; displayDistanceM = 0;
                 kalmanD = 0; measDistM = 0; kalmanPVD = 0; kalmanPDD = 1;
                 if (dom.distDisplay) dom.distDisplay.textContent = "0.00 KM";
-                prev.distKm = null;
                 // Reset speed and G
                 currentSpeedMs = 0.0;
                 displaySpeedMs = 0.0;
                 fusedLongG = 0.0; fusedLatG = 0.0; uiLongG = 0.0; uiLatG = 0.0;
                 prevGpsSpeedMs = 0.0;
                 if (dom.speed) dom.speed.textContent = "0";
-                prev.speed = null;
                 if (dom.speedBar) dom.speedBar.style.width = "0%";
-                prev.speedBar = null;
                 if (dom.ring && dom.ring.style && dom.ring.style.setProperty) dom.ring.style.setProperty('--deg', '0deg');
                 else if (dom.ring && dom.ring.style) dom.ring.style.width = "0%";
-                prev.ringDeg = null;
                 // Reset GPS position tracking but keep FIX status (don't reset lastGpsTime so we stay in FIX)
                 lastGpsLat = undefined;
                 lastGpsLon = undefined;
@@ -3773,17 +3813,13 @@ let lastRenderTime  = performance.now();
                 if (dom.accelFill) dom.accelFill.style.width = "0%";
                 if (dom.brakeFill) dom.brakeFill.style.width = "0%";
                 if (dom.latFill) dom.latFill.style.width = "0%";
-                prev.accelBar = null; prev.brakeBar = null; prev.latBar = null;
                 if (dom.liveLatG) dom.liveLatG.textContent = "0.00";
                 if (dom.liveLonG) dom.liveLonG.textContent = "+0.00";
                 if (dom.brakeLive) dom.brakeLive.textContent = "0.00";
-                prev.liveLatG = null; prev.liveLonG = null; prev.brakeLive = null;
                 if (dom.liveLatGMax) dom.liveLatGMax.textContent = "0.00";
                 if (dom.liveLonGMax) dom.liveLonGMax.textContent = "0.00";
                 if (dom.brakeLiveMax) dom.brakeLiveMax.textContent = "0.00";
-                prev.liveLatGMax = null; prev.liveLonGMax = null; prev.brakeLiveMax = null;
                 if (dom.gMagnitudeArc) dom.gMagnitudeArc.textContent = "G: 0.00";
-                prev.gMagnitudeArc = null;
                 // Reset sprint DOM
                 if (dom.t0_60) setDOM(dom.t0_60, 't0_60', "--.--- s", CLS_TIMER_BASE, "text-orange-400");
                 if (dom.t0_100) setDOM(dom.t0_100, 't0_100', "--.--- s", CLS_TIMER_BASE, "clr-blue");
@@ -3792,9 +3828,6 @@ let lastRenderTime  = performance.now();
                 if (dom.t100_0) setDOM(dom.t100_0, 't100_0', "-- m", "text-sm font-bold lcd-text ", "text-gray-400");
                 if (dom.peakG) setDOM(dom.peakG, 'peakG', "0.00 G");
                 if (dom.brakeScore) setDOM(dom.brakeScore, 'brakeScore', "0.00 G");
-                prev.live0_60 = null; prev.live0_100 = null; prev.live100_200 = null; prev.liveQuarter = null; prev.live100_0 = null;
-                prev.live0_60Run = null; prev.live0_100Run = null; prev.live100_200Run = null; prev.liveQuarterRun = null; prev.live100_0Run = null;
-                prev.gRing = null;
                 updateLiveSprint(dom.t0_60, 'live0_60', timer0_60, performance.now());
                 updateLiveSprint(dom.t0_100, 'live0_100', timer0_100, performance.now());
                 updateLiveSprint(dom.t100_200, 'live100_200', timer100_200, performance.now());
@@ -3806,16 +3839,12 @@ let lastRenderTime  = performance.now();
                 if (dom.maxSpeedGauge) dom.maxSpeedGauge.textContent = "MAX: 0.0";
                 // Reset peak marker
                 if (dom.peakMarker) { dom.peakMarker.style.transform = "rotate(0deg)"; dom.peakMarker.classList.remove('peak-pulse'); }
-                prev.peakDeg = null;
                 // Reset best marker
                 if (dom.bestMarker) { dom.bestMarker.style.transform = "rotate(0deg)"; dom.bestMarker.classList.remove('visible'); }
-                prev.bestDeg = null;
                 // Reset glitch count
                 gpsGlitchCount = 0;
-                confidenceSum = 0; confidenceSamples = 0;
                 runAccSum = 0; runAccN = 0;
                 if (dom.glitchCount) dom.glitchCount.textContent = "0";
-                prev.glitchN = -1;
                 // Reset localStorage (session + all-time bests + retired text-scale pref)
                 purgeStamp = performance.now();
                 try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
@@ -4197,11 +4226,25 @@ let lastRenderTime  = performance.now();
             }
 
             // ── Gundam HUD live telemetry ─────────────────────────────────────
-            // Session clock (mm:ss since tracking init)
+            // Session clock (mm:ss since tracking init) + moving time (only while moving)
             if (sessionStartMs >= 0) {
                 const sess = Math.max(0, Math.floor((now - sessionStartMs) / 1000));
                 const sessStr = String(Math.floor(sess / 60)).padStart(2, "0") + ":" + String(sess % 60).padStart(2, "0");
                 if (prev.sessClock !== sessStr) { if (dom.sessionTime) dom.sessionTime.textContent = sessStr; prev.sessClock = sessStr; }
+                const moving = displaySpeedMs > 0.5;
+                if (moving && movingStartMs < 0) movingStartMs = now;
+                if (!moving && movingStartMs >= 0) { movingTimeMs += now - movingStartMs; movingStartMs = -1; }
+                const movTotal = movingTimeMs + (moving && movingStartMs >= 0 ? now - movingStartMs : 0);
+                const movS = Math.max(0, Math.floor(movTotal / 1000));
+                const movStr = String(Math.floor(movS / 60)).padStart(2, "0") + ":" + String(movS % 60).padStart(2, "0");
+                if (prev.movingClock !== movStr) { if (dom.movingTimeInline) dom.movingTimeInline.textContent = "MOV " + movStr; prev.movingClock = movStr; }
+                // Average speed over moving time (never divide by zero).
+                const movSec = Math.max(movTotal / 1000, 0.001);
+                const avgKmph = (distanceMeters / movSec) * 3.6;
+                const avgStr = Math.round(avgKmph) + " KM/H";
+                if (prev.avgSpeed !== avgStr) { if (dom.avgSpeedInline) dom.avgSpeedInline.textContent = "AVG " + avgStr; prev.avgSpeed = avgStr; }
+                const elevStr = Math.round(elevGainM) + " M";
+                if (prev.elevGain !== elevStr) { if (dom.elevGainInline) dom.elevGainInline.textContent = "ELEV " + elevStr; prev.elevGain = elevStr; }
             }
 
             // Screen-reader speed summary: the visual readout updates at 60 Hz
